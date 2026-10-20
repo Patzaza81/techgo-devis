@@ -121,6 +121,58 @@ details{margin-top:8px}summary{color:var(--teal-d);font-weight:600;min-height:32
   table{page-break-inside:auto}tr{page-break-inside:avoid}
   th,.gt{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 }
+
+/* Refonte visuelle mobile TechGo — sans toucher aux calculs ni aux parcours */
+:root{--teal:#087f8c;--teal-d:#07515b;--gold:#f0b429;--ink:#142c33;--mut:#64777d;--line:#d9e5e7;--bg:#f2f7f7;--ok:#16804a;--warn:#a86405;--bad:#b83227;--card:#fff;--shadow:0 5px 18px rgba(15,53,61,.055)}
+body{font-size:15px;line-height:1.5;background:linear-gradient(180deg,#e7f2f3 0,#f5f8f8 230px,#f5f8f8 100%);padding-bottom:calc(84px + env(safe-area-inset-bottom))}
+header{background:linear-gradient(115deg,#063f49,#087f8c 72%,#1596a0);padding-left:18px;padding-right:18px;box-shadow:0 4px 18px rgba(5,55,63,.18)}
+header b{font-size:19px;letter-spacing:-.025em}header small{font-size:12px;letter-spacing:.02em}
+#hlogo{border-radius:12px;box-shadow:0 2px 8px #00384030}
+main{width:100%;max-width:640px;padding:18px 14px 24px}
+h2{font-size:23px;line-height:1.2;letter-spacing:-.035em;margin:8px 0 15px;color:#073f48}
+h3{font-size:12px;letter-spacing:.08em;margin:22px 0 9px;color:#3c6269}
+.card{border:1px solid #e0e9ea;border-radius:17px;padding:16px;margin-bottom:14px;box-shadow:var(--shadow)}
+label{font-size:12px;font-weight:700;letter-spacing:.01em;color:#52686e;margin:13px 0 6px}
+input,select,textarea{border:1px solid #cedcde;border-radius:11px;padding:12px 13px;background:#fbfdfd;color:#142c33;min-height:46px;box-shadow:inset 0 1px 1px #102f3605}
+input:focus,select:focus,textarea:focus{outline:3px solid #0b87951f;border-color:#087f8c;background:#fff}
+button,a.btn{border-radius:12px;font-size:14px;font-weight:750;letter-spacing:-.01em;transition:filter .15s,transform .15s}
+button{box-shadow:0 3px 8px #075a6814}
+button:active,a.btn:active{transform:translateY(1px)}
+button.sec,a.btn.sec{background:#fff;border-color:#cbdcde;color:#07515b;box-shadow:none}
+button.gold{background:#f0b429;border-color:#e6a91b;color:#342600}
+button:disabled{box-shadow:none}
+.row,.row3{gap:10px}
+.hint,.note{font-size:12px;line-height:1.55;color:#687b80}
+.empty{border:1px dashed #b9ced1;border-radius:16px;background:#fff;padding:22px 16px;line-height:1.55}
+.qcard{border:1px solid #dce7e8;border-radius:15px;padding:15px;margin-bottom:11px;box-shadow:var(--shadow);transition:border-color .15s}
+.qcard:active{border-color:#087f8c}
+.qtop b{font-size:14px;color:#07515b}.qbot{padding-top:9px;border-top:1px solid #edf1f2}
+.qbot>b{font-size:19px;letter-spacing:-.03em;color:#07515b}
+.badge{font-size:11px;letter-spacing:.01em;padding:4px 9px}
+.st{font-size:11px;padding:4px 9px}
+.total{border-radius:16px;padding:17px;background:linear-gradient(130deg,#064b55,#087f8c);box-shadow:0 7px 18px #075a6824}
+.total .big{font-size:25px;letter-spacing:-.035em}
+.seg{gap:7px}.seg button{border-radius:10px;border-color:#d4e1e3;min-width:0;padding:9px 8px}
+.seg button.on{background:#07515b;border-color:#07515b}
+.steps{gap:7px;padding:3px 1px 10px;scrollbar-width:thin}
+.steps a{border-radius:12px;padding:8px 11px;border-color:#dbe6e7;font-size:12px;box-shadow:0 2px 6px #143e4408}
+.steps a i{width:22px;height:22px;line-height:22px;font-weight:800}
+.steps a.on{background:#07515b;border-color:#07515b;box-shadow:0 3px 9px #07515b26}
+.banner{border-radius:12px;padding:12px 14px;line-height:1.5}
+.lcard{border-radius:12px;padding:13px;border-color:#dfe8e9}
+.lcard.warn{background:#fff9e9;border-color:#e4bc5d}
+nav{background:rgba(255,255,255,.97);backdrop-filter:blur(14px);border-top:1px solid #dbe5e6;box-shadow:0 -5px 18px #163c420d;padding-top:4px}
+nav button,nav a{font-size:10px;letter-spacing:-.015em;min-height:62px;padding-top:7px}
+nav button span,nav a span{font-size:20px;margin-bottom:2px}
+nav button.on,nav a.on{color:#07515b;box-shadow:inset 0 3px 0 #f0b429}
+table{font-size:13px}th{font-size:11px;letter-spacing:.02em;padding:10px 8px}td{padding:9px 8px}
+#doc{border-radius:10px;padding:18px;box-shadow:0 4px 16px #173d430c}
+#doc h1{letter-spacing:-.03em}
+details{border-top:1px solid #e7eeee;padding-top:7px}summary{padding:4px 0}
+a{overflow-wrap:anywhere}
+@media(max-width:380px){main{padding:14px 10px}.card{padding:13px}.row{gap:7px}button{padding:10px 11px}.steps a{padding:7px 9px}}
+@media(min-width:641px){main{padding-top:24px}}
+
 </style>
 </head>
 <body>
