@@ -1,4 +1,5 @@
 // Documents imprimables : devis client (depuis un instantané figé ou un brouillon) et facture de gestion.
+import { LOGO } from "./logo.js";
 export const esc = (x) => String(x ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 export const fmtN = (n) => (n === null || n === undefined ? "—" : Math.round(n).toLocaleString("fr-FR"));
 export const fmt = (n) => (n === null || n === undefined ? "—" : fmtN(n) + " FCFA");
@@ -56,7 +57,7 @@ function groupTable(lines) {
       `<tr class="sub"><td colspan="3">Sous-total — ${esc(g)}</td><td class="n">${fmtN(ls.reduce((a, l) => a + (l.total ?? 0), 0))}</td></tr>`;
   }).join("");
 }
-const head = (c) => `<div class="dochead"><div><b class="co">${esc(c.name)}</b><div class="note">${esc(c.tagline)}<br>${esc(c.address)}${c.phone ? " — Tél. " + esc(c.phone) : ""}<br>${c.whatsapp ? "WhatsApp " + esc(c.whatsapp) : ""}${c.web ? " — " + esc(c.web) : ""}</div></div></div>`;
+const head = (c) => `<div class="dochead"><div class="dl"><img class="dlogo" src="${LOGO}" alt=""><div><b class="co">${esc(c.name)}</b><div class="note">${esc(c.tagline)}<br>${esc(c.address)}${c.phone ? " — Tél. " + esc(c.phone) : ""}<br>${c.whatsapp ? "WhatsApp " + esc(c.whatsapp) : ""}${c.web ? " — " + esc(c.web) : ""}</div></div></div></div>`;
 
 /** snap = { quote, result, company, conditions, n, at, hash } ; draft = true si non figé */
 export function renderDoc(snap, { draft = false, ref = "" } = {}) {

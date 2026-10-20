@@ -1,5 +1,6 @@
 import * as S from "./store.js";
 import { CATS, PRICING, DECISION_TAGS, PACKS, scaffoldLines, referenceDraft } from "./packs.js";
+import { LOGO } from "./logo.js";
 import { esc, fmt, fmtN, frDate, renderDoc, renderInvoice, summaryText } from "./ui-doc.js";
 
 const $ = (s) => document.querySelector(s);
@@ -371,7 +372,7 @@ function render() {
   const tabs = [["devis", "Devis", "📄"], ["clients", "Clients", "👤"], ["catalogue", "Catalogue", "🧱"], ["suivi", "Suivi", "📊"], ["reglages", "Réglages", "⚙"]];
   $("#nav").innerHTML = tabs.map(([k, n, ic]) => `<a class="${tab === k ? "on" : ""}" href="#/${k}"><span>${ic}</span>${n}</a>`).join("");
   $("#hsub").textContent = (S.listWorkspaces().find((w) => w.id === S.state.ws) || {}).name || "";
-  $("#hname").textContent = db.company.name || "TechGo Devis";
+  $("#hname").textContent = "TechGo Devis"; $("#hlogo").src = LOGO;
 }
 function rerender(keepScroll = true) { const y = window.scrollY; render(); if (keepScroll) window.scrollTo(0, y); }
 

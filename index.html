@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="TechGo Devis">
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="apple-touch-icon" href="icon.svg">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <title>TechGo Devis</title>
 <style>
 :root{--teal:#0b7a8c;--teal-d:#075a68;--gold:#e0a100;--ink:#1d2b30;--mut:#5d6f75;--line:#dbe4e7;--bg:#f4f8f9;--ok:#1f8a4c;--warn:#b7791f;--bad:#c0392b;--card:#fff}
@@ -15,7 +15,7 @@
 html{-webkit-text-size-adjust:100%}
 body{margin:0;font:16px/1.45 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:var(--ink);background:var(--bg);padding-bottom:calc(76px + env(safe-area-inset-bottom))}
 header{background:var(--teal);color:#fff;padding:14px 16px;padding-top:calc(14px + env(safe-area-inset-top));position:sticky;top:0;z-index:5;display:flex;align-items:center;justify-content:space-between}
-header b{font-size:18px}header small{opacity:.85}
+header{justify-content:flex-start;gap:12px}#hlogo{background:#fff;border-radius:9px;padding:3px;flex:none}header b{font-size:18px}header small{opacity:.85}
 main{max-width:760px;margin:0 auto;padding:14px}
 h2{font-size:20px;margin:6px 0 12px;color:var(--teal-d)}
 h3{font-size:15px;margin:18px 0 8px;color:var(--teal-d);text-transform:uppercase;letter-spacing:.03em}
@@ -95,7 +95,7 @@ details{margin-top:8px}summary{color:var(--teal-d);font-weight:600;min-height:32
 /* document client */
 #doc{color:#111;font-size:14px}
 #doc .dochead{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;border-bottom:3px solid var(--teal);padding-bottom:10px}
-#doc .co{font-size:12px;color:var(--mut)}
+#doc .dl{display:flex;gap:12px;align-items:center}#doc .dlogo{width:56px;height:56px;flex:none}#doc .co{font-size:12px;color:var(--mut)}
 #doc .draftmark{display:inline-block;border:2px solid var(--bad);color:var(--bad);padding:2px 10px;font-weight:800;transform:rotate(-3deg);margin:6px 0}
 #doc .gl{font-size:15px;font-weight:700;color:var(--teal-d);margin:16px 0 6px;border-left:4px solid var(--teal);padding-left:8px}
 #doc .gl.gold{border-color:var(--gold)}
@@ -113,7 +113,7 @@ details{margin-top:8px}summary{color:var(--teal-d);font-weight:600;min-height:32
 </style>
 </head>
 <body>
-<header><div><b id="hname">TechGo Devis</b><br><small id="hsub"></small></div></header>
+<header><img id="hlogo" alt="" width="40" height="40"><div><b id="hname">TechGo Devis</b><br><small id="hsub"></small></div></header>
 <main id="app"></main>
 <nav id="nav"></nav>
 <script type="module" src="app.js"></script>
