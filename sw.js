@@ -1,6 +1,6 @@
 // Cache minimal : l'application s'ouvre même sans réseau. Les données restent dans le téléphone.
-const CACHE = "techgo-devis-v4";
-const FILES = ["./", "index.html", "app.js", "engine.js", "packs.js", "metiers/commun.js", "metiers/peinture.js", "metiers/carrelage.js", "metiers/maconnerie.js", "metiers/plomberie.js", "metiers/electricite.js", "store.js", "ui-doc.js", "logo.js", "manifest.webmanifest", "icon-192.png", "icon-512.png", "apple-touch-icon.png", "logo.js"];
+const CACHE = "techgo-devis-v5";
+const FILES = ["./", "index.html", "app.js", "engine.js", "packs.js", "metiers/commun.js", "metiers/peinture.js", "metiers/carrelage.js", "metiers/maconnerie.js", "metiers/plomberie.js", "metiers/electricite.js", "store.js", "ui-doc.js", "logo.js", "docx.js", "csv.js", "manifest.webmanifest", "icon-192.png", "icon-512.png", "apple-touch-icon.png", "logo.js"];
 self.addEventListener("install", (e) => e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES)).then(() => self.skipWaiting())));
 self.addEventListener("activate", (e) => e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim())));
 self.addEventListener("fetch", (e) => {

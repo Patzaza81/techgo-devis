@@ -1,0 +1,19 @@
+name: Tests de référence
+# Rejoue le devis TechGo DEV-2026-09-001 : un franc d'écart fait échouer le test. Tourne à chaque modification et chaque jour.
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: "17 5 * * *"
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node test.mjs
+      - run: node test-store.mjs
+      - run: node test-csv.mjs
+      - run: node test-docx.mjs /tmp/ref.docx

@@ -1,7 +1,9 @@
 import * as S from "./store.js";
-import { CATS, PRICING, DECISION_TAGS, PACKS, scaffoldLines, referenceDraft } from "./packs.js";
+import { CATS, PRICING, DECISION_TAGS, PACKS, scaffoldLines, referenceDraft, effSurface, surfaceSource } from "./packs.js";
+import { buildDocx, DOCX_MIME } from "./docx.js";
+import { analyseCsv, exportCatalogueCsv, templateCsv, exportRowsCsv } from "./csv.js";
 import { LOGO } from "./logo.js";
-import { esc, fmt, fmtN, frDate, renderDoc, renderInvoice, summaryText } from "./ui-doc.js";
+import { esc, fmt, fmtN, fmtD, frDate, renderDoc, renderInvoice, summaryText } from "./ui-doc.js";
 
 const $ = (s) => document.querySelector(s);
 const STEPS = ["Client & chantier", "Prestations", "Besoins", "Prix & conditions", "Contrôle", "Aperçu & envoi", "Versions & suivi"];
@@ -10,7 +12,7 @@ const STATE_LABEL = { complet: "Complet", verifier: "À vérifier", bloque: "Blo
 const EQUIP_CATS = ["equip_loue", "equip_possede"];
 
 const ui = {
-  qid: null, step: 0, view: "client", ver: null, flash: null, itemDraft: null, clientDraft: null, backup: null, invoice: null, wsNew: "",
+  qid: null, step: 0, view: "client", ver: null, flash: null, itemDraft: null, clientDraft: null, backup: null, invoice: null, wsNew: "", wsCopy: false, csv: null,
   f: { q: "", status: "", cat: "", pack: "", cl: "" },
   tmp: { addPrest: "", line: { itemId: "", qty: 1, option: false }, equip: { itemId: "", days: null, basis: "jour", trips: 1, bill: "inclus", markupPct: null },
     scaf: { itemId: "", longueur: null, hauteur: null, jours: null, basis: "jour", trips: 1, bill: "inclus", markupPct: null },
@@ -87,10 +89,20 @@ function stepClient(q, ev, dis) {
     <div class="card"><b>Chantier</b>
     ${L("Nom du chantier")}${I("q", "current.site.name", cur.site.name, { ph: "Immeuble R+5", dis })}
     ${L("Adresse / quartier")}${I("q", "current.site.address", cur.site.address, { dis })}
-    <div class="row"><div>${L("Surface ou quantité de base (m²)")}${I("q", "current.site.surface", cur.site.surface, { type: "number", n: "n", dis })}</div><div>${L("Nombre de niveaux")}${I("q", "current.site.levels", cur.site.levels, { type: "number", n: "n", dis })}</div></div>
-    <div class="row"><div>${L("Hauteur de travail maximale (m)")}${I("q", "current.site.workHeightM", cur.site.workHeightM, { type: "number", n: "n", dis })}</div><div>${L("Marge de sécurité produits (%)")}${I("q", "current.site.lossPct", cur.site.lossPct, { type: "number", n: "n", dis })}</div></div>
+    <div class="row"><div>${L("Surface brute (m²)")}${I("q", "current.site.surfaceBrute", cur.site.surfaceBrute, { type: "number", n: "n", dis })}</div><div>${L("Ouvertures à déduire (m²)")}${I("q", "current.site.ouvertures", cur.site.ouvertures, { type: "number", n: "n", dis })}</div></div>
+    ${L("ou surface nette saisie directement (m²)")}${I("q", "current.site.surface", cur.site.surface, { type: "number", n: "n", dis })}
+    <p class="hint"><b>Surface retenue pour le calcul : ${effSurface(cur.site) === null ? "non renseignée" : fmtD(effSurface(cur.site)) + " m² (" + surfaceSource(cur.site) + ")"}.</b> Si la surface brute est saisie, elle prime : surface nette = brute − ouvertures (portes, fenêtres).</p>
+    <div class="row"><div>${L("Hauteur de travail maximale (m)")}${I("q", "current.site.workHeightM", cur.site.workHeightM, { type: "number", n: "n", dis })}</div><div>${L("Nombre de niveaux")}${I("q", "current.site.levels", cur.site.levels, { type: "number", n: "n", dis })}</div></div>
+    ${L("Marge de sécurité produits (%)")}${I("q", "current.site.lossPct", cur.site.lossPct, { type: "number", n: "n", dis })}
     <p class="hint">La marge de sécurité couvre pertes, reprises et irrégularités. Elle s'applique aux fournitures, jamais à la main-d'œuvre. Utilise la valeur observée sur tes chantiers. Seuil d'accès de l'entreprise : ${S.state.db.settings.accessThresholdM === null ? "non défini (Réglages)" : S.state.db.settings.accessThresholdM + " m"}.</p>
-    ${L("Observations (état du support, accès, contraintes, eau et électricité…)")}${Txt("q", "current.site.notes", cur.site.notes, { dis })}</div>`;
+    <details><summary>Informations facultatives sur le chantier</summary>
+    <div class="row"><div>${L("Type de bâtiment")}${I("q", "current.site.buildingType", cur.site.buildingType, { ph: "Villa, immeuble, entrepôt…", dis })}</div><div>${L("Occupation des lieux")}${Sel("q", "current.site.occupied", cur.site.occupied, [["", "—"], ["Occupé", "Occupé"], ["Vide", "Vide"]], { dis })}</div></div>
+    <div class="row"><div>${L("État du support")}${I("q", "current.site.support", cur.site.support, { ph: "Brut, fissuré, ancien enduit…", dis })}</div><div>${L("Niveau de finition")}${I("q", "current.site.finish", cur.site.finish, { dis })}</div></div>
+    <div class="row"><div>${L("Eau sur place")}${Sel("q", "current.site.water", cur.site.water, [["", "—"], ["Disponible", "Disponible"], ["Non disponible", "Non disponible"]], { dis })}</div><div>${L("Électricité sur place")}${Sel("q", "current.site.power", cur.site.power, [["", "—"], ["Disponible", "Disponible"], ["Non disponible", "Non disponible"]], { dis })}</div></div>
+    <div class="row"><div>${L("Accès pour les véhicules")}${I("q", "current.site.vehicleAccess", cur.site.vehicleAccess, { dis })}</div><div>${L("Distance de transport (km)")}${I("q", "current.site.transportKm", cur.site.transportKm, { type: "number", n: "n", dis })}</div></div>
+    <div class="row"><div>${L("Durée prévue (jours)")}${I("q", "current.site.durationDays", cur.site.durationDays, { type: "number", n: "n", dis })}</div><div>${L("Date souhaitée de démarrage")}${I("q", "current.site.wishedDate", cur.site.wishedDate, { type: "date", dis })}</div></div>
+    <p class="hint">Aucun de ces champs n'est obligatoire. Ils servent de mémoire du chantier et sont conservés dans chaque version figée.</p></details>
+    ${L("Observations (contraintes, accès, remarques)")}${Txt("q", "current.site.notes", cur.site.notes, { dis })}</div>`;
 }
 
 function skipped(q) {
@@ -203,9 +215,9 @@ const r_warn = (ev) => (ev.result.warnings.length ? `<div class="card"><b>Alerte
 
 function snapFor(q, ev) {
   const sel = ui.ver ?? (S.editable(q) || !S.lastVersion(q) ? "draft" : String(S.lastVersion(q).n));
-  if (sel === "draft") return { snap: { quote: q.current, result: ev.result, company: S.state.db.company, conditions: S.state.db.settings.conditions, n: null, at: null, hash: null }, draft: true, sel };
+  if (sel === "draft") return { snap: { quote: q.current, result: ev.result, company: S.state.db.company, conditions: S.state.db.settings.conditions, presentation: S.state.db.settings.presentation, n: null, at: null, hash: null }, draft: true, sel };
   const v = q.versions.find((x) => String(x.n) === sel) || S.lastVersion(q);
-  if (!v) return { snap: { quote: q.current, result: ev.result, company: S.state.db.company, conditions: S.state.db.settings.conditions }, draft: true, sel: "draft" };
+  if (!v) return { snap: { quote: q.current, result: ev.result, company: S.state.db.company, conditions: S.state.db.settings.conditions, presentation: S.state.db.settings.presentation }, draft: true, sel: "draft" };
   return { snap: v, draft: false, sel: String(v.n) };
 }
 function stepApercu(q, ev, dis) {
@@ -222,7 +234,7 @@ function stepApercu(q, ev, dis) {
     <button class="gold" data-act="send" ${canSend && !blocked ? "" : "disabled"}>Envoyer : figer V${q.versions.length + 1}</button></div>
     ${canSend ? "" : draft ? `<p class="hint">Pour envoyer : le devis doit être « Prêt à envoyer » (onglet Contrôle) ou en négociation.</p>` : ""}
     ${blocked && draft ? `<p class="hint">Corrige les points bloquants (onglet Contrôle) pour générer le PDF.</p>` : ""}
-    ${!draft ? `<div class="row"><a class="btn sec" href="${wa}" target="_blank" rel="noopener">Partager sur WhatsApp</a><button class="sec" data-act="copy" data-t="${esc(summaryText(snap, q.ref))}">Copier le message</button></div><p class="hint">WhatsApp reçoit le message de synthèse ; joins le PDF enregistré depuis l'impression.</p>` : ""}</div>
+    ${!draft ? `<div class="row"><a class="btn sec" href="${wa}" target="_blank" rel="noopener">Partager sur WhatsApp</a><button class="sec" data-act="copy" data-t="${esc(summaryText(snap, q.ref))}">Copier le message</button></div><p class="hint">WhatsApp reçoit le message de synthèse ; joins le PDF enregistré depuis l'impression.</p><div class="row"><button class="sec" data-act="word" data-n="${snap.n}">Télécharger Word (.docx, copie modifiable)</button></div>` : ""}</div>
     ${renderDoc(snap, { draft, ref: q.ref })}`;
 }
 function internal(snap, q) {
@@ -306,9 +318,22 @@ function viewCatalogue(a) {
   const unknown = db.catalogue.filter((i) => !i.archived && i.price === null && !EQUIP_CATS.includes(i.cat)).length;
   return `<h2>Catalogue</h2><div class="row"><a class="btn" href="#/catalogue/new">+ Nouvel article</a><div>${I("ui", "f.q", f.q, { ph: "Rechercher" })}</div></div>
     <div class="row"><div>${Sel("ui", "f.cat", f.cat, [["", "Toutes les catégories"], ...Object.entries(CATS)])}</div><div>${Sel("ui", "f.pack", f.pack, [["", "Tous les métiers"], ["peinture", "Peinture et enduits"], ["carrelage", "Carrelage"], ["maconnerie", "Maçonnerie"], ["plomberie", "Plomberie"], ["electricite", "Électricité"]])}</div></div>
+    <div class="card"><b>Import / export Excel (CSV)</b>
+      <div class="row"><button class="sec" data-act="csvExport">Exporter le catalogue</button><button class="sec" data-act="csvTemplate">Modèle vide</button></div>
+      ${L("Importer un fichier CSV (enregistré depuis Excel)")}<input type="file" accept=".csv,text/csv,text/plain" data-on="csvFile">
+      <p class="hint">Colonnes : ref, designation, categorie, unite, mode, prix_vente, prix_achat, rendement, unite_rendement, fournisseur, marque, balises. Prix vide = inconnu (nouvel article) ou inchangé (article existant). Rien n'est appliqué avant ta validation.</p>
+      ${csvPreview()}</div>
     <p class="hint">${unknown} article(s) sans prix : complète les prix de tes métiers avant de les utiliser dans un devis.</p>
     ${list.map((i) => `<a class="qcard ${i.archived ? "arch" : ""}" href="#/catalogue/${esc(i.id)}"><div class="qtop"><b>${esc(i.label)}</b><span class="note">${esc(i.ref)}</span></div><div class="note">${esc(CATS[i.cat])} · ${esc(i.unit)}${i.ownership ? " · " + (i.ownership === "loue" ? "loué" : "possédé") : ""}</div>
       <div class="qbot"><b>${i.price === null ? "prix inconnu" : fmt(i.price)}</b><span class="note">${i.cost === null ? "achat inconnu" : "achat " + fmt(i.cost)}</span></div></a>`).join("")}`;
+}
+
+function csvPreview() {
+  const c = ui.csv; if (!c) return "";
+  if (c.fatal) return `<div class="banner bad">${esc(c.fatal)}</div>`;
+  const bad = c.rows.filter((r) => r.status === "error");
+  return `<div class="banner ${bad.length ? "bad" : "info"}"><b>${c.counts.new}</b> nouveau(x), <b>${c.counts.update}</b> mis à jour, <b>${c.counts.error}</b> ligne(s) refusée(s).${bad.slice(0, 8).map((r) => `<div class="hint">Ligne ${r.line}${r.ref ? " (" + esc(r.ref) + ")" : ""} : ${esc(r.problems.join(", "))}</div>`).join("")}${bad.length > 8 ? `<div class="hint">… et ${bad.length - 8} autre(s).</div>` : ""}</div>
+    ${c.counts.new + c.counts.update ? `<button class="gold" data-act="csvApply">Appliquer ${c.counts.new + c.counts.update} ligne(s) valide(s)</button> <button class="sec" data-act="csvCancel">Annuler</button>` : `<button class="sec" data-act="csvCancel">Fermer</button>`}`;
 }
 
 // ---------- Suivi : commandes et factures ----------
@@ -316,7 +341,7 @@ function viewSuivi(a) {
   const db = S.state.db;
   if (a === "facture") {
     const inv = db.invoices.find((x) => x.id === ui.invoice); if (!inv) return `<div class="empty">Facture introuvable.</div>`;
-    return `<div class="noprint"><a class="back" href="#/suivi">‹ Suivi</a><button data-act="print">Imprimer / Enregistrer en PDF</button></div>${renderInvoice(inv, db.company)}`;
+    return `<div class="noprint"><a class="back" href="#/suivi">‹ Suivi</a><button data-act="print">Imprimer / Enregistrer en PDF</button></div>${renderInvoice(inv, db.company, db.settings.presentation)}`;
   }
   const pipe = ["envoye", "negociation", "accepte", "refuse", "expire"].map((k) => [k, db.quotes.filter((q) => S.effectiveStatus(q) === k)]);
   const soon = db.quotes.filter((q) => ["envoye", "negociation"].includes(q.status) && S.lastVersion(q)).map((q) => [q, S.expiryDate(q)]).filter(([, e]) => e && e >= S.today() && e <= new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10));
@@ -342,12 +367,18 @@ function viewReglages() {
       ${L("Échéancier fournitures par défaut (% séparés par « / »)")}${I("db", "settings.payMaterials", joinPct(s.payMaterials), { list: "slash" })}${L("Échéancier main-d'œuvre par défaut")}${I("db", "settings.payServices", joinPct(s.payServices), { list: "slash" })}
       ${L("Déclencheurs par défaut (un par ligne)")}${Txt("db", "settings.triggers", (s.triggers || []).join("\n"), { list: "lines" })}${L("Conditions de l'offre imprimées sur chaque devis (une par ligne)")}${Txt("db", "settings.conditions", (s.conditions || []).join("\n"), { list: "lines", rows: 5 })}
       <p class="hint">Les réglages servent aux nouveaux devis. Les devis déjà créés gardent leurs valeurs.</p></div>
+    <div class="card"><b>Présentation des devis</b>
+      <p class="hint">Choix enregistré pour tous tes devis. Un devis envoyé garde le modèle, la couleur et le logo du jour de l'envoi. Aucun modèle ne modifie un montant.</p>
+      <div class="tplprev">${[["classique", "Classique"], ["sobre", "Sobre"], ["compact", "Compact"]].map(([v, t]) => `<label><input type="radio" name="tpl" value="${v}" data-r="db" data-p="settings.presentation.template" ${s.presentation.template === v ? "checked" : ""}> ${t}</label>`).join("")}</div>
+      ${L("Couleur principale")}<input type="color" data-r="db" data-p="settings.presentation.color" value="${esc(s.presentation.color)}" style="height:48px;padding:4px">
+      ${L("Logo (PNG ou JPG)")}${s.presentation.logo ? `<div class="row"><img src="${s.presentation.logo}" alt="Logo" style="max-height:64px;max-width:100%;object-fit:contain;background:#fff;border:1px solid var(--line);border-radius:8px;padding:4px"><button class="sec" data-act="logoClear">Retirer le logo</button></div>` : `<p class="hint">Aucun logo : le devis s'imprime sans logo.</p>`}
+      <input type="file" accept="image/png,image/jpeg" data-on="logoFile"></div>
     <div class="card"><b>Entreprises sur cet appareil</b><p class="hint">Chaque entreprise a son propre espace : devis, clients, catalogue et prix ne se mélangent jamais.</p>
       ${ws.map((w) => `<div class="chk"><div style="flex:1"><b>${esc(w.name)}</b> ${w.id === act ? badge("complet", "active") : ""}</div>${w.id !== act ? `<button class="sec" data-act="switchWs" data-id="${w.id}">Ouvrir</button> <button class="sec" data-act="delWs" data-id="${w.id}">Supprimer</button>` : ""}</div>`).join("")}
-      ${L("Créer une entreprise")}${I("ui", "wsNew", ui.wsNew, { ph: "Nom de la nouvelle entreprise" })}<button class="sec" data-act="newWs" style="margin-top:8px">Créer et ouvrir</button></div>
+      ${L("Créer une entreprise")}${I("ui", "wsNew", ui.wsNew, { ph: "Nom de la nouvelle entreprise" })}${Chk("ui", "wsCopy", ui.wsCopy, "Copier le catalogue (prix compris) de l'entreprise actuelle")}<p class="hint">Sans cette case, le nouvel espace démarre avec les articles et formules, mais sans aucun prix ni rendement.</p><button class="sec" data-act="newWs" style="margin-top:8px">Créer et ouvrir</button></div>
     <div class="card"><b>Sauvegarde et restauration</b><p class="hint">Les données sont uniquement sur cet appareil. Exporte une sauvegarde régulièrement. Il n'y a pas de synchronisation entre appareils dans cette version.</p>
       ${S.pendingStorageWarning() ? `<div class="banner bad">${S.pendingStorageWarning()}</div>` : ""}
-      <button data-act="export">Exporter une sauvegarde</button>
+      <button data-act="export">Exporter une sauvegarde complète (.json)</button> <button class="sec" data-act="quotesCsv">Exporter la liste des devis (CSV)</button>
       ${L("Restaurer depuis un fichier (testé avant d'être appliqué)")}<input type="file" accept=".json,application/json" data-on="backupFile">
       ${b ? `<div class="banner ${b.ok ? "info" : "bad"}">${b.ok ? `Sauvegarde valide : ${b.summary.devis} devis, ${b.summary.clients} clients, ${b.summary.articles} articles, ${b.summary.commandes} commandes. Toutes les versions de devis passent le contrôle d'intégrité.` : b.errors.map(esc).join("<br>")}</div>${b.ok ? `<button class="gold" data-act="restore">Restaurer comme nouvelle entreprise</button><p class="hint">La restauration crée un nouvel espace : tes données actuelles ne sont pas écrasées.</p>` : ""}` : ""}</div>
     <div class="card"><b>Journal d'audit</b><p class="hint">Les 40 dernières actions (création, envoi, statut, prix, paiements).</p>${db.audit.slice(-40).reverse().map((a) => `<div class="chk"><div style="flex:1"><b>${esc(a.action)}</b><div class="note">${esc(a.detail)}</div></div><span class="note">${frDate(a.at)}</span></div>`).join("") || `<p class="hint">Vide.</p>`}</div>
@@ -397,8 +428,37 @@ const onHandlers = {
     touchQuote(q);
   },
   mf(el) { const q = S.getQuote(ui.qid); const m = q.current.manual.find((x) => x.id === el.dataset.id); if (!m) return; const f = el.dataset.f; m[f] = ["basis", "bill"].includes(f) ? el.value : num(el.value); touchQuote(q); },
+  csvFile(el) { const f = el.files[0]; if (!f) return; const rd = new FileReader(); rd.onload = () => { ui.csv = analyseCsv(String(rd.result), S.state.db.catalogue); rerender(); }; rd.readAsText(f); },
+  logoFile(el) { const f = el.files[0]; if (!f) return; processLogo(f).then((l) => { const p = S.state.db.settings.presentation; p.logo = l.url; p.logoW = l.w; p.logoH = l.h; S.commit(); ui.flash = { type: "ok", text: "Logo enregistré." }; rerender(); }).catch((e) => { ui.flash = { type: "err", text: e.message }; rerender(); }); },
   backupFile(el) { const file = el.files[0]; if (!file) return; const rd = new FileReader(); rd.onload = () => { ui.backup = S.verifyBackup(String(rd.result)); rerender(); }; rd.readAsText(file); },
 };
+// Redimensionne le logo (côté max 256 px) pour ne pas saturer le stockage du téléphone.
+function processLogo(file) {
+  return new Promise((res, rej) => {
+    if (!/^image\/(png|jpeg)$/.test(file.type)) return rej(new Error("Format non accepté : utilise un fichier PNG ou JPG."));
+    const rd = new FileReader();
+    rd.onerror = () => rej(new Error("Lecture du fichier impossible."));
+    rd.onload = () => {
+      const img = new Image();
+      img.onerror = () => rej(new Error("Image illisible."));
+      img.onload = () => {
+        const k = Math.min(1, 256 / Math.max(img.width, img.height)), w = Math.max(1, Math.round(img.width * k)), h = Math.max(1, Math.round(img.height * k));
+        const c = document.createElement("canvas"); c.width = w; c.height = h; const g = c.getContext("2d");
+        if (file.type === "image/jpeg") { g.fillStyle = "#fff"; g.fillRect(0, 0, w, h); }
+        g.drawImage(img, 0, 0, w, h);
+        const url = file.type === "image/png" ? c.toDataURL("image/png") : c.toDataURL("image/jpeg", 0.85);
+        if (url.length > 400000) return rej(new Error("Logo trop lourd : choisis une image plus simple."));
+        res({ url, w, h });
+      };
+      img.src = String(rd.result);
+    };
+    rd.readAsDataURL(file);
+  });
+}
+function download(name, mime, data) {
+  const blob = new Blob([data], { type: mime }); const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
 function touchQuote(q) {
   if (q.status === "pret") { q.status = "brouillon"; q.statusLog.push({ at: new Date().toISOString(), to: "brouillon", reason: "Modifié après validation" }); }
   S.commit(); rerender();
@@ -469,12 +529,25 @@ const actions = {
   invoice(b) { const inv = S.invoiceTranche(b.dataset.o, Number(b.dataset.i)); ui.flash = { type: "ok", text: "Facture " + inv.no + " émise." }; },
   pay(b) { S.markPaid(b.dataset.o, Number(b.dataset.i)); },
   openInv(b) { ui.invoice = b.dataset.id; },
+  word(b) {
+    const q = S.getQuote(ui.qid); const v = q.versions.find((x) => String(x.n) === b.dataset.n); if (!v) throw new Error("Version introuvable.");
+    const { bytes } = buildDocx(v, q.ref); download(`${q.ref}-V${v.n}.docx`, DOCX_MIME, bytes); ui.flash = { type: "ok", text: `Word V${v.n} téléchargé (copie modifiable).` };
+  },
+  csvExport() { download(`catalogue-${S.today()}.csv`, "text/csv;charset=utf-8", exportCatalogueCsv(S.state.db.catalogue)); ui.flash = { type: "ok", text: "Catalogue exporté (CSV)." }; },
+  csvTemplate() { download("modele-catalogue.csv", "text/csv;charset=utf-8", templateCsv()); },
+  csvApply() { const ok = ui.csv.rows.filter((r) => r.status !== "error").map((r) => r.item); S.saveItems(ok, "import CSV"); ui.flash = { type: "ok", text: `${ok.length} article(s) importé(s).` }; ui.csv = null; },
+  csvCancel() { ui.csv = null; },
+  quotesCsv() {
+    const rows = S.state.db.quotes.map((q) => { const l = S.lastVersion(q); return [q.ref, q.current.client.name, q.current.site.name, S.STATUS[S.effectiveStatus(q)], q.versions.length, l ? l.result.totals.base : "", l ? l.at.slice(0, 10) : "", l ? l.hash : ""]; });
+    download(`devis-${S.today()}.csv`, "text/csv;charset=utf-8", exportRowsCsv(["reference", "client", "chantier", "statut", "versions", "total_ht_derniere_version", "date_envoi", "empreinte"], rows));
+  },
+  logoClear() { const p = S.state.db.settings.presentation; p.logo = null; p.logoW = 0; p.logoH = 0; S.commit(); },
   export() {
     const blob = new Blob([S.exportBackup()], { type: "application/json" }); const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
     a.download = `techgo-devis-sauvegarde-${S.today()}.json`; document.body.appendChild(a); a.click(); a.remove(); ui.flash = { type: "ok", text: "Sauvegarde exportée. Garde le fichier hors du téléphone." };
   },
   restore() { if (!ui.backup?.ok) return; S.restoreBackup(ui.backup.parsed); ui.backup = null; ui.flash = { type: "ok", text: "Sauvegarde restaurée dans un nouvel espace." }; },
-  newWs() { S.createWorkspace(ui.wsNew.trim() || "Nouvelle entreprise"); ui.wsNew = ""; go("#/reglages"); },
+  newWs() { S.createWorkspace(ui.wsNew.trim() || "Nouvelle entreprise", { copyCatalogue: ui.wsCopy }); ui.wsNew = ""; ui.wsCopy = false; go("#/reglages"); },
   switchWs(b) { S.switchWorkspace(b.dataset.id); go("#/devis"); },
   delWs(b) { if (!confirm("Supprimer cette entreprise et toutes ses données de cet appareil ?")) return; S.deleteWorkspace(b.dataset.id); },
 };

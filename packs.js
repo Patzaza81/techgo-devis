@@ -3,7 +3,7 @@
 // (devis DEV-2026-09-001 du 28/09/2026). Les autres packs fournissent les FORMULES ; prix et rendements restent
 // vides (donc bloquants) jusqu'à saisie par l'entreprise.
 import { computeQuote } from "./engine.js";
-import { mk, rent } from "./metiers/commun.js";
+import { mk, rent, hasN } from "./metiers/commun.js";
 import peinture from "./metiers/peinture.js";
 import carrelage from "./metiers/carrelage.js";
 import maconnerie from "./metiers/maconnerie.js";
@@ -70,7 +70,7 @@ export function regen(q) {
   for (const inst of q.prestations || []) {
     const pack = PACKS[inst.packId]; if (!pack) continue;
     const pres = pack.prestations.find((x) => x.id === inst.prestId); if (!pres) continue;
-    for (const b of pres.build(inst.params || {}, { surface: q.site.surface })) {
+    for (const b of pres.build(inst.params || {}, { surface: effSurface(q.site) })) {
       const id = `${inst.id}.${b.key}`;
       const line = { ...b, id, ...(b.of ? { of: `${inst.id}.${b.of}` } : {}) };
       const adj = (q.adjust || {})[id]; if (adj) Object.assign(line, adj);
@@ -81,12 +81,19 @@ export function regen(q) {
   for (const m of q.manual || []) { const adj = (q.adjust || {})[m.id]; const line = { ...m, ...(adj || {}) }; if (!line.skip) out.push(line); }
   return out;
 }
+// Surface retenue pour le calcul : brute − ouvertures si la surface brute est saisie, sinon la surface nette saisie directement.
+export function effSurface(s) {
+  if (!s) return null;
+  if (hasN(s.surfaceBrute) && s.surfaceBrute > 0) { const n = Math.round((s.surfaceBrute - (hasN(s.ouvertures) ? s.ouvertures : 0)) * 1000) / 1000; return n > 0 ? n : null; }
+  return hasN(s.surface) ? s.surface : null;
+}
+export const surfaceSource = (s) => (s && hasN(s.surfaceBrute) && s.surfaceBrute > 0 ? "brute − ouvertures" : "surface nette saisie");
 export function itemsMap(catalogue) { return Object.fromEntries(catalogue.map((i) => [i.id, i])); }
 export const validPct = (a) => Array.isArray(a) && a.length > 0 && a.every((x) => typeof x === "number" && isFinite(x) && x >= 0) && Math.abs(a.reduce((x, y) => x + y, 0) - 100) < 1e-9;
 export function buildInput(q, catalogue, settings) {
   const pay = q.terms.payment || {};
   return {
-    surface: q.site.surface, lossPct: q.site.lossPct, lines: regen(q), items: itemsMap(catalogue),
+    surface: effSurface(q.site), lossPct: q.site.lossPct, lines: regen(q), items: itemsMap(catalogue),
     payment: { materials: validPct(pay.materials) ? pay.materials : [100], services: validPct(pay.services) ? pay.services : [100] }, vatPct: q.terms.vatPct, discount: q.discount, overhead: q.overhead, pricing: q.pricing,
     minMarginPct: settings.minMarginPct ?? null,
   };
@@ -107,7 +114,8 @@ export function newDraft(settings, date) {
   return {
     ref: "", date, validityDays: s.validityDays ?? null,
     client: { id: "", name: "", type: "Particulier", contact: "" },
-    site: { name: "", address: "", surface: null, levels: null, workHeightM: null, lossPct: s.lossPct ?? null, notes: "" },
+    site: { name: "", address: "", surface: null, surfaceBrute: null, ouvertures: null, levels: null, workHeightM: null, lossPct: s.lossPct ?? null, notes: "",
+      buildingType: "", support: "", finish: "", occupied: "", water: "", power: "", vehicleAccess: "", transportKm: null, durationDays: null, wishedDate: "" },
     prestations: [], manual: [], adjust: {}, decisions: {},
     terms: { delayMin: null, delayMax: null, vatPct: s.vatPct ?? null,
       payment: { materials: s.payMaterials ? [...s.payMaterials] : [100], services: s.payServices ? [...s.payServices] : [100] },

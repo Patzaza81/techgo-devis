@@ -1,7 +1,8 @@
 // Documents imprimables : devis client (depuis un instantané figé ou un brouillon) et facture de gestion.
-import { LOGO } from "./logo.js";
+import { effSurface, surfaceSource } from "./packs.js";
 export const esc = (x) => String(x ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 export const fmtN = (n) => (n === null || n === undefined ? "—" : Math.round(n).toLocaleString("fr-FR"));
+export const fmtD = (n) => (n === null || n === undefined ? "—" : Number(n).toLocaleString("fr-FR", { maximumFractionDigits: 2 }));
 export const fmt = (n) => (n === null || n === undefined ? "—" : fmtN(n) + " FCFA");
 export const frDate = (iso) => (iso ? iso.slice(0, 10).split("-").reverse().join("/") : "");
 
@@ -57,7 +58,7 @@ function groupTable(lines) {
       `<tr class="sub"><td colspan="3">Sous-total — ${esc(g)}</td><td class="n">${fmtN(ls.reduce((a, l) => a + (l.total ?? 0), 0))}</td></tr>`;
   }).join("");
 }
-const head = (c) => `<div class="dochead"><div class="dl"><img class="dlogo" src="${LOGO}" alt=""><div><b class="co">${esc(c.name)}</b><div class="note">${esc(c.tagline)}<br>${esc(c.address)}${c.phone ? " — Tél. " + esc(c.phone) : ""}<br>${c.whatsapp ? "WhatsApp " + esc(c.whatsapp) : ""}${c.web ? " — " + esc(c.web) : ""}</div></div></div></div>`;
+const head = (c, pres) => `<div class="dochead"><div class="dl">${pres && pres.logo ? `<img class="dlogo" src="${pres.logo}" alt="">` : ""}<div><b class="co">${esc(c.name)}</b><div class="note">${esc(c.tagline)}<br>${esc(c.address)}${c.phone ? " — Tél. " + esc(c.phone) : ""}<br>${c.whatsapp ? "WhatsApp " + esc(c.whatsapp) : ""}${c.web ? " — " + esc(c.web) : ""}</div></div></div></div>`;
 
 /** snap = { quote, result, company, conditions, n, at, hash } ; draft = true si non figé */
 export function renderDoc(snap, { draft = false, ref = "" } = {}) {
@@ -76,14 +77,18 @@ export function renderDoc(snap, { draft = false, ref = "" } = {}) {
   const excl = exclusions(q.decisions);
   const unitTotal = (k) => (vat === null ? fmt(k.ht) : `${fmt(k.ht)} HT · ${fmt(k.ttc)} TTC`);
   const tb = { ht: t.base, ttc: t.ttcBase }, to = { ht: t.withOption, ttc: t.ttcOption };
-  return `<div id="doc">
-    ${head(c)}
+  const pres = snap.presentation || {};
+  const tpl = ["classique", "sobre", "compact"].includes(pres.template) ? pres.template : "classique";
+  const acc = /^#[0-9a-fA-F]{6}$/.test(pres.color || "") ? pres.color : "#0b7a8c";
+  const sNet = effSurface(q.site);
+  return `<div id="doc" class="tpl-${tpl}" style="--dc:${acc}">
+    ${head(c, pres)}
     <h1>DEVIS ESTIMATIF${draft ? ' <span class="draftmark">PROJET — non figé</span>' : ""}</h1>
     <div class="meta">
       <div><span class="note">RÉFÉRENCE</span><b>${esc(ref || q.ref)}${snap.n ? " — V" + snap.n : ""}</b></div>
       <div><span class="note">DATE</span><b>${frDate(snap.at ? snap.at : q.date)}</b></div>
       <div><span class="note">VALIDITÉ</span><b>${q.validityDays ?? "…"} jours</b></div>
-      <div><span class="note">SURFACE / QUANTITÉ DE BASE</span><b>${fmtN(q.site.surface)} m²</b></div>
+      <div><span class="note">SURFACE / QUANTITÉ DE BASE</span><b>${fmtD(sNet)} m²</b></div>
       <div><span class="note">CLIENT</span><b>${esc(q.client.name) || "........................"}</b></div>
       <div><span class="note">CHANTIER</span><b>${esc(q.site.name)}${q.site.address ? " — " + esc(q.site.address) : ""}</b></div>
       ${c.responsible ? `<div style="grid-column:1/-1"><span class="note">RESPONSABLE CHANTIER</span><b>${esc(c.responsible)}${c.responsiblePhone ? " — " + esc(c.responsiblePhone) : ""}</b></div>` : ""}
@@ -93,7 +98,7 @@ export function renderDoc(snap, { draft = false, ref = "" } = {}) {
       ${hasOpt ? `<div class="gl gold"><span>Avec option${vat === null ? "" : " (HT)"}</span><b>${fmt(t.withOption)}</b></div>` : ""}</div>
     ${vat === null ? `<p class="note"><i>Montants hors taxes — détail des quantités et modalités de paiement ci-dessous.</i></p>` : ""}
     <h3>Base de calcul des quantités</h3>
-    <p class="note">Quantité ou surface de base : ${fmtN(q.site.surface)} m². Marge de sécurité sur les produits : ${q.site.lossPct ?? 0} % (pertes, reprises, irrégularités du support) — surface de calcul : ${r.calcSurface.toLocaleString("fr-FR")} m². Quantité de produit = surface de calcul ÷ rendement, arrondie à l'unité de conditionnement supérieure. La main-d'œuvre est calculée sur la surface réelle.</p>
+    <p class="note">Quantité ou surface de base : ${fmtD(sNet)} m²${surfaceSource(q.site) === "brute − ouvertures" ? ` (surface brute ${fmtD(q.site.surfaceBrute)} m² − ouvertures ${fmtD(q.site.ouvertures ?? 0)} m²)` : ""}. Marge de sécurité sur les produits : ${q.site.lossPct ?? 0} % (pertes, reprises, irrégularités du support) — surface de calcul : ${r.calcSurface.toLocaleString("fr-FR")} m². Quantité de produit = surface de calcul ÷ rendement, arrondie à l'unité de conditionnement supérieure. La main-d'œuvre est calculée sur la surface réelle.</p>
     <h3>Offre de base</h3>
     <table><tr><th>Désignation</th><th class="n">Quantité</th><th class="n">P.U. (FCFA)</th><th class="n">Total HT</th></tr>${groupTable(base)}${tail(t.subBase, t.overheadBase, t.discountBase, t.base, t.vatBase, t.ttcBase)}</table>
     ${hasOpt ? `<h3>Option non obligatoire</h3><table><tr><th>Désignation</th><th class="n">Quantité</th><th class="n">P.U. (FCFA)</th><th class="n">Total HT</th></tr>${groupTable(opt)}
@@ -118,8 +123,8 @@ export function renderDoc(snap, { draft = false, ref = "" } = {}) {
   </div>`;
 }
 
-export function renderInvoice(inv, c) {
-  return `<div id="doc">${head(c)}
+export function renderInvoice(inv, c, pres) {
+  return `<div id="doc" class="tpl-classique">${head(c, pres)}
     <h1>FACTURE DE GESTION <span class="draftmark">${esc(inv.no)}</span></h1>
     <div class="meta"><div><span class="note">DATE</span><b>${frDate(inv.date)}</b></div><div><span class="note">COMMANDE / DEVIS</span><b>${esc(inv.orderRef)} / ${esc(inv.quoteRef)}</b></div>
       <div><span class="note">CLIENT</span><b>${esc(inv.client) || "........................"}</b></div><div><span class="note">CHANTIER</span><b>${esc(inv.site)}</b></div></div>

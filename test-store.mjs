@@ -147,5 +147,41 @@ eq("suppression d'un espace", S.listWorkspaces().length, 2);
   eq("rechargement : on repart de la version la plus récente", [S.state.conflict, db().company.name], [false, "ÉCRIT AILLEURS"]);
   eq("persistance dans localStorage", JSON.parse(localStorage.getItem(key)).quotes.length > 0, true);
 }
+
+{ // ----- catalogue vide, présentation figée, surface nette, import groupé -----
+  const { effSurface } = await import("./packs.js");
+  const { saveItems } = S;
+  S.createWorkspace("Entreprise B");
+  const priced = db().catalogue.filter((i) => i.price !== null || i.cost !== null || i.yield !== null).length;
+  eq("nouvelle entreprise : catalogue sans aucun prix, coût ni rendement", [db().catalogue.length > 50, priced], [true, 0]);
+  eq("nouvelle entreprise : pas de logo ni de conditions héritées", [db().settings.presentation.logo, db().settings.conditions.length], [null, 0]);
+  const qB = S.createQuote(); qB.current = { ...referenceDraft(db().settings), ref: qB.ref, date: S.today() };
+  eq("devis de référence bloqué dans un catalogue vide (prix inconnus)", S.evaluate(qB).checks.status, "bloque");
+  S.createWorkspace("Entreprise C", { copyCatalogue: true });
+  eq("copie depuis un catalogue vide : il reste vide", db().catalogue.filter((i) => i.price !== null).length, 0);
+  S.switchWorkspace(S.listWorkspaces()[0].id);
+  const nPriced = db().catalogue.filter((i) => i.price !== null).length;
+  S.createWorkspace("Entreprise D", { copyCatalogue: true });
+  eq("copie depuis l'espace TechGo : mêmes prix", db().catalogue.filter((i) => i.price !== null).length, nPriced);
+  S.switchWorkspace(S.listWorkspaces()[0].id);
+  // présentation figée avec la version
+  const q2 = S.createQuote(); q2.current = { ...referenceDraft(db().settings), ref: q2.ref, date: S.today() }; S.setStatus(q2, "pret");
+  db().settings.presentation.template = "sobre"; db().settings.presentation.color = "#aa0000";
+  const v = S.freezeVersion(q2);
+  db().settings.presentation.template = "compact"; db().settings.presentation.color = "#00aa00";
+  eq("la version figée garde le modèle et la couleur du jour de l'envoi", [v.presentation.template, v.presentation.color], ["sobre", "#aa0000"]);
+  throws("présentation d'une version figée immuable", () => { v.presentation.template = "compact"; });
+  eq("l'intégrité reste vérifiée avec la présentation", S.verifyVersion(v).ok, true);
+  // surface nette
+  eq("surface nette = brute − ouvertures", effSurface({ surfaceBrute: 120.5, ouvertures: 20.2, surface: 999 }), 100.3);
+  eq("sans surface brute : surface saisie", effSurface({ surface: 80 }), 80);
+  eq("ouvertures ≥ brute : surface non valide", effSurface({ surfaceBrute: 10, ouvertures: 10 }), null);
+  const q3 = S.createQuote(); q3.current = { ...referenceDraft(db().settings), ref: q3.ref, date: S.today() }; q3.current.site.surface = null; q3.current.site.surfaceBrute = 5000; q3.current.site.ouvertures = 371;
+  eq("calcul sur 4 629 m² obtenu en brute − ouvertures", S.evaluate(q3).result.totals.base, 15614500);
+  // import groupé avec historique
+  const it = JSON.parse(JSON.stringify(db().catalogue.find((i) => i.ref === "END-P60"))); it.price = 21000;
+  saveItems([it, { id: "IMP-1", ref: "IMP-1", label: "Importé", cat: "materiaux", unit: "u", pricing: "unitaire", price: 100, cost: null, priceDate: null, supplier: "", brand: "", yield: null, yieldUnit: "m²", tags: [], pack: "", archived: false }]);
+  eq("import groupé : historique du prix et nouvel article daté", [db().priceHistory.some((h) => h.itemId === "END-P60" && h.old === 19500 && h.new === 21000 && h.source === "import CSV"), db().catalogue.find((i) => i.ref === "IMP-1").priceDate === S.today()], [true, true]);
+}
 console.log(`\n${pass} réussis, ${fail} échoués`);
 process.exit(fail ? 1 : 0);

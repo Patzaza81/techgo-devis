@@ -223,5 +223,13 @@ eq("empreinte de 27 caractères", fingerprint(q).length, 27);
   eq("les deux : les deux contrôles", packExpects(d3).map((e) => e.tag).sort(), ["abrasif", "preparation"]);
 }
 
+{ // contrôle de bon sens : total nul ou négatif
+  const mk = (base) => ({ lines: [{ tags: [], flags: [], qty: 1, option: false, label: "x" }], warnings: [], totals: { base }, margin: null });
+  const run = (base) => runChecks({ surface: 10, result: mk(base), workHeightM: 1, accessThresholdM: 5, decisions: {}, expects: [], hasDelay: true, hasValidity: true, hasPayment: true, vatPct: null });
+  eq("total nul → bloqué", run(0).items.some((i) => i.state === "bloque" && /nul ou négatif/.test(i.label)), true);
+  eq("total négatif → bloqué", run(-5).items.some((i) => i.state === "bloque" && /nul ou négatif/.test(i.label)), true);
+  eq("total positif → pas de blocage de ce type", run(100).items.some((i) => /nul ou négatif/.test(i.label)), false);
+}
+
 console.log(`\n${pass} réussis, ${fail} échoués`);
 process.exit(fail ? 1 : 0);

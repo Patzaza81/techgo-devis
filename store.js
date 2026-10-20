@@ -1,7 +1,8 @@
 // Stockage local (par entreprise), cycle de vie des devis, versions figées, audit, commandes, sauvegarde.
 // Aucun serveur : les données restent sur l'appareil. La synchronisation entre appareils n'existe pas dans cette version.
 import { fingerprint, computeQuote, runChecks, ENGINE_VERSION } from "./engine.js";
-import { ALL_SEEDS, newDraft, buildInput, compute, packExpects, validPct, PACKS } from "./packs.js";
+import { ALL_SEEDS, newDraft, buildInput, compute, packExpects, validPct, PACKS, effSurface } from "./packs.js";
+import { LOGO } from "./logo.js";
 
 export const STATUS = {
   brouillon: "Brouillon", a_verifier: "À vérifier", pret: "Prêt à envoyer", envoye: "Envoyé", negociation: "En négociation",
@@ -30,11 +31,16 @@ export function deepFreeze(o) { if (o && typeof o === "object" && !Object.isFroz
 
 export const state = { db: null, ws: null, conflict: false, storageOk: true, loadedRev: 0 };
 
+// Catalogue « vide » : mêmes articles et formules, mais aucun prix, coût ni rendement (chaque entreprise saisit les siens).
+export function blankPrices(items) {
+  return items.map((i) => ({ ...i, price: null, cost: null, priceDate: null, yield: null, ownCostDay: null, ...(i.rent ? { rent: { day: null, week: null, month: null, setup: null, teardown: null, setupPerM2: null, teardownPerM2: null, transport: null, minDays: null, setupIncluded: false } } : {}) }));
+}
 function defaultDb() {
   return {
     v: 1, rev: 0,
     company: { name: "TECHGO S.A.R.L.", tagline: "Coordination, supervision et garantie des travaux", address: "Douala, Bonamoussadi", phone: "+237 694 375 420", whatsapp: "+237 699 881 729", web: "techgo-douala.netlify.app", responsible: "M. Bangue Henri Nkondo", responsiblePhone: "+237 694 375 420" },
     settings: {
+      presentation: { template: "classique", color: "#0b7a8c", logo: LOGO, logoW: 128, logoH: 128 },
       accessThresholdM: null, lossPct: null, vatPct: null, validityDays: 30, minMarginPct: null, overheadPct: 0, overheadMode: "inclus", quotePrefix: "DEV",
       payMaterials: [70, 30], payServices: [35, 40, 25], triggers: ["À la signature", "À 50 % d'avancement du chantier", "Chantier terminé, à la réception"],
       conditions: ["Prix : montants exprimés hors taxes sauf mention contraire, sur la base des prix fournisseurs et des tarifs de pose relevés à la date du devis. Au-delà de la durée de validité, les prix sont susceptibles d'être actualisés."],
@@ -70,14 +76,18 @@ function migrate(db) {
   db.settings = { ...d.settings, ...db.settings };
   // ajoute les articles livrés avec les packs qui manquent (ne modifie jamais ceux de l'utilisateur)
   const have = new Set(db.catalogue.map((i) => i.ref));
-  ALL_SEEDS().forEach((s) => { if (!have.has(s.ref)) db.catalogue.push(s); });
+  const fresh = ALL_SEEDS().filter((s) => !have.has(s.ref));
+  (db.blankSeeds ? blankPrices(fresh) : fresh).forEach((s) => db.catalogue.push(s));
   return db;
 }
-export function createWorkspace(name) {
+export function createWorkspace(name, { copyCatalogue = false } = {}) {
+  const src = copyCatalogue && state.db ? clone(state.db.catalogue) : null;
   const idx = readIndex() || { active: null, list: [] };
   const id = uid(); idx.list.push({ id, name: name || "Nouvelle entreprise" }); idx.active = id; writeIndex(idx);
   const db = defaultDb(); db.company.name = name || "Nouvelle entreprise"; db.company.tagline = ""; db.company.address = ""; db.company.phone = ""; db.company.whatsapp = ""; db.company.web = ""; db.company.responsible = ""; db.company.responsiblePhone = "";
   db.settings.payMaterials = [100]; db.settings.payServices = [100]; db.settings.triggers = ["À la signature"]; db.settings.conditions = [];
+  db.settings.presentation = { template: "classique", color: "#0b7a8c", logo: null, logoW: 0, logoH: 0 };
+  if (src) db.catalogue = src; else { db.catalogue = blankPrices(db.catalogue); db.blankSeeds = true; }
   ls.set(wsKey(id), JSON.stringify(db));
   return load(id);
 }
@@ -107,21 +117,21 @@ export function audit(action, objType, objId, detail) {
 }
 
 // ---------- Catalogue et historique des prix ----------
-export function saveItem(item, source = "saisie manuelle") {
+function putItem(item, source) {
   const db = state.db; const i = db.catalogue.findIndex((x) => x.id === item.id);
-  if (i < 0) { db.catalogue.push(item); audit("article_cree", "article", item.id, item.label); }
-  else {
-    const old = db.catalogue[i];
-    for (const f of ["price", "cost", "ownCostDay"]) if ((old[f] ?? null) !== (item[f] ?? null)) { db.priceHistory.push({ itemId: item.id, field: f, old: old[f] ?? null, new: item[f] ?? null, date: today(), at: new Date().toISOString(), source }); }
-    for (const f of ["day", "week", "month", "setup", "teardown", "setupPerM2", "teardownPerM2", "transport"]) {
-      const a = old.rent ? old.rent[f] ?? null : null, b = item.rent ? item.rent[f] ?? null : null;
-      if (a !== b) db.priceHistory.push({ itemId: item.id, field: "rent." + f, old: a, new: b, date: today(), at: new Date().toISOString(), source });
-    }
-    if ((old.price ?? null) !== (item.price ?? null)) item.priceDate = today();
-    db.catalogue[i] = item; audit("article_modifie", "article", item.id, item.label);
+  if (i < 0) { if (item.price !== null && item.price !== undefined && !item.priceDate) item.priceDate = today(); db.catalogue.push(item); audit("article_cree", "article", item.id, item.label); return; }
+  const old = db.catalogue[i];
+  for (const f of ["price", "cost", "ownCostDay", "yield"]) if ((old[f] ?? null) !== (item[f] ?? null)) { db.priceHistory.push({ itemId: item.id, field: f, old: old[f] ?? null, new: item[f] ?? null, date: today(), at: new Date().toISOString(), source }); }
+  for (const f of ["day", "week", "month", "setup", "teardown", "setupPerM2", "teardownPerM2", "transport"]) {
+    const a = old.rent ? old.rent[f] ?? null : null, b = item.rent ? item.rent[f] ?? null : null;
+    if (a !== b) db.priceHistory.push({ itemId: item.id, field: "rent." + f, old: a, new: b, date: today(), at: new Date().toISOString(), source });
   }
-  return commit();
+  if ((old.price ?? null) !== (item.price ?? null)) item.priceDate = today();
+  db.catalogue[i] = item; audit("article_modifie", "article", item.id, item.label);
 }
+export function saveItem(item, source = "saisie manuelle") { putItem(item, source); return commit(); }
+// Plusieurs articles d'un coup (import) : un seul enregistrement, historique des prix conservé pour chacun.
+export function saveItems(items, source = "import CSV") { items.forEach((it) => putItem(it, source)); audit("import_catalogue", "catalogue", "", `${items.length} article(s) — ${source}`); return commit(); }
 export function newItemId(prefix = "ART") { let n = 1; const ids = new Set(state.db.catalogue.map((i) => i.id)); while (ids.has(`${prefix}-${String(n).padStart(3, "0")}`)) n++; return `${prefix}-${String(n).padStart(3, "0")}`; }
 export function archiveItem(id, on = true) { const it = state.db.catalogue.find((x) => x.id === id); if (it) { it.archived = on; audit(on ? "article_archive" : "article_restaure", "article", id, it.label); commit(); } }
 export function itemUsedIn(id) { return state.db.quotes.filter((q) => JSON.stringify(q.current).includes(`"${id}"`)).map((q) => q.ref); }
@@ -169,7 +179,7 @@ export function evaluate(q, draft = q.current) {
   const last = lastVersion(q);
   const expired = !!last && ["envoye", "negociation"].includes(q.status) && effectiveStatus(q) === "expire";
   const checks = runChecks({
-    surface: draft.site.surface, lossPct: draft.site.lossPct, result, workHeightM: draft.site.workHeightM, accessThresholdM: s.accessThresholdM, decisions: draft.decisions || {},
+    surface: effSurface(draft.site), lossPct: draft.site.lossPct, result, workHeightM: draft.site.workHeightM, accessThresholdM: s.accessThresholdM, decisions: draft.decisions || {},
     expects: packExpects(draft), hasDelay: draft.terms.delayMin > 0 && draft.terms.delayMax >= draft.terms.delayMin, hasValidity: draft.validityDays > 0,
     hasPayment: validPct(draft.terms.payment.materials) && validPct(draft.terms.payment.services), vatPct: draft.terms.vatPct, minMarginPct: s.minMarginPct,
     discountActive: (draft.discount.pct > 0) || (draft.discount.amount > 0), expired,
@@ -196,7 +206,7 @@ export function freezeVersion(q) {
   const items = Object.fromEntries(db.catalogue.filter((i) => used.has(i.id)).map((i) => [i.id, clone(i)]));
   const snap = {
     n: q.versions.length + 1, at: new Date().toISOString(), quote: draft, items, minMarginPct: db.settings.minMarginPct ?? null,
-    company: clone(db.company), conditions: clone(db.settings.conditions), result: clone(ev.result), checkStatus: ev.checks.status,
+    company: clone(db.company), conditions: clone(db.settings.conditions), presentation: clone(db.settings.presentation), result: clone(ev.result), checkStatus: ev.checks.status,
     engineVersion: ENGINE_VERSION, packVersions: Object.fromEntries(Object.values(PACKS).map((p) => [p.id, p.version])),
   };
   snap.hash = fingerprint({ quote: snap.quote, items: snap.items, result: snap.result });
