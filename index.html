@@ -173,6 +173,21 @@ a{overflow-wrap:anywhere}
 @media(max-width:380px){main{padding:14px 10px}.card{padding:13px}.row{gap:7px}button{padding:10px 11px}.steps a{padding:7px 9px}}
 @media(min-width:641px){main{padding-top:24px}}
 
+
+/* Accueil guidé */
+.welcome{position:relative;overflow:hidden;background:linear-gradient(135deg,#073f49 0%,#087f8c 72%,#1596a0 100%);color:#fff;border-radius:20px;padding:21px 17px 17px;margin:0 0 17px;box-shadow:0 10px 24px #07515b24}
+.welcome:after{content:"";position:absolute;width:170px;height:170px;border:1px solid #ffffff20;border-radius:50%;right:-80px;top:-80px;pointer-events:none}
+.welcome-kicker{font-size:10px;font-weight:800;letter-spacing:.13em;color:#ffe19a}
+.welcome h2{font-size:25px;color:#fff;margin:10px 0 8px;max-width:320px}
+.welcome p{font-size:13px;line-height:1.55;color:#e0f0f1;margin:0 0 14px;max-width:430px}
+.welcome-steps{display:grid;grid-template-columns:1fr;gap:7px;margin:14px 0 17px}
+.welcome-steps span{display:flex;align-items:center;gap:9px;font-size:12px;color:#f0f8f8}
+.welcome-steps b{display:inline-flex;align-items:center;justify-content:center;width:23px;height:23px;border-radius:8px;background:#ffffff1b;color:#ffe19a;font-size:11px}
+.welcome .row{position:relative;z-index:1}
+.welcome button{background:#f0b429;border-color:#f0b429;color:#302500;box-shadow:none}
+.welcome button.sec{background:#ffffff12;border-color:#ffffff70;color:#fff}
+.welcome+.card{padding-top:13px}
+
 </style>
 </head>
 <body>
