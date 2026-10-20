@@ -136,7 +136,7 @@ function stepPrest(q, ev, dis) {
     ${blocks || `<div class="empty">Aucune prestation. Ajoute-en une ci-dessous.</div>`}
     ${sk.length && !dis ? `<div class="card"><b>Lignes retirées</b>${sk.map(([id, lab]) => `<div class="chk"><div style="flex:1">${esc(lab)}</div><button class="sec" data-act="restoreLine" data-id="${esc(id)}">Rétablir</button></div>`).join("")}</div>` : ""}
     ${dis ? "" : `<div class="card"><b>Ajouter une prestation</b>${L("Prestation")}${Sel("tmp", "addPrest", ui.tmp.addPrest, opts)}<button class="gold" data-act="addPrest" style="margin-top:10px">Ajouter</button>
-      <p class="hint">Seul le pack Enduits contient des prix et rendements réels (devis du 28/09/2026). Les autres packs fournissent les formules ; saisis tes prix et rendements dans le Catalogue.</p></div>`}`;
+      <p class="hint">Seule la prestation « Enduit 3 couches + ponçage » (métier Peinture) contient des prix et rendements réels (devis du 28/09/2026). Les autres fournissent les formules ; saisis tes prix et rendements dans le Catalogue.</p></div>`}`;
 }
 
 function stepBesoins(q, ev, dis) {
@@ -304,7 +304,7 @@ function viewCatalogue(a) {
   const list = db.catalogue.filter((i) => (!f.cat || i.cat === f.cat) && (!f.pack || i.pack === f.pack) && (!q || (i.label + i.ref).toLowerCase().includes(q)));
   const unknown = db.catalogue.filter((i) => !i.archived && i.price === null && !EQUIP_CATS.includes(i.cat)).length;
   return `<h2>Catalogue</h2><div class="row"><a class="btn" href="#/catalogue/new">+ Nouvel article</a><div>${I("ui", "f.q", f.q, { ph: "Rechercher" })}</div></div>
-    <div class="row"><div>${Sel("ui", "f.cat", f.cat, [["", "Toutes les catégories"], ...Object.entries(CATS)])}</div><div>${Sel("ui", "f.pack", f.pack, [["", "Tous les packs"], ["enduits", "Enduits"], ["peinture", "Peinture"], ["carrelage", "Carrelage"], ["maconnerie", "Maçonnerie"], ["plomberie", "Plomberie"], ["electricite", "Électricité"]])}</div></div>
+    <div class="row"><div>${Sel("ui", "f.cat", f.cat, [["", "Toutes les catégories"], ...Object.entries(CATS)])}</div><div>${Sel("ui", "f.pack", f.pack, [["", "Tous les métiers"], ["peinture", "Peinture et enduits"], ["carrelage", "Carrelage"], ["maconnerie", "Maçonnerie"], ["plomberie", "Plomberie"], ["electricite", "Électricité"]])}</div></div>
     <p class="hint">${unknown} article(s) sans prix : complète les prix de tes métiers avant de les utiliser dans un devis.</p>
     ${list.map((i) => `<a class="qcard ${i.archived ? "arch" : ""}" href="#/catalogue/${esc(i.id)}"><div class="qtop"><b>${esc(i.label)}</b><span class="note">${esc(i.ref)}</span></div><div class="note">${esc(CATS[i.cat])} · ${esc(i.unit)}${i.ownership ? " · " + (i.ownership === "loue" ? "loué" : "possédé") : ""}</div>
       <div class="qbot"><b>${i.price === null ? "prix inconnu" : fmt(i.price)}</b><span class="note">${i.cost === null ? "achat inconnu" : "achat " + fmt(i.cost)}</span></div></a>`).join("")}`;

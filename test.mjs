@@ -162,7 +162,7 @@ eq("possédé : coût interne, pas de location", equipmentCost(own, { days: 5 })
 }
 { // marge : calculable seulement si tous les coûts sont connus
   eq("marge non calculable sans coûts", q.margin, null);
-  const c = cat(); c.forEach((i) => { if (i.pack === "enduits" && i.price !== null) i.cost = Math.round(i.price * 0.8); });
+  const c = cat(); c.forEach((i) => { if (i.pack === "peinture" && i.price !== null) i.cost = Math.round(i.price * 0.8); });
   const r = compute(ref, c, settings);
   eq("marge calculable avec tous les coûts", r.margin !== null && r.margin.base.profit > 0, true);
   eq("taux de marque ≠ marge sur coût", r.margin.base.marginRatePct < r.margin.base.markupPct, true);
@@ -187,7 +187,7 @@ eq("seuil non défini → à vérifier (jamais deviné)", runChecks(ctxBase({ ac
 eq("délai manquant → bloqué", runChecks(ctxBase({ decisions: ref.decisions, hasDelay: false })).status, "bloque");
 eq("devis vide → bloqué", runChecks({ ...ctxBase({}), surface: 0, result: compute(newDraft(settings, "x"), cat(), settings) }).status, "bloque");
 {
-  const c = cat(); c.forEach((i) => { if (i.pack === "enduits" && i.price !== null) i.cost = 1; });
+  const c = cat(); c.forEach((i) => { if (i.pack === "peinture" && i.price !== null) i.cost = 1; });
   const r = compute(ref, c, settings);
   const full = runChecks({ surface: 4629, lossPct: 5, result: r, workHeightM: 18, accessThresholdM: 3, decisions: { acces: "client", transport: "inclus", protection: "na", nettoyage: "inclus", outillage: "na" }, expects: packExpects(ref), hasDelay: true, hasValidity: true, hasPayment: true, vatPct: 19.25 });
   eq("tout renseigné → complet", full.status, "complet");
@@ -205,6 +205,23 @@ eq("devis vide → bloqué", runChecks({ ...ctxBase({}), surface: 0, result: com
 eq("empreinte stable", fingerprint({ a: 1, b: [1, 2] }), fingerprint({ b: [1, 2], a: 1 }));
 eq("empreinte sensible à un franc", fingerprint(q.totals) !== fingerprint({ ...q.totals, base: q.totals.base + 1 }), true);
 eq("empreinte de 27 caractères", fingerprint(q).length, 27);
+
+{ // architecture : un module par métier
+  const ids = Object.keys(PACKS);
+  eq("5 métiers, « enduits » n'est pas un métier", ids, ["peinture", "carrelage", "maconnerie", "plomberie", "electricite"]);
+  eq("Peinture porte enduits ET peinture", PACKS.peinture.prestations.map((p) => p.id), ["systeme3", "murs"]);
+  eq("chaque métier a id, version, articles, prestations", ids.every((k) => PACKS[k].id === k && PACKS[k].version && PACKS[k].seeds.length && PACKS[k].prestations.length), true);
+  eq("articles d'un métier marqués de ce métier", ids.every((k) => PACKS[k].seeds.every((s) => s.pack === k)), true);
+  eq("références d'articles uniques", new Set(ALL_SEEDS().map((s) => s.ref)).size, ALL_SEEDS().length);
+  eq("alias d'anciennes données (enduits → peinture)", PACKS.enduits === PACKS.peinture, true);
+  // contrôles portés par la prestation utilisée
+  const d1 = newDraft(settings, "2026-10-20"); d1.prestations = [{ id: "p1", packId: "peinture", prestId: "systeme3", params: {} }];
+  eq("enduit seul : attend les abrasifs, pas la préparation", packExpects(d1).map((e) => e.tag), ["abrasif"]);
+  const d2 = clone(d1); d2.prestations = [{ id: "p1", packId: "peinture", prestId: "murs", params: {} }];
+  eq("peinture seule : attend la préparation, pas les abrasifs", packExpects(d2).map((e) => e.tag), ["preparation"]);
+  const d3 = clone(d1); d3.prestations.push({ id: "p2", packId: "peinture", prestId: "murs", params: {} });
+  eq("les deux : les deux contrôles", packExpects(d3).map((e) => e.tag).sort(), ["abrasif", "preparation"]);
+}
 
 console.log(`\n${pass} réussis, ${fail} échoués`);
 process.exit(fail ? 1 : 0);
