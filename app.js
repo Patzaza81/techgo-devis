@@ -6,9 +6,14 @@ import { LOGO } from "./logo.js";
 import { esc, fmt, fmtN, fmtD, frDate, renderDoc, renderInvoice, summaryText } from "./ui-doc.js";
 
 const $ = (s) => document.querySelector(s);
-const STEPS = ["Client & chantier", "Prestations", "Besoins", "Prix & conditions", "Contrôle", "Aperçu & envoi", "Versions & suivi"];
+const STEPS = ["Client et chantier", "Travaux", "Ce qu'il faut", "Prix et conditions", "Vérifier", "Aperçu et envoi", "Suivi"];
 const DECISIONS = [["", "Non examiné"], ["inclus", "Inclus (je chiffre une ligne)"], ["exclu", "Exclu du devis (chiffré séparément)"], ["client", "Fourni par le client"], ["na", "Sans objet"]];
-const STATE_LABEL = { complet: "Complet", verifier: "À vérifier", bloque: "Bloqué" };
+const STATE_LABEL = { complet: "Prêt", verifier: "À vérifier", bloque: "Il manque quelque chose" };
+const nz = (s) => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+const TABS = [["produits", "Produits"], ["outils", "Outils et machines"], ["ouvriers", "Ouvriers"], ["autres", "Transport et autres"]];
+const TAB_OF = { materiaux: "produits", consommables: "produits", equip_possede: "outils", equip_loue: "outils", outillage: "outils", acces: "outils", securite: "outils", main_oeuvre: "ouvriers", transport: "autres", installation: "autres", sous_traitance: "autres", frais: "autres" };
+const FREE_CAT = { produits: "materiaux", outils: "outillage", ouvriers: "main_oeuvre", autres: "transport" };
+const FREE_UNITS = { produits: ["sac", "seau", "litre", "kg", "mètre", "pièce", "m²"], outils: ["jour", "forfait"], ouvriers: ["jour", "heure", "m²", "forfait"], autres: ["forfait", "trajet", "jour"] };
 const EQUIP_CATS = ["equip_loue", "equip_possede"];
 
 const ui = {
@@ -16,7 +21,8 @@ const ui = {
   f: { q: "", status: "", cat: "", pack: "", cl: "" },
   tmp: { addPrest: "", line: { itemId: "", qty: 1, option: false }, equip: { itemId: "", days: null, basis: "jour", trips: 1, bill: "inclus", markupPct: null },
     scaf: { itemId: "", longueur: null, hauteur: null, jours: null, basis: "jour", trips: 1, bill: "inclus", markupPct: null },
-    accept: { by: "", note: "", option: false }, reason: "" },
+    accept: { by: "", note: "", option: false }, reason: "",
+    free: { tab: "produits", label: "", unit: "", qty: null, price: null, save: true, ask: null, ok: false } },
 };
 
 // ---------- Utilitaires de formulaire ----------
@@ -54,6 +60,7 @@ function viewDevis() {
     <div class="card"><div class="row"><div>${L("Recherche")}${I("ui", "f.q", f.q, { ph: "Référence, client, chantier" })}</div>
     <div>${L("Statut")}${Sel("ui", "f.status", f.status, [["", "Tous"], ...Object.entries(S.STATUS)])}</div></div>
     ${counts.length ? `<div class="chips">${counts.map(([k, n]) => `<span class="st st-${k}">${S.STATUS[k]} ${n}</span>`).join("")}</div>` : ""}</div>
+    <p class="hint">Tes devis sont gardés dans ce téléphone seulement. Fais une sauvegarde de temps en temps (Réglages). Sur iPhone : bouton Partager, puis « Sur l'écran d'accueil ».</p>
     ${list.length ? list.map(quoteCard).join("") : `<div class="empty"><b>Aucun devis.</b><br>Crée un devis, ou charge le devis de référence pour voir le fonctionnement complet (échéancier, contrôle, versions).</div>`}`;
 }
 function quoteCard(q) {
@@ -70,12 +77,14 @@ function viewQuote() {
   const q = S.getQuote(ui.qid); if (!q) return `<div class="empty">Devis introuvable. <a href="#/devis">Retour à la liste</a></div>`;
   const dis = !S.editable(q); const ev = S.evaluate(q); const st = S.effectiveStatus(q);
   const stepsNav = `<div class="steps">${STEPS.map((n, i) => `<a class="${ui.step === i ? "on" : ""}" href="#/devis/${q.id}/${i}"><i>${i + 1}</i>${n}</a>`).join("")}</div>`;
-  const head = `<div class="qhead"><div><b>${esc(q.ref)}</b> ${stBadge(st)}</div><div>${badge(ev.checks.status, STATE_LABEL[ev.checks.status])} <b>${fmt(ev.result.totals.base)}</b></div></div>`;
+  const head = `<div class="qhead"><div><b>${esc(q.ref)}</b> ${stBadge(st)}</div><div>${badge(ev.checks.status, STATE_LABEL[ev.checks.status])} <b>${fmt(ev.result.totals.base)}</b>${missingPrices(ev) ? `<div class="note">Total pas fini : ${missingPrices(ev)} prix manquant${missingPrices(ev) > 1 ? "s" : ""}</div>` : ""}</div></div>`;
   const frozen = dis ? `<div class="banner info">Ce devis est « ${S.STATUS[q.status]} » : les versions envoyées sont figées. ${["envoye", "refuse", "expire"].includes(q.status) ? "Prépare une nouvelle version pour modifier." : ""}</div>` : "";
   const steps = [stepClient, stepPrest, stepBesoins, stepPrix, stepControle, stepApercu, stepVersions];
   return `<a class="back" href="#/devis">‹ Tous les devis</a>${head}${stepsNav}${frozen}${steps[ui.step](q, ev, dis)}
     <div class="row noprint" style="margin-top:14px"><button class="sec" ${ui.step === 0 ? "disabled" : ""} data-act="prev">‹ Précédent</button><button ${ui.step === 6 ? "disabled" : ""} data-act="next">Suivant ›</button></div>`;
 }
+
+const missingPrices = (ev) => ev.result.lines.filter((l) => !l.option && l.flags.includes("prix_inconnu")).length;
 
 function stepClient(q, ev, dis) {
   const c = S.state.db.clients, cur = q.current;
@@ -152,6 +161,30 @@ function stepPrest(q, ev, dis) {
       <p class="hint">Seule la prestation « Enduit 3 couches + ponçage » (métier Peinture) contient des prix et rendements réels (devis du 28/09/2026). Les autres fournissent les formules ; saisis tes prix et rendements dans le Catalogue.</p></div>`}`;
 }
 
+const tabOf = (l) => TAB_OF[l.cat] || "autres";
+function freeSection(q, ev, dis) {
+  const t = ui.tmp.free, db = S.state.db, lines = ev.result.lines;
+  const cm = q.current.pricing.method === "cout_plus_marge";
+  const sub = (tab) => { const ls = lines.filter((l) => tabOf(l) === tab && !l.option); const miss = ls.filter((l) => l.total === null).length; return { n: ls.length, sum: ls.reduce((a, l) => a + (l.total ?? 0), 0), miss }; };
+  const tabs = `<div class="seg tabs4">${TABS.map(([k, n]) => { const c = sub(k); return `<button class="${t.tab === k ? "on" : ""}" data-act="freeTab" data-k="${k}">${n}${c.n ? ` (${c.n})` : ""}</button>`; }).join("")}</div>`;
+  const cur = sub(t.tab), shown = lines.filter((l) => tabOf(l) === t.tab);
+  const match = db.catalogue.find((i) => !i.archived && nz(i.label) === nz(t.label));
+  const field = cm ? "cost" : "price", prev = match ? match[field] : null;
+  const units = FREE_UNITS[t.tab].map((u) => `<button type="button" class="chip ${nz(t.unit) === nz(u) ? "on" : ""}" data-act="freeUnit" data-u="${esc(u)}">${esc(u)}</button>`).join("");
+  const form = dis ? "" : `<div class="card"><b>+ Ajouter</b>
+    ${L("Nom (ex. : ciment, carreaux, maçon)")}<input data-r="tmp" data-p="free.label" list="dl-items" value="${esc(t.label)}" autocomplete="off"><datalist id="dl-items">${db.catalogue.filter((i) => !i.archived).map((i) => `<option value="${esc(i.label)}">`).join("")}</datalist>
+    ${match ? `<p class="hint">Déjà enregistré : ${esc(match.label)} (${esc(match.unit)})${prev !== null && prev !== undefined ? ` — dernier ${cm ? "prix d'achat" : "prix"} : ${fmt(prev)}${match.priceDate ? " le " + frDate(match.priceDate) : ""}${match.fieldPrice ? ", saisi sur place, à confirmer" : ""}` : " — pas de prix"}.</p>` : ""}
+    ${L("Unité")}<div class="chips">${units}</div>${I("tmp", "free.unit", match ? match.unit : t.unit, { ph: "ou écris l'unité" })}
+    <div class="row"><div>${L("Quantité")}${I("tmp", "free.qty", t.qty, { type: "number", n: "n" })}</div><div>${L(cm ? "Prix d'achat par unité (FCFA)" : "Prix par unité (FCFA)")}${I("tmp", "free.price", t.price, { type: "number", n: "n" })}</div></div>
+    <p class="hint">${t.price > 0 ? "Tu écris : <b>" + fmt(t.price) + "</b> par unité. " : ""}Prix pas connu ? Laisse vide : tu le mettras plus tard. Rien n'est compté à zéro.</p>
+    ${Chk("tmp", "free.save", t.save, "Garder ce produit et ce prix pour la prochaine fois")}
+    ${t.ask ? `<div class="banner warn"><b>Dernier prix enregistré : ${fmt(t.ask.prev)}. Tu écris ${fmt(t.price)}.</b><div class="row"><button data-act="askYes">Oui, c'est bon</button><button class="sec" data-act="askNo">Non, je corrige</button></div></div>` : `<button class="gold" data-act="addFree" style="margin-top:10px">Ajouter à ${esc(TABS.find((x) => x[0] === t.tab)[1])}</button>`}</div>`;
+  const miss = cur.miss ? `Total pas fini : ${cur.miss} prix manquant${cur.miss > 1 ? "s" : ""}` : "";
+  return `${tabs}${form}
+    <div class="total"><div><span>${esc(TABS.find((x) => x[0] === t.tab)[1])}</span><span class="big">${fmt(cur.sum)}</span></div>${miss ? `<div class="opt"><span>${miss}</span></div>` : ""}</div>
+    ${shown.map((l) => lineCard(l, q, dis)).join("") || `<p class="hint">Rien ici pour l'instant.</p>`}`;
+}
+
 function stepBesoins(q, ev, dis) {
   const cur = q.current, db = S.state.db, t = ui.tmp;
   const hasTag = (k) => ev.result.lines.some((l) => l.tags.includes(k) && (l.qty ?? 0) > 0 && !l.option);
@@ -169,14 +202,15 @@ function stepBesoins(q, ev, dis) {
     <div class="row"><div>${L("Facturation")}${Sel("tmp", `${key}.bill`, t[key].bill, [["inclus", "Absorbé (non facturé séparément)"], ["refacture", "Refacturé avec majoration"]])}</div>
     <div>${t[key].bill === "refacture" ? L("Majoration (%)") + I("tmp", `${key}.markupPct`, t[key].markupPct, { type: "number", n: "n" }) : ""}</div></div>
     <button class="gold" data-act="${key === "scaf" ? "addScaf" : "addEquip"}" style="margin-top:10px">Ajouter</button></div>`;
-  return `<h2>Besoins du chantier</h2><p class="hint">Ce que les devis oublient le plus : accès en hauteur, outillage, protections, transport, nettoyage. Chiffre chaque point ou indique pourquoi il n'y en a pas.</p>
-    <div class="card"><b>Points à examiner</b>${dec}</div>
+  return `<h2>Ce qu'il faut</h2>${freeSection(q, ev, dis)}
+    <h3>Points à examiner</h3><p class="hint">Ce que les devis oublient le plus : accès en hauteur, outillage, protections, transport, nettoyage. Chiffre chaque point ou indique pourquoi il n'y en a pas.</p>
+    <div class="card">${dec}</div>
     ${dis ? "" : `${eqForm("scaf", ac, "Accès en hauteur / échafaudage", `<div class="banner info">L'application chiffre ce que tu décides. Le type d'échafaudage, la hauteur autorisée, les protections collectives et les vérifications dépendent du site, du matériel et de l'évaluation des risques par une personne compétente.</div>`)}
     ${eqForm("equip", eq, "Équipements et outillage", `<p class="hint">Un équipement <b>possédé</b> n'est jamais facturé en location : seul son coût interne d'utilisation est compté. Un équipement <b>loué</b> compte location, montage/démontage et transport, sans doublon si le fournisseur inclut déjà le montage.</p>`)}
-    <div class="card"><b>Ajouter un article du catalogue</b>${L("Article")}<select data-r="tmp" data-p="line.itemId">${optItems(others).replace(`value="${esc(t.line.itemId)}"`, `value="${esc(t.line.itemId)}" selected`)}</select>
+    <div class="card"><b>Ajouter un produit déjà enregistré</b>${L("Article")}<select data-r="tmp" data-p="line.itemId">${optItems(others).replace(`value="${esc(t.line.itemId)}"`, `value="${esc(t.line.itemId)}" selected`)}</select>
       <div class="row"><div>${L("Quantité")}${I("tmp", "line.qty", t.line.qty, { type: "number", n: "n" })}</div><div>${Chk("tmp", "line.option", t.line.option, "Option")}</div></div>
       <button class="gold" data-act="addLine">Ajouter</button></div>`}
-    <h3>Lignes ajoutées</h3>${man.map((l) => lineCard(l, q, dis)).join("") || `<p class="hint">Aucune ligne ajoutée.</p>`}`;
+    `;
 }
 
 function stepPrix(q, ev, dis) {
@@ -389,6 +423,7 @@ function viewReglages() {
 function render() {
   const r = route(), db = S.state.db; let html = "";
   const tab = r.tab;
+  if (tab === "devis" && r.a && r.a !== ui.qid) { ui.tmp.free.tab = "produits"; ui.tmp.free.ask = null; ui.tmp.free.ok = false; }
   ui.qid = tab === "devis" && r.a ? r.a : ui.qid;
   if (tab === "devis") { if (r.a) { ui.step = Math.min(6, Math.max(0, Number(r.b) || 0)); html = viewQuote(); } else html = viewDevis(); }
   else if (tab === "clients") html = viewClients(r.a);
@@ -423,7 +458,7 @@ const onHandlers = {
     const q = S.getQuote(ui.qid), id = el.dataset.id, f = el.dataset.f; const a = (q.current.adjust[id] = q.current.adjust[id] || {});
     if (f === "qty") { const v = num(el.value); if (v === null) delete a.override; else a.override = { qty: v, reason: a.override?.reason || "" }; }
     else if (f === "reason") { a.override = a.override || { qty: null, reason: "" }; a.override.reason = el.value; }
-    else if (f === "price") { const v = num(el.value); if (v === null) delete a.priceOverride; else a.priceOverride = v; }
+    else if (f === "price") { const v = num(el.value); if (v !== null && !(v > 0)) throw new Error("Le prix doit être plus grand que zéro."); if (v === null) delete a.priceOverride; else a.priceOverride = v; }
     else if (f === "option") a.option = el.checked;
     touchQuote(q);
   },
@@ -491,16 +526,36 @@ const actions = {
   addLine() {
     const q = S.getQuote(ui.qid), t = ui.tmp.line, it = S.state.db.catalogue.find((i) => i.id === t.itemId);
     if (!it) throw new Error("Choisis un article."); if (!(t.qty > 0)) throw new Error("Saisis une quantité supérieure à zéro.");
-    q.current.manual.push({ id: "m" + S.uid(), itemId: it.id, group: CATS[it.cat], mode: "fixed", qty: t.qty, option: !!t.option }); ui.tmp.line = { itemId: "", qty: 1, option: false }; touchQuote(q);
+    ui.tmp.free.tab = TAB_OF[it.cat] || "autres"; q.current.manual.push({ id: "m" + S.uid(), itemId: it.id, group: CATS[it.cat], mode: "fixed", qty: t.qty, option: !!t.option }); ui.tmp.line = { itemId: "", qty: 1, option: false }; touchQuote(q);
+  },
+  freeTab(b) { ui.tmp.free.tab = b.dataset.k; ui.tmp.free.unit = ""; ui.tmp.free.ask = null; },
+  freeUnit(b) { ui.tmp.free.unit = b.dataset.u; },
+  askNo() { ui.tmp.free.ask = null; },
+  askYes() { ui.tmp.free.ok = true; actions.addFree(); },
+  addFree() {
+    const q = S.getQuote(ui.qid), t = ui.tmp.free, db = S.state.db; const cm = q.current.pricing.method === "cout_plus_marge", field = cm ? "cost" : "price";
+    const label = (t.label || "").trim(); if (!label) throw new Error("Écris le nom (ex. : ciment).");
+    let it = db.catalogue.find((i) => !i.archived && nz(i.label) === nz(label)), created = false;
+    const unit = it ? it.unit : (t.unit || "").trim(); if (!unit) throw new Error("Choisis l'unité (sac, litre, jour…).");
+    if (!(t.qty > 0)) throw new Error("Écris la quantité (plus grande que zéro).");
+    const has = t.price !== null && t.price !== undefined && t.price !== ""; if (has && !(t.price > 0)) throw new Error("Le prix doit être plus grand que zéro. Si tu ne le connais pas, laisse vide.");
+    if (it && has && it[field] != null && it[field] !== t.price && !t.ok) { t.ask = { prev: it[field] }; return; }
+    if (!it) { const id = S.newItemId("TER"); it = { id, ref: id, label, cat: FREE_CAT[t.tab], unit, pricing: "unitaire", price: null, cost: null, priceDate: null, supplier: "", brand: "", yield: null, yieldUnit: "m²", tags: [], pack: "", archived: false, fieldPrice: false }; created = true; }
+    if (has && t.save && (it[field] === null || it[field] === undefined)) { it[field] = t.price; it.priceDate = S.today(); it.fieldPrice = true; }
+    if (created || (has && t.save && it.fieldPrice)) S.saveItem(it, "saisi sur place");
+    const m = { id: "m" + S.uid(), itemId: it.id, group: CATS[it.cat], mode: "fixed", qty: t.qty, option: false }; q.current.manual.push(m);
+    if (has && it[field] !== t.price) { const a = (q.current.adjust[m.id] = {}); if (cm) a.costOverride = t.price; else a.priceOverride = t.price; }
+    ui.tmp.free = { ...t, label: "", unit: "", qty: null, price: null, ask: null, ok: false };
+    ui.flash = { type: "ok", text: has ? `${label} ajouté.` : `${label} ajouté. Il manque son prix : total pas fini.` }; touchQuote(q);
   },
   addEquip() {
     const q = S.getQuote(ui.qid), t = ui.tmp.equip, it = S.state.db.catalogue.find((i) => i.id === t.itemId);
     if (!it) throw new Error("Choisis un équipement."); if (!(t.days > 0)) throw new Error("Saisis la durée d'utilisation en jours.");
-    q.current.manual.push({ id: "m" + S.uid(), itemId: it.id, group: CATS[it.cat], mode: "equip", days: t.days, basis: t.basis, trips: t.trips ?? 1, areaQty: 0, bill: t.bill, markupPct: t.markupPct }); ui.tmp.equip = { itemId: "", days: null, basis: "jour", trips: 1, bill: "inclus", markupPct: null }; touchQuote(q);
+    ui.tmp.free.tab = "outils"; q.current.manual.push({ id: "m" + S.uid(), itemId: it.id, group: CATS[it.cat], mode: "equip", days: t.days, basis: t.basis, trips: t.trips ?? 1, areaQty: 0, bill: t.bill, markupPct: t.markupPct }); ui.tmp.equip = { itemId: "", days: null, basis: "jour", trips: 1, bill: "inclus", markupPct: null }; touchQuote(q);
   },
   addScaf() {
     const q = S.getQuote(ui.qid), t = ui.tmp.scaf; if (!t.itemId) throw new Error("Choisis un équipement d'accès."); if (!(t.longueur > 0 && t.hauteur > 0)) throw new Error("Saisis la longueur et la hauteur de façade."); if (!(t.jours > 0)) throw new Error("Saisis la durée d'utilisation en jours.");
-    q.current.manual.push(...scaffoldLines({ id: "m" + S.uid(), itemId: t.itemId, longueur: t.longueur, hauteur: t.hauteur, jours: t.jours, basis: t.basis, trips: t.trips ?? 1, bill: t.bill, markupPct: t.markupPct }));
+    ui.tmp.free.tab = "outils"; q.current.manual.push(...scaffoldLines({ id: "m" + S.uid(), itemId: t.itemId, longueur: t.longueur, hauteur: t.hauteur, jours: t.jours, basis: t.basis, trips: t.trips ?? 1, bill: t.bill, markupPct: t.markupPct }));
     ui.tmp.scaf = { itemId: "", longueur: null, hauteur: null, jours: null, basis: "jour", trips: 1, bill: "inclus", markupPct: null }; touchQuote(q);
   },
   mark(b) { const q = S.getQuote(ui.qid); S.setStatus(q, b.dataset.to); ui.flash = { type: "ok", text: "Statut : " + S.STATUS[q.status] }; },

@@ -222,6 +222,7 @@ export function runChecks(ctx) {
   if (ctx.lossPct === null || ctx.lossPct === undefined) add("verifier", "Marge de sécurité des produits non renseignée", "0 % est appliqué tant qu'elle n'est pas saisie. Utilise la valeur observée sur tes chantiers.");
   if (r) {
     const flagged = (f) => lines.filter((l) => l.flags.includes(f)).map((l) => l.label);
+    const nf = r.warnings.filter((w) => w.startsWith("Article introuvable")); if (nf.length) add("bloque", "Produit introuvable dans Mes produits et mes prix", nf.map((w) => w.replace("Article introuvable : ", "")).join(", ") + ". La ligne ne serait pas comptée dans le total.");
     const p = flagged("prix_inconnu"); if (p.length) add("bloque", "Prix manquants", p.join(", ") + ". Un prix inconnu n'est pas zéro.");
     const y = flagged("rendement_inconnu"); if (y.length) add("bloque", "Rendements manquants", y.join(", "));
     const q = flagged("qte_inconnue"); if (q.length) add("bloque", "Quantités à saisir", q.join(", "));

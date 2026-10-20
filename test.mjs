@@ -231,5 +231,22 @@ eq("empreinte de 27 caractères", fingerprint(q).length, 27);
   eq("total positif → pas de blocage de ce type", run(100).items.some((i) => /nul ou négatif/.test(i.label)), false);
 }
 
+// --- Étape A : ligne perdue / ligne libre sans prix ---
+{
+  const item = { id: "T-1", ref: "T-1", label: "Ciment", cat: "materiaux", unit: "sac", price: null, cost: null, tags: [] };
+  const mkR = (lines, items) => computeQuote({ surface: 100, lossPct: 0, items, lines, pricing: { method: "catalogue" }, overhead: { pct: 0, mode: "inclus" } });
+  const ctx = (r) => ({ surface: 100, result: r, workHeightM: 2, accessThresholdM: 3, decisions: {}, expects: [], hasDelay: true, hasValidity: true, hasPayment: true });
+  const has = (r, re) => runChecks(ctx(r)).items.some((i) => i.state === "bloque" && re.test(i.label));
+  const base = { id: "m1", itemId: "T-1", mode: "fixed", qty: 10, group: "x" };
+  eq("ligne libre sans prix → prix manquant bloquant", has(mkR([base], { "T-1": item }), /Prix manquants/), true);
+  eq("ligne libre sans prix : total de ligne inconnu (pas 0)", mkR([base], { "T-1": item }).lines[0].total, null);
+  eq("ligne libre avec prix saisi sur place → plus de blocage prix", has(mkR([{ ...base, priceOverride: 6500 }], { "T-1": item }), /Prix manquants/), false);
+  eq("ligne libre avec prix saisi : total exact", mkR([{ ...base, priceOverride: 6500 }], { "T-1": item }).lines[0].total, 65000);
+  eq("article supprimé → blocage « introuvable »", has(mkR([{ ...base, priceOverride: 6500 }], {}), /introuvable/), true);
+  eq("article présent → pas de blocage « introuvable »", has(mkR([{ ...base, priceOverride: 6500 }], { "T-1": item }), /introuvable/), false);
+  eq("coût + marge : prix saisi sur place ignoré, coût demandé", has(computeQuote({ surface: 100, lossPct: 0, items: { "T-1": item }, lines: [{ ...base, priceOverride: 6500 }], pricing: { method: "cout_plus_marge", markupPct: 20 }, overhead: { pct: 0, mode: "inclus" } }), /Prix manquants/), true);
+  eq("coût + marge : coût saisi sur place accepté", computeQuote({ surface: 100, lossPct: 0, items: { "T-1": item }, lines: [{ ...base, costOverride: 5000 }], pricing: { method: "cout_plus_marge", markupPct: 20 }, overhead: { pct: 0, mode: "inclus" } }).lines[0].total, 60000);
+}
+
 console.log(`\n${pass} réussis, ${fail} échoués`);
 process.exit(fail ? 1 : 0);
