@@ -23,8 +23,9 @@ h2{font-size:26px;line-height:1.2;margin:4px 0 18px;color:var(--ink);font-weight
 h3{font-size:14px;margin:28px 0 10px;color:var(--mut);text-transform:uppercase;letter-spacing:.08em;font-weight:700}
 .card{background:var(--card);border-radius:18px;padding:18px;margin-bottom:16px;box-shadow:var(--sh)}
 label{display:block;font-size:15px;font-weight:600;color:var(--mut);margin:14px 0 6px}
-input,select,textarea{width:100%;font:inherit;padding:13px 14px;border:2px solid transparent;border-radius:14px;background:var(--field);color:var(--ink);min-height:52px}
-input:focus,select:focus,textarea:focus{outline:none;border-color:var(--teal);background:var(--card)}
+select{-webkit-appearance:none;appearance:none;padding-right:44px;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='%2369787e' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'><path d='M6 9l6 6 6-6'/></svg>");background-repeat:no-repeat;background-position:right 14px center}
+input,select,textarea{width:100%;font:inherit;padding:13px 14px;border:2px solid transparent;border-radius:14px;background-color:var(--field);color:var(--ink);min-height:52px}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--teal);background-color:var(--card)}
 .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
 .hint{font-size:15px;color:var(--mut);margin-top:8px}
@@ -85,7 +86,7 @@ a.btn.sec{background:var(--info-bg);color:var(--teal-d)}
 .banner{border-radius:14px;padding:12px 14px;margin:14px 0;font-size:16px}
 .banner.warn{background:var(--warn-bg);color:var(--warn-ink)}
 .banner.info{background:var(--info-bg);color:var(--teal-d)}.banner.bad{background:var(--bad-bg);color:var(--bad)}
-.chip{background:var(--field);color:var(--ink);min-height:48px;padding:8px 16px;border-radius:99px;font-size:17px;font-weight:600}.chip.on{background:var(--teal);color:var(--on-teal)}
+.chips.names{max-height:210px;overflow-y:auto}.chip.nm{min-height:44px;font-size:16px;padding:6px 14px}.chip{background:var(--field);color:var(--ink);min-height:48px;padding:8px 16px;border-radius:99px;font-size:17px;font-weight:600}.chip.on{background:var(--teal);color:var(--on-teal)}
 .seg.tabs4{flex-wrap:wrap}.seg.tabs4 button{flex:1 1 44%;min-height:48px;font-size:15px;padding:8px 10px}
 .seg.tabs4 button .ic{display:none}
 .lcard{border-radius:16px;padding:14px 16px;margin:10px 0;background:var(--card);box-shadow:var(--sh)}

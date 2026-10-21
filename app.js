@@ -3,6 +3,7 @@ import { CATS, PRICING, DECISION_TAGS, PACKS, scaffoldLines, referenceDraft, eff
 import { buildDocx, DOCX_MIME } from "./docx.js";
 import { analyseCsv, exportCatalogueCsv, templateCsv, exportRowsCsv } from "./csv.js";
 import { LOGO } from "./logo.js";
+import { LISTES, METIERS } from "./metiers/listes.js";
 import { esc, fmt, fmtN, fmtD, frDate, renderDoc, renderInvoice, summaryText } from "./ui-doc.js";
 
 const $ = (s) => document.querySelector(s);
@@ -37,7 +38,7 @@ const ui = {
   tmp: { addPrest: "", line: { itemId: "", qty: 1, option: false }, equip: { itemId: "", days: null, basis: "jour", trips: 1, bill: "inclus", markupPct: null },
     scaf: { itemId: "", longueur: null, hauteur: null, jours: null, basis: "jour", trips: 1, bill: "inclus", markupPct: null },
     accept: { by: "", note: "", option: false }, reason: "",
-    free: { tab: "produits", label: "", unit: "", qty: null, price: null, save: true, ask: null, ok: false } },
+    free: { tab: "produits", metier: "", label: "", unit: "", qty: null, price: null, save: true, ask: null, ok: false } },
 };
 
 // ---------- Utilitaires de formulaire ----------
@@ -194,7 +195,14 @@ function freeSection(q, ev, dis) {
   const match = db.catalogue.find((i) => !i.archived && nz(i.label) === nz(t.label));
   const field = cm ? "cost" : "price", prev = match ? match[field] : null;
   const units = FREE_UNITS[t.tab].map((u) => `<button type="button" class="chip ${nz(t.unit) === nz(u) ? "on" : ""}" data-act="freeUnit" data-u="${esc(u)}">${esc(u)}</button>`).join("");
+  const metiers = [...new Set(q.current.prestations.map((p) => p.packId))].filter((k) => LISTES[k]);
+  const met = t.metier || metiers[0] || "";
+  const saved = db.catalogue.filter((i) => !i.archived && TAB_OF[i.cat] === t.tab && (i.pack === met || String(i.id).startsWith("TER-"))).map((i) => i.label);
+  const names = [...new Set([...saved, ...(LISTES[met]?.[t.tab] || [])])];
+  const picker = `<div class="chips">${METIERS.map(([k, n]) => `<button type="button" class="chip ${met === k ? "on" : ""}" data-act="pickMetier" data-k="${k}">${n}</button>`).join("")}</div>
+    ${names.length ? `<div class="chips names">${names.map((n) => `<button type="button" class="chip nm ${nz(t.label) === nz(n) ? "on" : ""}" data-act="pickName" data-n="${esc(n)}">${esc(n)}</button>`).join("")}</div><p class="hint">Touche un nom, ou écris-le plus bas. Ce sont des noms seulement : aucun prix ni quantité.</p>` : `<p class="hint">Choisis ton métier pour voir une liste de noms, ou écris le nom plus bas.</p>`}`;
   const form = dis ? "" : `<div class="card"><b>+ Ajouter</b>
+    ${L("Choisir dans la liste")}${picker}
     ${L("Nom (ex. : ciment, carreaux, maçon)")}<input data-r="tmp" data-p="free.label" list="dl-items" value="${esc(t.label)}" autocomplete="off"><datalist id="dl-items">${db.catalogue.filter((i) => !i.archived).map((i) => `<option value="${esc(i.label)}">`).join("")}</datalist>
     ${match ? `<p class="hint">Déjà enregistré : ${esc(match.label)} (${esc(match.unit)})${prev !== null && prev !== undefined ? ` — dernier ${cm ? "prix d'achat" : "prix"} : ${fmt(prev)}${match.priceDate ? " le " + frDate(match.priceDate) : ""}${match.fieldPrice ? ", saisi sur place, à confirmer" : ""}` : " — pas de prix"}.</p>` : ""}
     ${L("Unité")}<div class="chips">${units}</div>${I("tmp", "free.unit", match ? match.unit : t.unit, { ph: "ou écris l'unité" })}
@@ -557,6 +565,8 @@ const actions = {
   },
   toApercu() { const el = document.getElementById("apercu"); if (el) el.scrollIntoView?.({ behavior: "smooth", block: "start" }); return "skip"; },
   freeTab(b) { ui.tmp.free.tab = b.dataset.k; ui.tmp.free.unit = ""; ui.tmp.free.ask = null; },
+  pickMetier(b) { ui.tmp.free.metier = b.dataset.k; },
+  pickName(b) { const it = S.state.db.catalogue.find((i) => !i.archived && nz(i.label) === nz(b.dataset.n)); ui.tmp.free.label = b.dataset.n; ui.tmp.free.unit = it ? it.unit : ""; ui.tmp.free.ask = null; ui.tmp.free.ok = false; },
   freeUnit(b) { ui.tmp.free.unit = b.dataset.u; },
   askNo() { ui.tmp.free.ask = null; },
   askYes() { ui.tmp.free.ok = true; actions.addFree(); },
