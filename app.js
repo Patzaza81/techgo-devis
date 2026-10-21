@@ -565,7 +565,7 @@ function viewReglages() {
     <div class="card"><b>Repartir de zéro</b><p class="hint">Supprime les devis commencés mais jamais envoyés. Les devis envoyés ou acceptés ne sont jamais supprimés. Fais d'abord une sauvegarde ci-dessus si tu hésites.</p>
       <button class="sec" data-act="delDrafts" ${S.deletableQuotes().length ? "" : "disabled"}>Supprimer mes brouillons (${S.deletableQuotes().length})</button></div>
     <div class="card"><b>Journal d'audit</b><p class="hint">Les 40 dernières actions (création, envoi, statut, prix, paiements).</p>${db.audit.slice(-40).reverse().map((a) => `<div class="chk"><div style="flex:1"><b>${esc(a.action)}</b><div class="note">${esc(a.detail)}</div></div><span class="note">${frDate(a.at)}</span></div>`).join("") || `<p class="hint">Vide.</p>`}</div>
-    <div class="card"><b>À propos</b><p class="hint">Les documents commerciaux sont des devis. Les factures sont des pièces de gestion : les mentions légales et fiscales officielles ne sont pas générées. Aucune règle locale (fiscalité, marchés publics) n'est supposée : à valider avant usage.</p></div>`;
+    <div class="card"><b>À propos</b><p class="hint">Version de l'application : <b>${BUILD}</b> (si ce numéro ne change pas après une mise à jour, ferme complètement l'application et rouvre-la).</p><p class="hint">Les documents commerciaux sont des devis. Les factures sont des pièces de gestion : les mentions légales et fiscales officielles ne sont pas générées. Aucune règle locale (fiscalité, marchés publics) n'est supposée : à valider avant usage.</p></div>`;
 }
 
 // ---------- Rendu ----------
@@ -852,6 +852,20 @@ document.addEventListener("click", (e) => {
 window.addEventListener("hashchange", () => { render(); window.scrollTo(0, 0); });
 window.addEventListener("beforeprint", () => document.body.classList.add("printing"));
 window.addEventListener("afterprint", () => document.body.classList.remove("printing"));
-if ("serviceWorker" in navigator && location.protocol.startsWith("http")) navigator.serviceWorker.register("sw.js").catch(() => {});
+export const BUILD = "20";
+// Mise à jour automatique : quand une nouvelle version est publiée, l'application la prend toute seule
+// (au retour sur l'application, ou dès que la personne n'est plus en train de taper). Les données ne sont jamais touchées.
+if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
+  const hadController = !!navigator.serviceWorker.controller; let pending = false;
+  const typing = () => { const e = document.activeElement; return !!(e && /^(INPUT|TEXTAREA|SELECT)$/.test(e.tagName)); };
+  const reloadWhenIdle = () => { if (!typing()) location.reload(); else pending = true; };
+  document.addEventListener("focusout", () => { if (pending) setTimeout(() => { if (!typing()) location.reload(); }, 400); });
+  navigator.serviceWorker.addEventListener("controllerchange", () => { if (hadController) reloadWhenIdle(); });
+  navigator.serviceWorker.register("sw.js").then((reg) => {
+    const check = () => reg.update().catch(() => {});
+    document.addEventListener("visibilitychange", () => { if (!document.hidden) check(); });
+    setInterval(check, 5 * 60 * 1000);
+  }).catch(() => {});
+}
 S.init();
 render();
