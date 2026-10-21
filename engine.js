@@ -216,10 +216,11 @@ export function runChecks(ctx) {
   const has = (tag) => lines.some((l) => l.tags.includes(tag) && (l.qty ?? 0) > 0 && !l.option);
   const decided = (k) => !!(ctx.decisions && ctx.decisions[k]);
 
-  if (!(ctx.surface > 0)) add("bloque", "Surface ou quantité de base non renseignée");
+  const simple = !!ctx.simple; // technicien : seuls les points qui rendent le devis faux ou vide bloquent
+  if (!simple && !(ctx.surface > 0)) add("bloque", "Surface ou quantité de base non renseignée");
   if (!lines.length) add("bloque", "Aucune prestation sélectionnée");
   if (r && lines.length && typeof r.totals.base === "number" && r.totals.base <= 0) add("bloque", "Total de l'offre nul ou négatif", "Un devis ne peut pas avoir un montant nul ou négatif : vérifie les prix, les quantités et la remise.");
-  if (ctx.lossPct === null || ctx.lossPct === undefined) add("verifier", "Marge de sécurité des produits non renseignée", "0 % est appliqué tant qu'elle n'est pas saisie. Utilise la valeur observée sur tes chantiers.");
+  if (!simple && (ctx.lossPct === null || ctx.lossPct === undefined)) add("verifier", "Marge de sécurité des produits non renseignée", "0 % est appliqué tant qu'elle n'est pas saisie. Utilise la valeur observée sur tes chantiers.");
   if (r) {
     const flagged = (f) => lines.filter((l) => l.flags.includes(f)).map((l) => l.label);
     const nf = r.warnings.filter((w) => w.startsWith("Article introuvable")); if (nf.length) add("bloque", "Produit introuvable dans Mes produits et mes prix", nf.map((w) => w.replace("Article introuvable : ", "")).join(", ") + ". La ligne ne serait pas comptée dans le total.");
@@ -232,7 +233,8 @@ export function runChecks(ctx) {
   }
 
   // accès / travail en hauteur
-  if (ctx.workHeightM === null || ctx.workHeightM === undefined) add("bloque", "Hauteur de travail non renseignée", "Nécessaire pour décider des moyens d'accès.");
+  if (simple) { /* non demandé au technicien */ }
+  else if (ctx.workHeightM === null || ctx.workHeightM === undefined) add("bloque", "Hauteur de travail non renseignée", "Nécessaire pour décider des moyens d'accès.");
   else if (ctx.accessThresholdM === null || ctx.accessThresholdM === undefined) add("verifier", "Seuil de hauteur d'accès non défini", "À définir dans les réglages de l'entreprise.");
   else if (ctx.workHeightM >= ctx.accessThresholdM) {
     if (has("acces")) add("ok", "Moyens d'accès chiffrés");
@@ -241,22 +243,23 @@ export function runChecks(ctx) {
     else add("bloque", "Moyens d'accès non traités", `Hauteur ${ctx.workHeightM} m ≥ seuil ${ctx.accessThresholdM} m : chiffrer, exclure explicitement ou faire fournir par le client.`);
   } else add("ok", "Hauteur sous le seuil d'accès");
 
-  for (const [k, lab] of [["transport", "Transport et manutention"], ["protection", "Protections et sécurité"], ["nettoyage", "Nettoyage et évacuation des déchets"], ["outillage", "Outillage et équipements"]]) {
+  if (!simple) for (const [k, lab] of [["transport", "Transport et manutention"], ["protection", "Protections et sécurité"], ["nettoyage", "Nettoyage et évacuation des déchets"], ["outillage", "Outillage et équipements"]]) {
     if (has(k)) add("ok", lab + " chiffrés");
     else if (decided(k)) add("ok", lab + " : décision prise (" + ({ inclus: "inclus", exclu: "exclu", client: "fourni par le client", na: "sans objet" }[ctx.decisions[k]] || ctx.decisions[k]) + ")");
     else add("verifier", lab + " non examinés", "Chiffrer une ligne ou indiquer « sans objet ».");
   }
-  for (const e of ctx.expects || []) {
+  if (!simple) for (const e of ctx.expects || []) {
     if (has(e.tag)) add("ok", e.label + " prévus");
     else if (decided(e.tag)) add("ok", e.label + " : décision prise");
     else add(e.severity || "verifier", e.label + " non prévus", e.hint);
   }
 
-  add(ctx.hasDelay ? "ok" : "bloque", ctx.hasDelay ? "Délai renseigné" : "Délai d'exécution manquant");
+  if (!simple) add(ctx.hasDelay ? "ok" : "bloque", ctx.hasDelay ? "Délai renseigné" : "Délai d'exécution manquant");
   add(ctx.hasValidity ? "ok" : "bloque", ctx.hasValidity ? "Validité de l'offre renseignée" : "Validité de l'offre manquante");
   add(ctx.hasPayment ? "ok" : "bloque", ctx.hasPayment ? "Échéancier renseigné (100 %)" : "Échéancier incomplet", "Chaque échéancier doit totaliser 100 %.");
   if (ctx.vatPct === null || ctx.vatPct === undefined) add("verifier", "TVA non définie (devis affiché hors taxes)");
-  if (r && r.margin) {
+  if (simple) { /* marge : information interne, jamais bloquante pour le technicien */ }
+  else if (r && r.margin) {
     if (ctx.minMarginPct !== null && ctx.minMarginPct !== undefined && r.margin.base.marginRatePct < ctx.minMarginPct)
       add("verifier", `Rentabilité insuffisante : taux de marque ${r.margin.base.marginRatePct.toFixed(1)} % < ${ctx.minMarginPct} %`, ctx.discountActive ? "La remise appliquée réduit la marge sous le minimum." : "");
   } else if (r && r.lines.length) add("verifier", "Coûts d'achat incomplets : marge non calculable");

@@ -32,8 +32,8 @@ for (const tpl of ["classique", "sobre", "compact"]) {
 }
 eq("couleur invalide ignorée (pas d'injection CSS)", renderDoc(snapOf(ref, { ...pres, color: "red;} body{display:none" }), {}).includes("display:none"), false);
 // brouillon refusé
-let err = ""; try { buildDocx({ ...snap, hash: undefined }); } catch (e) { err = e.message; }
-eq("Word refusé pour un brouillon", /version figée/.test(err), true);
+let err = ""; try { buildDocx(null); } catch (e) { err = e.message; }
+eq("Word refusé si le devis est introuvable", /introuvable/.test(err), true);
 // déterminisme
 eq("même version → mêmes octets", Buffer.from(buildDocx(snap, ref.ref).bytes).equals(Buffer.from(w.bytes)), true);
 // sans logo
@@ -54,5 +54,6 @@ const s2 = snapOf(r2, pres); eq("avec TVA de test + remise : montants Word = PDF
   eq("RCCM seul : pas de NIU affiché", /NIU/.test(renderDoc({ ...snap, company: { ...company, rccm: "X1" } }, { ref: ref.ref })), false);
   eq("RCCM/NIU ne changent aucun montant", nums(hh), nums(html));
 }
+{ const d = buildDocx({ ...snap, n: null, hash: undefined, at: null }, "REF-X"); eq("Word d'un brouillon : marqué brouillon, sans empreinte", d.text.includes("brouillon") && !d.text.includes("Empreinte de contrôle"), true); }
 fs.writeFileSync(process.argv[2] || "/tmp/test.docx", w.bytes);
 console.log(`\n${pass} réussis, ${fail} échoués`); process.exit(fail ? 1 : 0);

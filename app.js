@@ -40,7 +40,7 @@ const FREE_UNITS = { produits: ["sac", "seau", "litre", "kg", "mètre", "pièce"
 const EQUIP_CATS = ["equip_loue", "equip_possede"];
 
 const ui = {
-  qid: null, step: 0, view: "client", ver: null, flash: null, itemDraft: null, clientDraft: null, backup: null, invoice: null, wsNew: "", wsCopy: false, csv: null,
+  qid: null, step: 0, view: "client", file: null, busy: "", ver: null, flash: null, itemDraft: null, clientDraft: null, backup: null, invoice: null, wsNew: "", wsCopy: false, csv: null,
   f: { q: "", status: "", cat: "", pack: "", cl: "" },
   tmp: { addPrest: "", line: { itemId: "", qty: 1, option: false }, equip: { itemId: "", days: null, basis: "jour", trips: 1, bill: "inclus", markupPct: null },
     scaf: { itemId: "", longueur: null, hauteur: null, jours: null, basis: "jour", trips: 1, bill: "inclus", markupPct: null },
@@ -411,11 +411,13 @@ function stepApercu(q, ev, dis) {
   const wa = `https://wa.me/?text=${encodeURIComponent(summaryText(snap, q.ref))}`;
   const blocked = ev.checks.status === "bloque";
   return `${top}<div class="noprint">${draft ? `<div class="banner info">Aperçu d'un brouillon : il n'a ni empreinte ni valeur contractuelle tant qu'il n'est pas envoyé (figé).</div>` : `<div class="banner info">Version figée V${snap.n} — empreinte ${snap.hash}</div>`}
-    <div class="row"><button data-act="print" ${draft && blocked ? "disabled" : ""}>Générer le PDF (Imprimer → Enregistrer en PDF)</button>
+    <div class="row"><button data-act="pdf" ${(draft && blocked) || ui.busy ? "disabled" : ""}>${ui.busy === "pdf" ? "PDF en préparation…" : "Créer le PDF"}</button><button class="sec" data-act="word" data-n="${draft ? "draft" : snap.n}" ${draft && blocked ? "disabled" : ""}>Créer le Word (.docx)</button></div>
+    ${ui.file ? `<div class="banner info"><b>${esc(ui.file.name)}</b> est prêt.<div class="row"><button class="gold" data-act="saveFile">Enregistrer / envoyer le fichier</button></div></div>` : ""}
+    <div class="row"><button class="sec" data-act="print" ${draft && blocked ? "disabled" : ""}>Imprimer</button>
     <button class="gold" data-act="send" ${canSend && !blocked ? "" : "disabled"}>Envoyer : figer V${q.versions.length + 1}</button></div>
     ${canSend ? "" : draft ? `<p class="hint">Pour envoyer : marque d'abord le devis « Prêt à envoyer » (bloc Vérifier, plus haut).</p>` : ""}
     ${blocked && draft ? `<p class="hint">Corrige ce qui manque (bloc Vérifier, plus haut) pour générer le PDF.</p>` : ""}
-    ${!draft ? `<div class="row"><a class="btn sec" href="${wa}" target="_blank" rel="noopener">Partager sur WhatsApp</a><button class="sec" data-act="copy" data-t="${esc(summaryText(snap, q.ref))}">Copier le message</button></div><p class="hint">WhatsApp reçoit le message de synthèse ; joins le PDF enregistré depuis l'impression.</p><div class="row"><button class="sec" data-act="word" data-n="${snap.n}">Télécharger Word (.docx, copie modifiable)</button></div>` : ""}</div>
+    ${!draft ? `<div class="row"><a class="btn sec" href="${wa}" target="_blank" rel="noopener">Partager sur WhatsApp</a><button class="sec" data-act="copy" data-t="${esc(summaryText(snap, q.ref))}">Copier le message</button></div><p class="hint">WhatsApp reçoit le message de synthèse ; joins ensuite le PDF créé ci-dessus.</p>` : ""}</div>
     ${renderDoc(snap, { draft, ref: q.ref })}`;
 }
 function internal(snap, q) {
@@ -643,11 +645,25 @@ function processLogo(file) {
     rd.readAsDataURL(file);
   });
 }
+function saveFile() {
+  const f = ui.file; if (!f) return;
+  const blob = new Blob([f.data], { type: f.mime });
+  try {
+    const file = new File([blob], f.name, { type: f.mime });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      navigator.share({ files: [file], title: f.name }).then(() => { ui.flash = { type: "ok", text: f.name + " : envoyé vers l'application choisie." }; rerender(); })
+        .catch((err) => { if (err && err.name === "AbortError") return; download(f.name, f.mime, f.data); ui.flash = { type: "ok", text: f.name + " téléchargé." }; rerender(); });
+      return "skip";
+    }
+  } catch (e) { /* repli : téléchargement classique */ }
+  download(f.name, f.mime, f.data); ui.flash = { type: "ok", text: f.name + " téléchargé (dossier Téléchargements / Fichiers)." };
+}
 function download(name, mime, data) {
   const blob = new Blob([data], { type: mime }); const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name;
   document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
 }
 function touchQuote(q, quiet = false) {
+  ui.file = null;
   if (q.status === "pret") { q.status = "brouillon"; q.statusLog.push({ at: new Date().toISOString(), to: "brouillon", reason: "Modifié après validation" }); }
   S.commit(); if (!quiet) rerender();
 }
@@ -798,7 +814,7 @@ const actions = {
   view(b) { ui.view = b.dataset.v; },
   print() { window.print(); },
   send() { const q = S.getQuote(ui.qid); const v = S.freezeVersion(q); ui.ver = String(v.n); ui.view = "client"; ui.flash = { type: "ok", text: `V${v.n} figée et envoyée. Empreinte ${v.hash}.` }; },
-  seeVer(b) { ui.ver = b.dataset.n; ui.view = "client"; },
+  seeVer(b) { ui.file = null; ui.ver = b.dataset.n; ui.view = "client"; },
   copy(b) { const t = b.dataset.t; const ok = () => { ui.flash = { type: "ok", text: "Message copié." }; rerender(); }; if (navigator.clipboard) navigator.clipboard.writeText(t).then(ok).catch(() => { ui.flash = { type: "err", text: "Copie impossible : sélectionne le texte manuellement." }; rerender(); }); else ok(); return "skip"; },
   startNeg() { const q = S.getQuote(ui.qid); S.startNegotiation(q); ui.ver = "draft"; ui.flash = { type: "ok", text: `Brouillon de V${q.versions.length + 1} prêt : modifie puis envoie.` }; go(`#/devis/${q.id}/0`); },
   discardNeg() { S.discardNegotiationDraft(S.getQuote(ui.qid)); },
@@ -823,9 +839,25 @@ const actions = {
   pay(b) { S.markPaid(b.dataset.o, Number(b.dataset.i)); },
   openInv(b) { ui.invoice = b.dataset.id; },
   word(b) {
-    const q = S.getQuote(ui.qid); const v = q.versions.find((x) => String(x.n) === b.dataset.n); if (!v) throw new Error("Version introuvable.");
-    const { bytes } = buildDocx(v, q.ref); download(`${q.ref}-V${v.n}.docx`, DOCX_MIME, bytes); ui.flash = { type: "ok", text: `Word V${v.n} téléchargé (copie modifiable).` };
+    const q = S.getQuote(ui.qid);
+    const { snap } = snapFor(q, S.evaluate(q)); const v = b.dataset.n === "draft" ? snap : q.versions.find((x) => String(x.n) === b.dataset.n); if (!v) throw new Error("Version introuvable.");
+    const { bytes } = buildDocx(v, q.ref); const name = `${q.ref}${v.n ? "-V" + v.n : "-brouillon"}.docx`;
+    ui.file = { name, mime: DOCX_MIME, data: bytes }; return saveFile();
   },
+  async pdf() {
+    const q = S.getQuote(ui.qid); const el = document.getElementById("doc"); if (!el) throw new Error("Aperçu introuvable.");
+    ui.busy = "pdf"; rerender();
+    try {
+      const { makePdf } = await import("./pdf.js");
+      const data = await makePdf(document.getElementById("doc"));
+      const v = (snapFor(q, S.evaluate(q)).snap || {}).n;
+      ui.file = { name: `${q.ref}${v ? "-V" + v : "-brouillon"}.pdf`, mime: "application/pdf", data: new Uint8Array(data) };
+      ui.flash = { type: "ok", text: "PDF créé. Touche « Enregistrer / envoyer le fichier »." };
+    } catch (err) { ui.flash = { type: "err", text: "PDF impossible : " + err.message + ". Utilise « Imprimer »." }; }
+    ui.busy = ""; rerender();
+    return "skip";
+  },
+  saveFile() { return saveFile(); },
   csvExport() { download(`catalogue-${S.today()}.csv`, "text/csv;charset=utf-8", exportCatalogueCsv(S.state.db.catalogue)); ui.flash = { type: "ok", text: "Catalogue exporté (CSV)." }; },
   csvTemplate() { download("modele-catalogue.csv", "text/csv;charset=utf-8", templateCsv()); },
   csvApply() { const ok = ui.csv.rows.filter((r) => r.status !== "error").map((r) => r.item); S.saveItems(ok, "import CSV"); ui.flash = { type: "ok", text: `${ok.length} article(s) importé(s).` }; ui.csv = null; },
@@ -851,10 +883,10 @@ document.addEventListener("click", (e) => {
   try { const r = actions[b.dataset.act](b); if (r === "skip") return; } catch (err) { ui.flash = { type: "err", text: err.message }; }
   rerender(b.tagName !== "A");
 });
-window.addEventListener("hashchange", () => { render(); window.scrollTo(0, 0); });
+window.addEventListener("hashchange", () => { ui.file = null; render(); window.scrollTo(0, 0); });
 window.addEventListener("beforeprint", () => document.body.classList.add("printing"));
 window.addEventListener("afterprint", () => document.body.classList.remove("printing"));
-export const BUILD = "22";
+export const BUILD = "23";
 // Mise à jour automatique : quand une nouvelle version est publiée, l'application la prend toute seule
 // (au retour sur l'application, ou dès que la personne n'est plus en train de taper). Les données ne sont jamais touchées.
 if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {

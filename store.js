@@ -197,6 +197,7 @@ export function evaluate(q, draft = q.current) {
   const last = lastVersion(q);
   const expired = !!last && ["envoye", "negociation"].includes(q.status) && effectiveStatus(q) === "expire";
   const checks = runChecks({
+    simple: draft.profil === "technicien",
     surface: effSurface(draft.site), lossPct: draft.site.lossPct, result, workHeightM: draft.site.workHeightM, accessThresholdM: s.accessThresholdM, decisions: draft.decisions || {},
     expects: packExpects(draft), hasDelay: draft.terms.delayMin > 0 && draft.terms.delayMax >= draft.terms.delayMin, hasValidity: draft.validityDays > 0,
     hasPayment: validPct(draft.terms.payment.materials) && validPct(draft.terms.payment.services), vatPct: draft.terms.vatPct, minMarginPct: s.minMarginPct,

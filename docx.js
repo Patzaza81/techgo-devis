@@ -68,14 +68,15 @@ function parseDataUrl(u) {
 
 /** snap = version figée (avec n, at, hash, presentation). Retourne { bytes, text } : les octets du .docx et le texte brut (pour les tests). */
 export function buildDocx(snap, ref = "") {
-  if (!snap || !snap.n || !snap.hash) throw new Error("L'export Word se fait depuis une version figée.");
+  if (!snap || !snap.quote || !snap.result) throw new Error("Devis introuvable pour l'export Word.");
+  const fige = !!(snap.n && snap.hash);
   const q = snap.quote, r = snap.result, c = snap.company, t = r.totals, vat = q.terms.vatPct, pres = snap.presentation || {};
   const acc = /^#[0-9a-fA-F]{6}$/.test(pres.color || "") ? pres.color.slice(1).toUpperCase() : "0B7A8C";
   const shown = r.lines.filter((l) => !(l.mode === "equip" && l.total === 0));
   const base = shown.filter((l) => !l.option), opt = shown.filter((l) => l.option), hasOpt = opt.length > 0;
   const ohLabel = q.overhead && q.overhead.mode === "ligne" && q.overhead.pct > 0;
   const sc = r.schedules, nPay = sc.base.combined.length, trig = q.terms.triggers || [];
-  const refTxt = `${ref || q.ref} — V${snap.n}`;
+  const refTxt = `${ref || q.ref}${fige ? " — V" + snap.n : " — brouillon"}`;
   const logo = parseDataUrl(pres.logo);
   const sNet = effSurface(q.site);
   const tail = (sub, oh, disc, net, v, ttc) => [
@@ -95,7 +96,7 @@ export function buildDocx(snap, ref = "") {
   if (drawing) body.push(para(drawing, { before: 0, after: 60 }));
   body.push(txt(c.name, { b: 1, sz: 26, color: acc, before: 0, after: 0 }));
   body.push(txt([c.tagline, c.address, c.phone ? "Tél. " + c.phone : "", c.whatsapp ? "WhatsApp " + c.whatsapp : "", c.web].filter(Boolean).join(" — "), { sz: 16, color: "666666", before: 0 }));
-  body.push(txt(`Copie modifiable de la version V${snap.n}. Le PDF et la version figée font foi : pour changer un montant, créer une nouvelle version dans l'application.`, { i: 1, sz: 16, color: "B00020" }));
+  body.push(txt(fige ? `Copie modifiable de la version V${snap.n}. Le PDF et la version figée font foi : pour changer un montant, créer une nouvelle version dans l'application.` : "Brouillon non figé : copie modifiable, sans valeur contractuelle tant que le devis n'est pas envoyé.", { i: 1, sz: 16, color: "B00020" }));
   body.push(txt("DEVIS ESTIMATIF", { b: 1, sz: 40, color: acc, before: 200 }));
   const meta = [["RÉFÉRENCE", refTxt], ["DATE", frDate(snap.at)], ["VALIDITÉ", `${q.validityDays ?? "…"} jours`], ["SURFACE / QUANTITÉ DE BASE", `${fmtD(sNet)} m²`], ["CLIENT", q.client.name || "........................"], ["CHANTIER", q.site.name + (q.site.address ? " — " + q.site.address : "")], ...(c.responsible ? [["RESPONSABLE CHANTIER", c.responsible + (c.responsiblePhone ? " — " + c.responsiblePhone : "")]] : [])];
   body.push(table(meta.map(([k, v]) => row([cell(para(run(k, { b: 1, sz: 16, color: "666666" })), 3200), cell(para(run(v, { sz: 18 })), 6438)])), [3200, 6438]));
@@ -133,7 +134,7 @@ export function buildDocx(snap, ref = "") {
     cell(para(run("POUR LE CLIENT — Bon pour accord", { b: 1, sz: 18 })) + para(run("Date : ____/____/______", { sz: 18 })) + para("") + para(run("____________________________", { sz: 18 })) + para(run("Nom, signature et mention « Bon pour accord »", { sz: 15, color: "666666" })), 4819),
     cell(para(run(`POUR ${c.name}`, { b: 1, sz: 18 })) + para(run(`Date : ${frDate(snap.at)}`, { sz: 18 })) + para("") + para(run("____________________________", { sz: 18 })) + para(run(`${c.responsible || ""} — Signature & cachet`, { sz: 15, color: "666666" })), 4819)])], [4819, 4819]));
   if (legalLine(c)) body.push(txt(legalLine(c), { sz: 14, color: "666666" }));
-  body.push(txt(`Empreinte de contrôle : ${snap.hash} (vérifie l'intégrité du document ; ne remplace pas une signature électronique).`, { sz: 14, color: "666666" }));
+  if (fige) body.push(txt(`Empreinte de contrôle : ${snap.hash} (vérifie l'intégrité du document ; ne remplace pas une signature électronique).`, { sz: 14, color: "666666" }));
 
   const NS = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"';
   const documentXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document ${NS}><w:body>${body.join("")}<w:sectPr><w:footerReference w:type="default" r:id="rIdFooter"/><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134" w:header="567" w:footer="567" w:gutter="0"/></w:sectPr></w:body></w:document>`;
