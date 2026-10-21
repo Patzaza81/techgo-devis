@@ -59,7 +59,15 @@ function groupTable(lines) {
   }).join("");
 }
 export const legalLine = (c) => [c.rccm ? "RCCM : " + c.rccm : "", c.niu ? "NIU : " + c.niu : ""].filter(Boolean).join(" — ");
-const head = (c, pres, draft) => `<div class="dochead"><div class="dl">${pres && pres.logo ? `<img class="dlogo" src="${pres.logo}" alt="">` : draft ? `<label class="logoslot noprint">+ Logo<input type="file" accept="image/png,image/jpeg" data-on="logoFile" hidden></label>` : ""}<div><b class="co">${esc(c.name)}</b><div class="note">${esc(c.tagline)}<br>${esc(c.address)}${c.phone ? " — Tél. " + esc(c.phone) : ""}<br>${c.whatsapp ? "WhatsApp " + esc(c.whatsapp) : ""}${c.web ? " — " + esc(c.web) : ""}</div></div></div></div>`;
+const head = (c, pres, draft) => {
+  const ph = (t) => draft ? `<span class="hph noprint">${t}</span>` : "";
+  const v = (x, t) => x ? esc(x) : ph(t);
+  const logo = pres && pres.logo ? `<img class="dlogo" src="${pres.logo}" alt="">` : draft ? `<label class="logoslot noprint">+ Logo<input type="file" accept="image/png,image/jpeg" data-on="logoFile" hidden></label>` : "";
+  const tel = c.phone ? " — Tél. " + esc(c.phone) : (draft ? ` — ${ph("Tél.")}` : "");
+  const wa = c.whatsapp ? "WhatsApp " + esc(c.whatsapp) : ph("WhatsApp");
+  const web = c.web ? " — " + esc(c.web) : "";
+  return `<div class="dochead"><div class="dl">${logo}<div><b class="co">${v(c.name, "Nom de ton entreprise")}</b><div class="note">${v(c.tagline, "Activité / slogan")}<br>${v(c.address, "Adresse")}${tel}<br>${wa}${web}</div></div></div></div>`;
+};
 
 
 // ---------- Devis du technicien : court, sobre, professionnel (modèles 1111, v4 TechGo, ERCOG) ----------
