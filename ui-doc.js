@@ -106,7 +106,7 @@ function techExpress(snap, { draft = false } = {}) {
       <div><span class="note">CLIENT</span><b>${esc(q.client.name) || "........................"}</b>${q.client.contact ? ` — ${esc(q.client.contact)}` : ""}</div>
       <div><span class="note">CHANTIER</span><b>${esc(q.site.name) || "Travaux"}${q.site.address ? " — " + esc(q.site.address) : ""}</b></div>
     </div>
-    <table><tr><th>Désignation</th><th class="n">Qté</th><th>Unité</th><th class="n">P.U.</th><th class="n">Montant</th></tr>
+    <table><thead><tr><th>Désignation</th><th class="n">Qté</th><th>Unité</th><th class="n">P.U.</th><th class="n">Montant</th></tr></thead>
       ${rows(x.mat)}${x.opt.length ? `<tr class="sub"><td colspan="5">Option non obligatoire</td></tr>${rows(x.opt)}` : ""}
       ${grp.map(([k, ls]) => `<tr class="sub"><td colspan="4">${k}${ls.length === 1 ? " — " + esc(ls[0].label) : ""}</td><td class="n">${fmtN(x.sum(ls))}</td></tr>`).join("")}
       ${t.discountBase ? `<tr><td colspan="4">Remise${q.discount.pct > 0 ? " (" + q.discount.pct + " %)" : ""}</td><td class="n">− ${fmtN(t.discountBase)}</td></tr>` : ""}
@@ -132,10 +132,9 @@ function techChantier(snap, { draft = false } = {}) {
     <div class="meta"><div><span class="note">CLIENT</span><b>${esc(q.client.name) || "........................"}</b>${q.client.contact ? `<div class="note">${esc(q.client.contact)}</div>` : ""}</div>
       <div><span class="note">OBJET DU DEVIS</span><b>${esc(q.site.name) || "Travaux"}</b><div class="note">${esc(q.site.address)}${x.sNet ? ` — ${fmtD(x.sNet)} m²` : ""}</div></div></div>
     <h3>1. Détail des fournitures et matériaux</h3>
-    <table><tr><th>Désignation</th><th class="n">Quantité</th><th class="n">P.U. (FCFA)</th><th class="n">Montant (FCFA)</th></tr>${rows(x.mat)}<tr class="sub"><td colspan="3">SOUS-TOTAL MATÉRIAUX</td><td class="n">${fmtN(x.sum(x.mat))}</td></tr></table>
+    <table><thead><tr><th>Désignation</th><th class="n">Quantité</th><th class="n">P.U. (FCFA)</th><th class="n">Montant (FCFA)</th></tr></thead>${rows(x.mat)}<tr class="sub"><td colspan="3">SOUS-TOTAL MATÉRIAUX</td><td class="n">${fmtN(x.sum(x.mat))}</td></tr></table>
     ${x.opt.length ? `<h3>Option non obligatoire</h3><table><tr><th>Désignation</th><th class="n">Quantité</th><th class="n">P.U. (FCFA)</th><th class="n">Montant (FCFA)</th></tr>${rows(x.opt)}<tr class="sub"><td colspan="3">SOUS-TOTAL OPTION</td><td class="n">${fmtN(x.sum(x.opt))}</td></tr></table>` : ""}
-    <div class="gt"><div class="gl"><span>MONTANT TOTAL DU DEVIS${vat === null ? " (HT)" : " (TTC)"}<br><small>Transport et main-d'œuvre inclus — détail en page 2</small></span><b class="gb">${fmt(x.grand)}</b></div></div>
-    <div class="pb"></div>
+    <div class="gt"><div class="gl"><span>MONTANT TOTAL DU DEVIS${vat === null ? " (HT)" : " (TTC)"}<br><small>Transport et main-d'œuvre inclus — détail dans la synthèse financière</small></span><b class="gb">${fmt(x.grand)}</b></div></div>
     <h3>2. Synthèse financière</h3>
     <table><tr><td>Sous-total matériaux</td><td class="n">${fmt(x.sum(x.mat))}</td></tr>
       ${x.out.length ? `<tr><td>Outils, machines et accès</td><td class="n">${fmt(x.sum(x.out))}</td></tr>` : ""}${x.log.length ? `<tr><td>Transport, logistique et divers</td><td class="n">${fmt(x.sum(x.log))}</td></tr>` : ""}
@@ -183,8 +182,8 @@ function techDetaille(snap, { draft = false, ref = "" } = {}) {
       ${c.responsible ? `<div style="grid-column:1/-1"><span class="note">RESPONSABLE CHANTIER</span><b>${esc(c.responsible)}${c.responsiblePhone ? " — " + esc(c.responsiblePhone) : ""}</b></div>` : ""}
     </div>
     <div class="gt"><div class="gl"><span>MONTANT TOTAL${vat === null ? " (hors taxes)" : " (HT)"}</span><b class="gb">${fmt(t.base)}</b></div>${vat === null ? "" : `<div class="gl"><span>Total TTC</span><b>${fmt(t.ttcBase)}</b></div>`}${opt.length ? `<div class="gl gold"><span>Avec option</span><b>${fmt(t.withOption)}</b></div>` : ""}</div>
-    ${mat.length ? `<h3>1. Fournitures et matériaux</h3><table>${head5}${matRows(mat)}<tr class="sub"><td colspan="4">SOUS-TOTAL FOURNITURES</td><td class="n">${fmtN(sum(mat))}</td></tr></table>` : ""}
-    ${opt.length ? `<h3>Option non obligatoire</h3><table>${head5}${matRows(opt)}<tr class="sub"><td colspan="4">SOUS-TOTAL OPTION</td><td class="n">${fmtN(sum(opt))}</td></tr></table>` : ""}
+    ${mat.length ? `<h3>1. Fournitures et matériaux</h3><table><thead>${head5}</thead>${matRows(mat)}<tr class="sub"><td colspan="4">SOUS-TOTAL FOURNITURES</td><td class="n">${fmtN(sum(mat))}</td></tr></table>` : ""}
+    ${opt.length ? `<h3>Option non obligatoire</h3><table><thead>${head5}</thead>${matRows(opt)}<tr class="sub"><td colspan="4">SOUS-TOTAL OPTION</td><td class="n">${fmtN(sum(opt))}</td></tr></table>` : ""}
     <h3>${mat.length ? "2" : "1"}. Synthèse financière</h3>
     <table>${synth.map(([k, v]) => `<tr><td>${k}</td><td class="n">${fmt(v)}</td></tr>`).join("")}
       ${ohOn ? `<tr><td>Frais de fonctionnement (${q.overhead.pct} %)</td><td class="n">${fmt(t.overheadBase)}</td></tr>` : ""}
