@@ -208,12 +208,12 @@ function stepTravauxS(q, ev, dis) {
     const rowHtml = rows.map((r) => {
       const open = t.open === r.key && t.tab === k, l = r.line, unk = l && (l.price === null || l.qty === null);
       const head = `<button type="button" class="rowc ${l ? "ok" : "empty"} ${unk ? "warn" : ""} ${open ? "open" : ""}" data-act="rowToggle" data-key="${esc(r.key)}" data-tab="${k}" ${dis || (r.man && r.man.mode === "equip") ? "disabled" : ""}>
-        <span class="rn"><b>${esc(r.name)}</b><small>${l ? `${l.qty === null ? "quantité ?" : fmtN(l.qty) + " " + esc(l.unit)} × ${l.price === null ? "prix ?" : fmtN(l.price)}` : "Toucher pour remplir"}</small></span>
+        ${l ? `<em class="tick ${unk ? "w" : ""}">${unk ? "!" : "✓"}</em>` : ""}<span class="rn"><b>${esc(r.name)}</b><small>${l ? `${l.qty === null ? "quantité ?" : fmtN(l.qty) + " " + esc(l.unit)} × ${l.price === null ? "prix ?" : fmtN(l.price)}` : "Toucher pour remplir"}</small></span>
         <span class="rt">${l ? (l.total === null ? "prix manquant" : fmtN(l.total)) : ""}<i>${open ? "▲" : "▼"}</i></span></button>`;
       return head + (open ? sheetForm(t, k === "produits") : "");
     }).join("");
     const custom = t.open === "new:" + k && t.tab === k ? sheetForm(t, k === "produits") : dis ? "" : `<button type="button" class="addrow" data-act="rowToggle" data-key="new:${k}" data-tab="${k}">＋ ${add}</button>`;
-    return `<div class="card sec"><button type="button" class="sech" data-act="secToggle" data-tab="${k}"><b>${title}${filled.length ? ` · ${filled.length}` : ""}</b><span>${filled.length ? fmt(sum) : ""} <i>${isOpen ? "▲" : "▼"}</i></span></button>
+    return `<div class="card sec"><button type="button" class="sech" data-act="secToggle" data-tab="${k}"><b>${filled.length ? '<em class="tick sm">✓</em>' : ""}${title}${filled.length ? ` · ${filled.length}` : ""}</b><span>${filled.length ? fmt(sum) : ""} <i>${isOpen ? "▲" : "▼"}</i></span></button>
       ${isOpen ? rowHtml + custom : ""}</div>`;
   }).join("");
   return `<h2>Le travail et le matériel</h2>
