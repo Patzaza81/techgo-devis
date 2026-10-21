@@ -38,7 +38,7 @@ export function blankPrices(items) {
 function defaultDb() {
   return {
     v: 1, rev: 0,
-    company: { name: "TECHGO S.A.R.L.", tagline: "Coordination, supervision et garantie des travaux", address: "Douala, Bonamoussadi", phone: "+237 694 375 420", whatsapp: "+237 699 881 729", web: "techgo-douala.netlify.app", responsible: "M. Bangue Henri Nkondo", responsiblePhone: "+237 694 375 420" },
+    company: { name: "TECHGO S.A.R.L.", tagline: "Coordination, supervision et garantie des travaux", address: "Douala, Bonamoussadi", phone: "+237 694 375 420", whatsapp: "+237 699 881 729", web: "techgo-douala.netlify.app", responsible: "M. Bangue Henri Nkondo", responsiblePhone: "+237 694 375 420", rccm: "", niu: "" },
     settings: {
       presentation: { template: "classique", color: "#0b7a8c", logo: LOGO, logoW: 128, logoH: 128 },
       accessThresholdM: null, lossPct: null, vatPct: null, validityDays: 30, minMarginPct: null, overheadPct: 0, overheadMode: "inclus", quotePrefix: "DEV",
@@ -84,7 +84,7 @@ export function createWorkspace(name, { copyCatalogue = false } = {}) {
   const src = copyCatalogue && state.db ? clone(state.db.catalogue) : null;
   const idx = readIndex() || { active: null, list: [] };
   const id = uid(); idx.list.push({ id, name: name || "Nouvelle entreprise" }); idx.active = id; writeIndex(idx);
-  const db = defaultDb(); db.company.name = name || "Nouvelle entreprise"; db.company.tagline = ""; db.company.address = ""; db.company.phone = ""; db.company.whatsapp = ""; db.company.web = ""; db.company.responsible = ""; db.company.responsiblePhone = "";
+  const db = defaultDb(); db.company.name = name || "Nouvelle entreprise"; db.company.tagline = ""; db.company.address = ""; db.company.phone = ""; db.company.whatsapp = ""; db.company.web = ""; db.company.responsible = ""; db.company.responsiblePhone = ""; db.company.rccm = ""; db.company.niu = "";
   db.settings.payMaterials = [100]; db.settings.payServices = [100]; db.settings.triggers = ["À la signature"]; db.settings.conditions = [];
   db.settings.presentation = { template: "classique", color: "#0b7a8c", logo: null, logoW: 0, logoH: 0 };
   if (src) db.catalogue = src; else { db.catalogue = blankPrices(db.catalogue); db.blankSeeds = true; }

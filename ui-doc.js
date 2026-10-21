@@ -58,6 +58,7 @@ function groupTable(lines) {
       `<tr class="sub"><td colspan="3">Sous-total — ${esc(g)}</td><td class="n">${fmtN(ls.reduce((a, l) => a + (l.total ?? 0), 0))}</td></tr>`;
   }).join("");
 }
+export const legalLine = (c) => [c.rccm ? "RCCM : " + c.rccm : "", c.niu ? "NIU : " + c.niu : ""].filter(Boolean).join(" — ");
 const head = (c, pres) => `<div class="dochead"><div class="dl">${pres && pres.logo ? `<img class="dlogo" src="${pres.logo}" alt="">` : ""}<div><b class="co">${esc(c.name)}</b><div class="note">${esc(c.tagline)}<br>${esc(c.address)}${c.phone ? " — Tél. " + esc(c.phone) : ""}<br>${c.whatsapp ? "WhatsApp " + esc(c.whatsapp) : ""}${c.web ? " — " + esc(c.web) : ""}</div></div></div></div>`;
 
 /** snap = { quote, result, company, conditions, n, at, hash } ; draft = true si non figé */
@@ -119,7 +120,7 @@ export function renderDoc(snap, { draft = false, ref = "" } = {}) {
     <p>☐ Offre de base seule — <b>${fmt(t.base)}</b>${hasOpt ? `<br>☐ Offre de base + option — <b>${fmt(t.withOption)}</b>` : ""}</p>
     <div class="sign"><div>POUR LE CLIENT — Bon pour accord<br>Date : ____/____/______<br><br>____________________________<br><span class="note">Nom, signature et mention « Bon pour accord »</span></div>
       <div>POUR ${esc(c.name)}<br>Date : ${frDate(snap.at || q.date)}<br><br>____________________________<br><span class="note">${esc(c.responsible)} — Signature &amp; cachet</span></div></div>
-    <div class="docfoot note">${esc(c.name)} — ${esc(ref || q.ref)}${snap.n ? " V" + snap.n : ""}${c.whatsapp ? " — WhatsApp " + esc(c.whatsapp) : ""}${snap.hash ? `<br>Empreinte de contrôle : ${snap.hash} (vérifie l'intégrité du document ; ne remplace pas une signature électronique)` : ""}</div>
+    <div class="docfoot note">${esc(c.name)} — ${esc(ref || q.ref)}${snap.n ? " V" + snap.n : ""}${c.whatsapp ? " — WhatsApp " + esc(c.whatsapp) : ""}${legalLine(c) ? "<br>" + esc(legalLine(c)) : ""}${snap.hash ? `<br>Empreinte de contrôle : ${snap.hash} (vérifie l'intégrité du document ; ne remplace pas une signature électronique)` : ""}</div>
   </div>`;
 }
 

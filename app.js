@@ -6,7 +6,22 @@ import { LOGO } from "./logo.js";
 import { esc, fmt, fmtN, fmtD, frDate, renderDoc, renderInvoice, summaryText } from "./ui-doc.js";
 
 const $ = (s) => document.querySelector(s);
-const STEPS = ["Client et chantier", "Travaux", "Ce qu'il faut", "Prix et conditions", "Vérifier", "Aperçu et envoi", "Suivi"];
+const ICONS = {
+  devis: '<path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5M10 13h6M10 17h6"/>',
+  clients: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6"/><path d="M16 5.2a3.5 3.5 0 0 1 0 6.6M18.5 14.4c1.8.8 3 2.6 3 5.6"/>',
+  catalogue: '<path d="M3 8l9-5 9 5v8l-9 5-9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/>',
+  suivi: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+  reglages: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1"/>',
+  produits: '<path d="M5 8h14l-1 12H6z"/><path d="M8 8V6a4 4 0 0 1 8 0v2"/>',
+  outils: '<path d="M14.5 6.5a4 4 0 0 0-5 5L3 18l3 3 6.5-6.5a4 4 0 0 0 5-5l-2.5 2.5-2.5-.5-.5-2.5z"/>',
+  ouvriers: '<path d="M5 17h14v3H5zM7 17v-3a5 5 0 0 1 10 0v3M12 6V3"/>',
+  autres: '<path d="M2 6h12v10H2zM14 9h4l4 3v4h-8zM6 19a2 2 0 1 0 0-.01M18 19a2 2 0 1 0 0-.01"/>',
+  check: '<path d="M4 12.5l5 5L20 6.5"/>', warn: '<path d="M12 3l10 18H2z"/><path d="M12 10v5M12 18.2v.1"/>', plus: '<path d="M12 5v14M5 12h14"/>',
+  back: '<path d="M15 5l-7 7 7 7"/>', next: '<path d="M9 5l7 7-7 7"/>',
+};
+const ic = (n, sz = 22) => `<svg class="ic" width="${sz}" height="${sz}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[n] || ""}</svg>`;
+const STEPS = ["Client et chantier", "Travaux", "Ce qu'il faut", "Prix et conditions", "Vérifier et envoyer"];
+const LAST = STEPS.length - 1; // 4 ; la page 5 = « Suivi du devis » (hors barre de progression)
 const DECISIONS = [["", "Non examiné"], ["inclus", "Inclus (je chiffre une ligne)"], ["exclu", "Exclu du devis (chiffré séparément)"], ["client", "Fourni par le client"], ["na", "Sans objet"]];
 const STATE_LABEL = { complet: "Prêt", verifier: "À vérifier", bloque: "Il manque quelque chose" };
 const nz = (s) => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
@@ -55,15 +70,9 @@ function viewDevis() {
     return (!f.q || txt.includes(f.q.toLowerCase())) && (!f.status || S.effectiveStatus(q) === f.status);
   });
   const counts = Object.keys(S.STATUS).map((k) => [k, db.quotes.filter((q) => S.effectiveStatus(q) === k).length]).filter((x) => x[1]);
-  return `<section class="welcome">
-      <span class="welcome-kicker">VOTRE ATELIER DE CHIFFRAGE</span>
-      <h2>Des devis clairs. Des coûts maîtrisés.</h2>
-      <p>Préparez un devis étape par étape, vérifiez les oublis, puis exportez-le en PDF ou Word.</p>
-      <div class="welcome-steps"><span><b>1</b> Client & chantier</span><span><b>2</b> Travaux & prix</span><span><b>3</b> Vérifier & envoyer</span></div>
-      <div class="row"><button data-act="newQuote">＋ Créer un devis</button><button class="sec" data-act="demoQuote">Voir un exemple</button></div>
-    </section>
-    <div class="card"><div class="qhead"><b>Vos devis</b><span class="note">${list.length} dossier${list.length > 1 ? "s" : ""}</span></div>
-    <div class="row"><div>${L("Rechercher un devis")}${I("ui", "f.q", f.q, { ph: "Référence, client, chantier" })}</div>
+  return `<h2>Devis</h2>
+    <div class="row"><button data-act="newQuote">+ Nouveau devis</button><button class="sec" data-act="demoQuote">Devis de référence (démo)</button></div>
+    <div class="card"><div class="row"><div>${L("Recherche")}${I("ui", "f.q", f.q, { ph: "Référence, client, chantier" })}</div>
     <div>${L("Statut")}${Sel("ui", "f.status", f.status, [["", "Tous"], ...Object.entries(S.STATUS)])}</div></div>
     ${counts.length ? `<div class="chips">${counts.map(([k, n]) => `<span class="st st-${k}">${S.STATUS[k]} ${n}</span>`).join("")}</div>` : ""}</div>
     <p class="hint">Tes devis sont gardés dans ce téléphone seulement. Fais une sauvegarde de temps en temps (Réglages). Sur iPhone : bouton Partager, puis « Sur l'écran d'accueil ».</p>
@@ -73,7 +82,7 @@ function quoteCard(q) {
   const last = S.lastVersion(q); const ev = S.editable(q) || !last ? S.evaluate(q) : null;
   const total = last && !S.editable(q) ? last.result.totals.base : ev.result.totals.base;
   const st = S.effectiveStatus(q);
-  return `<a class="qcard" href="#/devis/${q.id}/${S.editable(q) ? 0 : 5}"><div class="qtop"><b>${esc(q.ref)}${last ? ` · V${last.n}` : ""}</b>${stBadge(st)}</div>
+  return `<a class="qcard" href="#/devis/${q.id}/${S.editable(q) ? 0 : LAST}"><div class="qtop"><b>${esc(q.ref)}${last ? ` · V${last.n}` : ""}</b>${stBadge(st)}</div>
     <div class="note">${esc(q.current.client.name) || "Client non renseigné"} — ${esc(q.current.site.name) || "Chantier non renseigné"}</div>
     <div class="qbot"><b>${fmt(total)}</b>${ev ? badge(ev.checks.status, STATE_LABEL[ev.checks.status]) : ""}</div></a>`;
 }
@@ -82,12 +91,18 @@ function quoteCard(q) {
 function viewQuote() {
   const q = S.getQuote(ui.qid); if (!q) return `<div class="empty">Devis introuvable. <a href="#/devis">Retour à la liste</a></div>`;
   const dis = !S.editable(q); const ev = S.evaluate(q); const st = S.effectiveStatus(q);
-  const stepsNav = `<div class="steps">${STEPS.map((n, i) => `<a class="${ui.step === i ? "on" : ""}" href="#/devis/${q.id}/${i}"><i>${i + 1}</i>${n}</a>`).join("")}</div>`;
-  const head = `<div class="qhead"><div><b>${esc(q.ref)}</b> ${stBadge(st)}</div><div>${badge(ev.checks.status, STATE_LABEL[ev.checks.status])} <b>${fmt(ev.result.totals.base)}</b>${missingPrices(ev) ? `<div class="note">Total pas fini : ${missingPrices(ev)} prix manquant${missingPrices(ev) > 1 ? "s" : ""}</div>` : ""}</div></div>`;
+  const onSuivi = ui.step > LAST, n = ui.step + 1;
+  const prog = onSuivi ? `<a class="back" href="#/devis/${q.id}/${LAST}">${ic("back", 18)} Retour au devis</a>`
+    : `<div class="prog noprint"><div class="progtop"><b>Étape ${n} sur ${STEPS.length}</b></div><div class="bar"><i style="width:${(n / STEPS.length) * 100}%"></i></div>
+       <div class="dots">${STEPS.map((t, i) => `<a class="${ui.step === i ? "on" : i < ui.step ? "done" : ""}" href="#/devis/${q.id}/${i}" aria-label="${esc(t)}">${i < ui.step ? ic("check", 18) : i + 1}</a>`).join("")}</div></div>`;
+  const miss = missingPrices(ev);
+  const head = `<div class="qhead"><div><b>${esc(q.ref)}</b> ${stBadge(st)}</div><div>${badge(ev.checks.status, STATE_LABEL[ev.checks.status])}</div></div>`;
   const frozen = dis ? `<div class="banner info">Ce devis est « ${S.STATUS[q.status]} » : les versions envoyées sont figées. ${["envoye", "refuse", "expire"].includes(q.status) ? "Prépare une nouvelle version pour modifier." : ""}</div>` : "";
-  const steps = [stepClient, stepPrest, stepBesoins, stepPrix, stepControle, stepApercu, stepVersions];
-  return `<a class="back" href="#/devis">‹ Tous les devis</a>${head}${stepsNav}${frozen}${steps[ui.step](q, ev, dis)}
-    <div class="row noprint" style="margin-top:14px"><button class="sec" ${ui.step === 0 ? "disabled" : ""} data-act="prev">‹ Précédent</button><button ${ui.step === 6 ? "disabled" : ""} data-act="next">Suivant ›</button></div>`;
+  const steps = [stepClient, stepPrest, stepBesoins, stepPrix, stepVerifier, stepVersions];
+  const bar = onSuivi ? "" : `<div class="actbar noprint"><div class="acts"><button class="sec sq" ${ui.step === 0 ? "disabled" : ""} data-act="prev" aria-label="Précédent">${ic("back", 24)}</button>
+    <div class="tot"><span>${miss ? "Total pas fini (FCFA)" : "Total HT (FCFA)"}</span><b>${fmtN(ev.result.totals.base)}</b></div>${ui.step < LAST ? `<button class="go" data-act="next">Continuer ${ic("next", 22)}</button>` : `<a class="btn go sec" href="#/devis/${q.id}/${LAST + 1}">Suivi ${ic("next", 22)}</a>`}</div>
+    ${miss ? `<div class="miss1">${ic("warn", 16)} ${miss} prix manquant${miss > 1 ? "s" : ""} : total pas fini</div>` : ""}</div>`;
+  return `<a class="back" href="#/devis">${ic("back", 18)} Tous les devis</a>${head}${prog}${frozen}${steps[ui.step](q, ev, dis)}${bar}`;
 }
 
 const missingPrices = (ev) => ev.result.lines.filter((l) => !l.option && l.flags.includes("prix_inconnu")).length;
@@ -135,6 +150,10 @@ function lineCard(l, q, dis) {
   return `<div class="lcard ${l.flags.length ? "warn" : ""}"><div class="lt"><b>${esc(l.label)}</b>${l.option ? '<span class="tag">option</span>' : ""}${l.overridden ? '<span class="tag t2">corrigé</span>' : ""}</div>
     ${l.role ? `<div class="note">${esc(l.role)}</div>` : ""}<div class="lcalc">${esc(l.calc)}</div>
     <div class="lnums"><span>${l.qty === null ? "quantité inconnue" : fmtN(l.qty) + " " + esc(l.unit)}</span><span>× ${l.mode === "equip" ? (l.total === 0 ? "non facturé" : "forfait") : l.price === null ? "prix inconnu" : fmtN(l.price)}</span><b>${l.total === null ? "—" : fmt(l.total)}</b></div>
+    ${!dis && l.flags.includes("prix_inconnu") && l.mode !== "equip" ? (q.current.pricing.method === "cout_plus_marge"
+      ? `<div class="miss">${ic("warn", 18)} <b>Il manque le prix d'achat de ${esc(l.label)}.</b>${L("Prix d'achat par " + esc(l.unit) + " (FCFA)")}<input data-on="adj" data-id="${esc(l.id)}" data-f="cost" type="number" inputmode="decimal" step="any" value="${esc(adj.costOverride ?? "")}"></div>`
+      : `<div class="miss">${ic("warn", 18)} <b>Il manque le prix de ${esc(l.label)}.</b>${L("Prix par " + esc(l.unit) + " (FCFA)")}<input data-on="adj" data-id="${esc(l.id)}" data-f="price" type="number" inputmode="decimal" step="any" value="${esc(adj.priceOverride ?? "")}"></div>`) : ""}
+    ${l.flags.includes("qte_inconnue") ? `<div class="miss">${ic("warn", 18)} <b>Il manque la quantité.</b> ${man && man.mode !== "equip" ? `<input data-on="mf" data-id="${esc(l.id)}" data-f="qty" type="number" inputmode="decimal" step="any" value="">` : man ? "Renseigne la durée ci-dessous." : "Renseigne les champs du bloc Travaux."}</div>` : ""}
     ${man && man.mode === "equip" ? `<div class="row3">${mf("days", "Durée (jours)", man.days)}${mf("trips", "Trajets", man.trips)}${mf("areaQty", "Surface (m²)", man.areaQty)}</div>
       <div class="row"><div>${L("Tarif retenu")}<select data-on="mf" data-id="${esc(l.id)}" data-f="basis" ${dis ? "disabled" : ""}>${[["jour", "Journalier"], ["semaine", "Hebdomadaire"], ["mois", "Mensuel"]].map(([v, t]) => `<option value="${v}" ${man.basis === v ? "selected" : ""}>${t}</option>`).join("")}</select></div>
       <div>${L("Facturation au client")}<select data-on="mf" data-id="${esc(l.id)}" data-f="bill" ${dis ? "disabled" : ""}><option value="inclus" ${man.bill !== "refacture" ? "selected" : ""}>Non facturé séparément (absorbé)</option><option value="refacture" ${man.bill === "refacture" ? "selected" : ""}>Refacturé avec majoration</option></select></div></div>
@@ -172,7 +191,7 @@ function freeSection(q, ev, dis) {
   const t = ui.tmp.free, db = S.state.db, lines = ev.result.lines;
   const cm = q.current.pricing.method === "cout_plus_marge";
   const sub = (tab) => { const ls = lines.filter((l) => tabOf(l) === tab && !l.option); const miss = ls.filter((l) => l.total === null).length; return { n: ls.length, sum: ls.reduce((a, l) => a + (l.total ?? 0), 0), miss }; };
-  const tabs = `<div class="seg tabs4">${TABS.map(([k, n]) => { const c = sub(k); return `<button class="${t.tab === k ? "on" : ""}" data-act="freeTab" data-k="${k}">${n}${c.n ? ` (${c.n})` : ""}</button>`; }).join("")}</div>`;
+  const tabs = `<div class="seg tabs4">${TABS.map(([k, n]) => { const c = sub(k); return `<button class="${t.tab === k ? "on" : ""}" data-act="freeTab" data-k="${k}">${ic(k, 22)}<span>${n}${c.n ? ` (${c.n})` : ""}</span></button>`; }).join("")}</div>`;
   const cur = sub(t.tab), shown = lines.filter((l) => tabOf(l) === t.tab);
   const match = db.catalogue.find((i) => !i.archived && nz(i.label) === nz(t.label));
   const field = cm ? "cost" : "price", prev = match ? match[field] : null;
@@ -246,10 +265,13 @@ function stepControle(q, ev, dis) {
   if (q.status === "brouillon" || q.status === "pret") acts.push(`<button class="sec" data-act="mark" data-to="a_verifier">Marquer « À vérifier »</button>`);
   if (["brouillon", "a_verifier"].includes(q.status)) acts.push(`<button data-act="mark" data-to="pret" ${ck.status === "bloque" ? "disabled" : ""}>Marquer « Prêt à envoyer »</button>`);
   if (["a_verifier", "pret"].includes(q.status)) acts.push(`<button class="sec" data-act="mark" data-to="brouillon">Repasser en brouillon</button>`);
-  return `<h2>Contrôle avant envoi</h2><div class="card"><div style="display:flex;justify-content:space-between;align-items:center"><b>Résultat</b>${badge(ck.status, STATE_LABEL[ck.status])}</div>
-    <p class="hint">Complet : tous les contrôles sont satisfaits. À vérifier : une hypothèse ou une dépense facultative reste à confirmer. Bloqué : un élément essentiel manque.</p>
+  return `<h2>Vérifier avant d'envoyer</h2><div class="card"><div style="display:flex;justify-content:space-between;align-items:center"><b>Résultat</b>${badge(ck.status, STATE_LABEL[ck.status])}</div>
+    <p class="hint">Prêt : tout est en ordre. À vérifier : un point reste à confirmer. Il manque quelque chose : corrige-le avant d'envoyer.</p>
     ${ck.items.map((r) => `<div class="chk"><div class="dot d-${r.state}">${r.state === "ok" ? "✓" : r.state === "verifier" ? "!" : "✕"}</div><div><b>${esc(r.label)}</b>${r.hint ? `<div class="hint">${esc(r.hint)}</div>` : ""}</div></div>`).join("")}</div>
     ${r_warn(ev)}${dis ? "" : `<div class="row">${acts.join("")}</div>`}`;
+}
+function stepVerifier(q, ev, dis) {
+  return `<div class="noprint">${stepControle(q, ev, dis)}</div>${stepApercu(q, ev, dis)}`;
 }
 const r_warn = (ev) => (ev.result.warnings.length ? `<div class="card"><b>Alertes de calcul</b>${ev.result.warnings.map((w) => `<div class="hint">• ${esc(w)}</div>`).join("")}</div>` : "");
 
@@ -272,8 +294,8 @@ function stepApercu(q, ev, dis) {
   return `${top}<div class="noprint">${draft ? `<div class="banner info">Aperçu d'un brouillon : il n'a ni empreinte ni valeur contractuelle tant qu'il n'est pas envoyé (figé).</div>` : `<div class="banner info">Version figée V${snap.n} — empreinte ${snap.hash}</div>`}
     <div class="row"><button data-act="print" ${draft && blocked ? "disabled" : ""}>Générer le PDF (Imprimer → Enregistrer en PDF)</button>
     <button class="gold" data-act="send" ${canSend && !blocked ? "" : "disabled"}>Envoyer : figer V${q.versions.length + 1}</button></div>
-    ${canSend ? "" : draft ? `<p class="hint">Pour envoyer : le devis doit être « Prêt à envoyer » (onglet Contrôle) ou en négociation.</p>` : ""}
-    ${blocked && draft ? `<p class="hint">Corrige les points bloquants (onglet Contrôle) pour générer le PDF.</p>` : ""}
+    ${canSend ? "" : draft ? `<p class="hint">Pour envoyer : marque d'abord le devis « Prêt à envoyer » (bloc Vérifier, plus haut).</p>` : ""}
+    ${blocked && draft ? `<p class="hint">Corrige ce qui manque (bloc Vérifier, plus haut) pour générer le PDF.</p>` : ""}
     ${!draft ? `<div class="row"><a class="btn sec" href="${wa}" target="_blank" rel="noopener">Partager sur WhatsApp</a><button class="sec" data-act="copy" data-t="${esc(summaryText(snap, q.ref))}">Copier le message</button></div><p class="hint">WhatsApp reçoit le message de synthèse ; joins le PDF enregistré depuis l'impression.</p><div class="row"><button class="sec" data-act="word" data-n="${snap.n}">Télécharger Word (.docx, copie modifiable)</button></div>` : ""}</div>
     ${renderDoc(snap, { draft, ref: q.ref })}`;
 }
@@ -288,7 +310,7 @@ function internal(snap, q) {
 
 function stepVersions(q, ev) {
   const last = S.lastVersion(q), st = S.effectiveStatus(q), t = ui.tmp;
-  const vers = q.versions.map((v) => { const ok = S.verifyVersion(v).ok; return `<div class="chk"><div class="dot d-${ok ? "ok" : "bloque"}">${ok ? "✓" : "✕"}</div><div style="flex:1"><b>V${v.n}</b> — ${frDate(v.at)} — ${fmt(v.result.totals.base)} HT<div class="note">Empreinte ${v.hash} · ${ok ? "intégrité vérifiée par recalcul" : "INTÉGRITÉ NON VÉRIFIÉE"}</div></div><a class="btn sec" href="#/devis/${q.id}/5" data-act="seeVer" data-n="${v.n}">Voir</a></div>`; }).join("");
+  const vers = q.versions.map((v) => { const ok = S.verifyVersion(v).ok; return `<div class="chk"><div class="dot d-${ok ? "ok" : "bloque"}">${ok ? "✓" : "✕"}</div><div style="flex:1"><b>V${v.n}</b> — ${frDate(v.at)} — ${fmt(v.result.totals.base)} HT<div class="note">Empreinte ${v.hash} · ${ok ? "intégrité vérifiée par recalcul" : "INTÉGRITÉ NON VÉRIFIÉE"}</div></div><a class="btn sec" href="#/devis/${q.id}/${LAST}" data-act="seeVer" data-n="${v.n}">Voir</a></div>`; }).join("");
   const actions = [];
   if (["envoye", "refuse", "expire"].includes(q.status)) actions.push(`<button data-act="startNeg">Préparer V${q.versions.length + 1}${q.status === "expire" ? " (renouveler)" : ""}</button>`);
   if (q.status === "negociation") actions.push(`<button class="sec" data-act="discardNeg">Abandonner le brouillon de V${q.versions.length + 1}</button>`);
@@ -300,7 +322,7 @@ function stepVersions(q, ev) {
     <div class="row"><button data-act="accept">Marquer accepté + créer la commande</button></div>
     ${L("Motif (refus ou annulation)")}${I("tmp", "reason", t.reason)}<div class="row"><button class="sec" data-act="reject">Marquer refusé</button><button class="sec" data-act="cancel">Annuler le devis</button></div></div>`
     : ["brouillon", "a_verifier", "pret"].includes(q.status) ? `<div class="card">${L("Motif d'annulation")}${I("tmp", "reason", t.reason)}<button class="sec" data-act="cancel" style="margin-top:8px">Annuler le devis</button></div>` : "";
-  return `<h2>Versions et suivi</h2><div class="card"><div style="display:flex;justify-content:space-between"><b>Statut</b>${stBadge(st)}</div>
+  return `<h2>Suivi du devis</h2><div class="card"><div style="display:flex;justify-content:space-between"><b>Statut</b>${stBadge(st)}</div>
     ${last ? `<p class="hint">Validité jusqu'au ${frDate(S.expiryDate(q))}.</p>` : ""}
     ${q.acceptance ? `<p class="hint">Accepté (V${q.acceptance.version}) le ${frDate(q.acceptance.date)}${q.acceptance.by ? " par " + esc(q.acceptance.by) : ""}. Preuve : ${esc(q.acceptance.note) || "—"}. <a href="#/suivi">Voir la commande</a></p>` : ""}
     <div class="row">${actions.join("")}</div></div>${decide}
@@ -386,7 +408,7 @@ function viewSuivi(a) {
   const pipe = ["envoye", "negociation", "accepte", "refuse", "expire"].map((k) => [k, db.quotes.filter((q) => S.effectiveStatus(q) === k)]);
   const soon = db.quotes.filter((q) => ["envoye", "negociation"].includes(q.status) && S.lastVersion(q)).map((q) => [q, S.expiryDate(q)]).filter(([, e]) => e && e >= S.today() && e <= new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10));
   return `<h2>Suivi</h2><div class="card"><b>Devis en cours</b><div class="chips">${pipe.map(([k, a2]) => `<span class="st st-${k}">${S.STATUS[k]} ${a2.length}</span>`).join("")}</div>
-    ${soon.length ? `<p class="hint">À relancer (validité dans moins de 7 jours) : ${soon.map(([q, e]) => `<a href="#/devis/${q.id}/6">${esc(q.ref)}</a> (${frDate(e)})`).join(", ")}</p>` : ""}</div>
+    ${soon.length ? `<p class="hint">À relancer (validité dans moins de 7 jours) : ${soon.map(([q, e]) => `<a href="#/devis/${q.id}/${LAST + 1}">${esc(q.ref)}</a> (${frDate(e)})`).join(", ")}</p>` : ""}</div>
     <h3>Commandes</h3>${db.orders.map((o) => `<div class="card"><div class="qtop"><b>${esc(o.ref)}</b>${badge(o.status === "solde" ? "complet" : "verifier", o.status === "solde" ? "Soldée" : "En cours")}</div>
       <div class="note">${esc(o.client) || "Client non renseigné"} — ${esc(o.site)} — depuis ${esc(o.quoteRef)} V${o.version}${o.option ? " (avec option)" : ""}</div><b>${fmt(o.totalHT)} HT</b>
       ${o.tranches.map((t, i) => `<div class="chk"><div style="flex:1"><b>${esc(t.label)}</b><div class="note">${fmt(t.amountHT)} HT${t.vat !== null ? " · TTC " + fmt(t.amountHT + t.vat) : ""} — ${{ a_facturer: "à facturer", facture: "facturé", paye: "payé le " + frDate(t.paidAt) }[t.status]}</div></div>
@@ -398,7 +420,7 @@ function viewReglages() {
   const db = S.state.db, s = db.settings, c = db.company, ws = S.listWorkspaces(), act = S.state.ws, b = ui.backup;
   const ci = (p, lab) => `<div>${L(lab)}${I("db", "company." + p, c[p])}</div>`;
   return `<h2>Réglages</h2>
-    <div class="card"><b>Entreprise</b><div class="row">${ci("name", "Nom")}${ci("tagline", "Activité")}</div><div class="row">${ci("address", "Adresse")}${ci("phone", "Téléphone")}</div><div class="row">${ci("whatsapp", "WhatsApp")}${ci("web", "Site web")}</div><div class="row">${ci("responsible", "Responsable chantier")}${ci("responsiblePhone", "Tél. responsable")}</div></div>
+    <div class="card"><b>Entreprise</b><div class="row">${ci("name", "Nom")}${ci("tagline", "Activité")}</div><div class="row">${ci("address", "Adresse")}${ci("phone", "Téléphone")}</div><div class="row">${ci("whatsapp", "WhatsApp")}${ci("web", "Site web")}</div><div class="row">${ci("responsible", "Responsable chantier")}${ci("responsiblePhone", "Tél. responsable")}</div><div class="row">${ci("rccm", "RCCM (facultatif)")}${ci("niu", "N° contribuable NIU (facultatif)")}</div><p class="hint">RCCM et NIU s'affichent en bas du devis seulement si tu les remplis. Je ne les invente jamais.</p></div>
     <div class="card"><b>Règles de l'entreprise</b><p class="hint">Aucune de ces valeurs n'est supposée : renseigne celles qui viennent de tes chantiers.</p>
       <div class="row"><div>${L("Hauteur à partir de laquelle un accès est exigé (m)")}${I("db", "settings.accessThresholdM", s.accessThresholdM, { type: "number", n: "n" })}</div><div>${L("Marge de sécurité produits par défaut (%)")}${I("db", "settings.lossPct", s.lossPct, { type: "number", n: "n" })}</div></div>
       <div class="row"><div>${L("TVA par défaut (%) — vide = hors taxes")}${I("db", "settings.vatPct", s.vatPct, { type: "number", n: "n" })}</div><div>${L("Validité par défaut (jours)")}${I("db", "settings.validityDays", s.validityDays, { type: "number", n: "n" })}</div></div>
@@ -431,7 +453,7 @@ function render() {
   const tab = r.tab;
   if (tab === "devis" && r.a && r.a !== ui.qid) { ui.tmp.free.tab = "produits"; ui.tmp.free.ask = null; ui.tmp.free.ok = false; }
   ui.qid = tab === "devis" && r.a ? r.a : ui.qid;
-  if (tab === "devis") { if (r.a) { ui.step = Math.min(6, Math.max(0, Number(r.b) || 0)); html = viewQuote(); } else html = viewDevis(); }
+  if (tab === "devis") { if (r.a) { ui.step = Math.min(LAST + 1, Math.max(0, Number(r.b) || 0)); html = viewQuote(); } else html = viewDevis(); }
   else if (tab === "clients") html = viewClients(r.a);
   else if (tab === "catalogue") html = viewCatalogue(r.a);
   else if (tab === "suivi") html = viewSuivi(r.a);
@@ -441,8 +463,8 @@ function render() {
     (!S.state.storageOk ? `<div class="banner bad noprint">Le stockage de l'appareil est plein ou bloqué : exporte une sauvegarde (Réglages).</div>` : "") +
     (ui.flash ? `<div class="banner ${ui.flash.type === "ok" ? "info" : "bad"} noprint">${esc(ui.flash.text)}</div>` : "");
   $("#app").innerHTML = banners + html;
-  const tabs = [["devis", "Devis", "📄"], ["clients", "Clients", "👤"], ["catalogue", "Catalogue", "🧱"], ["suivi", "Suivi", "📊"], ["reglages", "Réglages", "⚙"]];
-  $("#nav").innerHTML = tabs.map(([k, n, ic]) => `<a class="${tab === k ? "on" : ""}" href="#/${k}"><span>${ic}</span>${n}</a>`).join("");
+  const tabs = [["devis", "Devis"], ["clients", "Clients"], ["catalogue", "Produits"], ["suivi", "Suivi"], ["reglages", "Réglages"]];
+  $("#nav").innerHTML = tabs.map(([k, n]) => `<a class="${tab === k ? "on" : ""}" href="#/${k}">${ic(k, 26)}<span>${n}</span></a>`).join("");
   $("#hsub").textContent = (S.listWorkspaces().find((w) => w.id === S.state.ws) || {}).name || "";
   $("#hname").textContent = "TechGo Devis"; $("#hlogo").src = LOGO;
 }
@@ -465,6 +487,7 @@ const onHandlers = {
     if (f === "qty") { const v = num(el.value); if (v === null) delete a.override; else a.override = { qty: v, reason: a.override?.reason || "" }; }
     else if (f === "reason") { a.override = a.override || { qty: null, reason: "" }; a.override.reason = el.value; }
     else if (f === "price") { const v = num(el.value); if (v !== null && !(v > 0)) throw new Error("Le prix doit être plus grand que zéro."); if (v === null) delete a.priceOverride; else a.priceOverride = v; }
+    else if (f === "cost") { const v = num(el.value); if (v !== null && !(v > 0)) throw new Error("Le prix d'achat doit être plus grand que zéro."); if (v === null) delete a.costOverride; else a.costOverride = v; }
     else if (f === "option") a.option = el.checked;
     touchQuote(q);
   },
@@ -519,7 +542,7 @@ const actions = {
   reload() { S.reloadAfterConflict(); },
   newQuote() { const q = S.createQuote(); go(`#/devis/${q.id}/0`); },
   demoQuote() { const q = S.createQuote(); q.current = { ...referenceDraft(S.state.db.settings), ref: q.ref, date: S.today() }; S.state.db.settings.accessThresholdM ?? 0; S.commit(); go(`#/devis/${q.id}/0`); },
-  prev() { go(`#/devis/${ui.qid}/${Math.max(0, ui.step - 1)}`); }, next() { go(`#/devis/${ui.qid}/${Math.min(6, ui.step + 1)}`); },
+  prev() { go(`#/devis/${ui.qid}/${Math.max(0, ui.step - 1)}`); }, next() { go(`#/devis/${ui.qid}/${Math.min(LAST, ui.step + 1)}`); },
   addPrest() {
     const q = S.getQuote(ui.qid); const [pid, rid] = (ui.tmp.addPrest || "").split("|"); if (!pid) throw new Error("Choisis une prestation.");
     const pres = PACKS[pid].prestations.find((x) => x.id === rid); const params = {}; pres.params.forEach((p) => (params[p.key] = p.def));

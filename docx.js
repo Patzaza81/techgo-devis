@@ -1,6 +1,6 @@
 // Export Word (.docx) d'un devis FIGÉ. Aucun calcul ici : tous les montants viennent de snap.result (le même objet que le PDF).
 // Le fichier est produit sans dépendance : un zip « stocké » écrit à la main, au contenu déterministe (mêmes données → mêmes octets).
-import { fmt, fmtN, fmtD, frDate, toWordsFr, exclusions } from "./ui-doc.js";
+import { fmt, fmtN, fmtD, frDate, toWordsFr, exclusions, legalLine } from "./ui-doc.js";
 import { effSurface, surfaceSource } from "./packs.js";
 
 export const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
@@ -132,6 +132,7 @@ export function buildDocx(snap, ref = "") {
   body.push(table([row([
     cell(para(run("POUR LE CLIENT — Bon pour accord", { b: 1, sz: 18 })) + para(run("Date : ____/____/______", { sz: 18 })) + para("") + para(run("____________________________", { sz: 18 })) + para(run("Nom, signature et mention « Bon pour accord »", { sz: 15, color: "666666" })), 4819),
     cell(para(run(`POUR ${c.name}`, { b: 1, sz: 18 })) + para(run(`Date : ${frDate(snap.at)}`, { sz: 18 })) + para("") + para(run("____________________________", { sz: 18 })) + para(run(`${c.responsible || ""} — Signature & cachet`, { sz: 15, color: "666666" })), 4819)])], [4819, 4819]));
+  if (legalLine(c)) body.push(txt(legalLine(c), { sz: 14, color: "666666" }));
   body.push(txt(`Empreinte de contrôle : ${snap.hash} (vérifie l'intégrité du document ; ne remplace pas une signature électronique).`, { sz: 14, color: "666666" }));
 
   const NS = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"';

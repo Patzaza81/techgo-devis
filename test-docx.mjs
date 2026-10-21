@@ -41,5 +41,18 @@ const w2 = buildDocx(snapOf(ref, { ...pres, logo: null }), ref.ref); eq("sans lo
 // avec option absente, TVA 18 (valeur de TEST, non réelle)
 const r2 = JSON.parse(JSON.stringify(ref)); r2.terms.vatPct = 10; r2.discount = { pct: 5, amount: null };
 const s2 = snapOf(r2, pres); eq("avec TVA de test + remise : montants Word = PDF", nums(buildDocx(s2, r2.ref).text), nums(renderDoc(s2, { ref: r2.ref })));
+
+// RCCM / NIU : affichés seulement s'ils sont renseignés (jamais inventés)
+{
+  const withIds = { ...snap, company: { ...company, rccm: "RC/TEST/2026/B/0001", niu: "M0000TEST" } };
+  const hh = renderDoc(withIds, { ref: ref.ref }), ww = buildDocx(withIds, ref.ref).text;
+  eq("RCCM affiché dans le devis si renseigné", hh.includes("RCCM : RC/TEST/2026/B/0001"), true);
+  eq("NIU affiché dans le devis si renseigné", hh.includes("NIU : M0000TEST"), true);
+  eq("RCCM et NIU présents aussi dans le Word", ww.includes("RCCM : RC/TEST/2026/B/0001") && ww.includes("NIU : M0000TEST"), true);
+  eq("sans RCCM/NIU : rien d'affiché (devis)", /RCCM|NIU/.test(html), false);
+  eq("sans RCCM/NIU : rien d'écrit (Word)", /RCCM|NIU/.test(w.text), false);
+  eq("RCCM seul : pas de NIU affiché", /NIU/.test(renderDoc({ ...snap, company: { ...company, rccm: "X1" } }, { ref: ref.ref })), false);
+  eq("RCCM/NIU ne changent aucun montant", nums(hh), nums(html));
+}
 fs.writeFileSync(process.argv[2] || "/tmp/test.docx", w.bytes);
 console.log(`\n${pass} réussis, ${fail} échoués`); process.exit(fail ? 1 : 0);
