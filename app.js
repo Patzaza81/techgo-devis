@@ -5,6 +5,7 @@ import { analyseCsv, exportCatalogueCsv, templateCsv, exportRowsCsv } from "./cs
 const NEUTRAL_LOGO = "data:image/svg+xml;utf8," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><rect width="40" height="40" rx="9" fill="#e7ebed"/><path d="M12 9h12l6 6v16H12z" fill="none" stroke="#69787e" stroke-width="2.2" stroke-linejoin="round"/><path d="M16 21h10M16 26h10" stroke="#69787e" stroke-width="2.2" stroke-linecap="round"/></svg>');
 import { LISTES, METIERS, visibleIn, metierLabel } from "./metiers/listes.js";
 import { refOf, unitsOf } from "./metiers/ref.js";
+import { vocab } from "./metiers/vocab.js";
 import { esc, fmt, fmtN, fmtD, frDate, renderDoc, renderInvoice, summaryText } from "./ui-doc.js";
 
 const $ = (s) => document.querySelector(s);
@@ -133,7 +134,7 @@ function viewQuote() {
 const missingPrices = (ev) => ev.result.lines.filter((l) => !l.option && l.flags.includes("prix_inconnu")).length;
 
 function stepClient(q, ev, dis) {
-  const c = S.state.db.clients, cur = q.current;
+  const c = S.state.db.clients, cur = q.current, v = vocab(metierOf(q));
   return `<h2>Client et chantier</h2><div class="card">
     ${L("Client enregistré")}<select data-on="pickClient" ${dis ? "disabled" : ""}><option value="">— Saisie libre —</option>${c.map((x) => `<option value="${x.id}" ${cur.client.id === x.id ? "selected" : ""}>${esc(x.name)}</option>`).join("")}</select>
     ${L("Nom du client")}${I("q", "current.client.name", cur.client.name, { dis })}
@@ -142,17 +143,17 @@ function stepClient(q, ev, dis) {
     ${cur.client.type === "Administration" ? `<p class="hint">Administration : les pièces exigées par le marché (cadre de prix, références de consultation) ne sont pas générées par l'application. Joins-les au dossier.</p>` : ""}
     <div class="row"><div>${L("Date du devis")}${I("q", "current.date", cur.date, { type: "date", dis })}</div><div>${L("Validité (jours)")}${I("q", "current.validityDays", cur.validityDays, { type: "number", n: "n", dis })}</div></div></div>
     <div class="card"><b>Chantier</b>
-    ${L("Nom du chantier")}${I("q", "current.site.name", cur.site.name, { ph: "Immeuble R+5", dis })}
+    ${L("Nom du chantier")}${I("q", "current.site.name", cur.site.name, { ph: v.chantier, dis })}
     ${L("Adresse / quartier")}${I("q", "current.site.address", cur.site.address, { dis })}
-    <div class="row"><div>${L("Surface des murs (m²)")}${I("q", "current.site.surfaceBrute", cur.site.surfaceBrute, { type: "number", n: "n", dis })}</div><div>${L("Portes et fenêtres à enlever (m²)")}${I("q", "current.site.ouvertures", cur.site.ouvertures, { type: "number", n: "n", dis })}</div></div>
-    ${L("ou surface déjà calculée (m²)")}${I("q", "current.site.surface", cur.site.surface, { type: "number", n: "n", dis })}
+    ${v.calc ? `<div class="row"><div>${L(v.murs)}${I("q", "current.site.surfaceBrute", cur.site.surfaceBrute, { type: "number", n: "n", dis })}</div><div>${L(v.ouv)}${I("q", "current.site.ouvertures", cur.site.ouvertures, { type: "number", n: "n", dis })}</div></div>` : ""}
+    ${L(v.calc ? "ou surface déjà calculée (m²)" : v.surface)}${I("q", "current.site.surface", cur.site.surface, { type: "number", n: "n", ph: v.calc ? "" : v.surfacePh, dis })}
     <p class="hint"><b>Surface retenue pour le calcul : ${effSurface(cur.site) === null ? "non renseignée" : fmtD(effSurface(cur.site)) + " m² (" + surfaceSource(cur.site) + ")"}.</b> Si la surface brute est saisie, elle prime : surface nette = brute − ouvertures (portes, fenêtres).</p>
     <div class="row"><div>${L("Hauteur de travail maximale (m)")}${I("q", "current.site.workHeightM", cur.site.workHeightM, { type: "number", n: "n", dis })}</div><div>${L("Nombre de niveaux")}${I("q", "current.site.levels", cur.site.levels, { type: "number", n: "n", dis })}</div></div>
     ${L("Produit en plus pour les pertes (%)")}${I("q", "current.site.lossPct", cur.site.lossPct, { type: "number", n: "n", dis })}
     <p class="hint">La marge de sécurité couvre pertes, reprises et irrégularités. Elle s'applique aux fournitures, jamais à la main-d'œuvre. Utilise la valeur observée sur tes chantiers. Seuil d'accès de l'entreprise : ${S.state.db.settings.accessThresholdM === null ? "non défini (Réglages)" : S.state.db.settings.accessThresholdM + " m"}.</p>
     <details><summary>Informations facultatives sur le chantier</summary>
     <div class="row"><div>${L("Type de bâtiment")}${I("q", "current.site.buildingType", cur.site.buildingType, { ph: "Villa, immeuble, entrepôt…", dis })}</div><div>${L("Occupation des lieux")}${Sel("q", "current.site.occupied", cur.site.occupied, [["", "—"], ["Occupé", "Occupé"], ["Vide", "Vide"]], { dis })}</div></div>
-    <div class="row"><div>${L("État du support")}${I("q", "current.site.support", cur.site.support, { ph: "Brut, fissuré, ancien enduit…", dis })}</div><div>${L("Niveau de finition")}${I("q", "current.site.finish", cur.site.finish, { dis })}</div></div>
+    <div class="row"><div>${L(v.support)}${I("q", "current.site.support", cur.site.support, { ph: v.supportPh, dis })}</div><div>${L(v.finish)}${I("q", "current.site.finish", cur.site.finish, { ph: v.finishPh, dis })}</div></div>
     <div class="row"><div>${L("Eau sur place")}${Sel("q", "current.site.water", cur.site.water, [["", "—"], ["Disponible", "Disponible"], ["Non disponible", "Non disponible"]], { dis })}</div><div>${L("Électricité sur place")}${Sel("q", "current.site.power", cur.site.power, [["", "—"], ["Disponible", "Disponible"], ["Non disponible", "Non disponible"]], { dis })}</div></div>
     <div class="row"><div>${L("Accès pour les véhicules")}${I("q", "current.site.vehicleAccess", cur.site.vehicleAccess, { dis })}</div><div>${L("Distance de transport (km)")}${I("q", "current.site.transportKm", cur.site.transportKm, { type: "number", n: "n", dis })}</div></div>
     <div class="row"><div>${L("Durée prévue (jours)")}${I("q", "current.site.durationDays", cur.site.durationDays, { type: "number", n: "n", dis })}</div><div>${L("Date souhaitée de démarrage")}${I("q", "current.site.wishedDate", cur.site.wishedDate, { type: "date", dis })}</div></div>
@@ -162,19 +163,19 @@ function stepClient(q, ev, dis) {
 
 // ---------- Parcours Technicien : 3 écrans, mots simples ----------
 function stepClientS(q, ev, dis) {
-  const c = S.state.db.clients, cur = q.current, rf = refOf(metierOf(q)), elec = !!rf && !rf.calc;
+  const c = S.state.db.clients, cur = q.current, rf = refOf(metierOf(q)), v = vocab(metierOf(q)), elec = !v.calc;
   return `<h2>Pour qui est le devis ?</h2><div class="card">
     ${c.length ? `${L("Client déjà enregistré (facultatif)")}<select data-on="pickClient" ${dis ? "disabled" : ""}><option value="">— Nouveau client —</option>${c.map((x) => `<option value="${x.id}" ${cur.client.id === x.id ? "selected" : ""}>${esc(x.name)}</option>`).join("")}</select>` : ""}
     ${L("Nom du client")}${I("q", "current.client.name", cur.client.name, { ph: "Ex. : M. Mballa", dis })}
     ${L("Téléphone du client")}${I("q", "current.client.contact", cur.client.contact, { ph: "6 xx xx xx xx", dis })}</div>
     <div class="card"><b>Où est le chantier ?</b>
     ${L("Quartier ou adresse")}${I("q", "current.site.address", cur.site.address, { ph: "Ex. : Bonamoussadi, près du carrefour", dis })}
-    ${L(elec ? "Surface du local ou du bâtiment (m², facultatif)" : "Surface à traiter (m²)")}${I("q", "current.site.surface", cur.site.surface, { type: "number", n: "n", ph: elec ? "Ex. : 180" : "Ex. : 120", dis })}
+    ${L(v.surface)}${I("q", "current.site.surface", cur.site.surface, { type: "number", n: "n", ph: v.surfacePh, dis })}
     <p class="hint">${effSurface(cur.site) === null ? "Pas de surface ? Laisse vide si ton travail ne se mesure pas en m²." : `Surface retenue : <b>${fmtD(effSurface(cur.site))} m²</b> (${esc(surfaceSource(cur.site))})`}</p>
     ${elec ? "" : `<details><summary>Je veux calculer la surface (murs moins portes et fenêtres)</summary>
-      <div class="row"><div>${L("Surface des murs (m²)")}${I("q", "current.site.surfaceBrute", cur.site.surfaceBrute, { type: "number", n: "n", dis })}</div><div>${L("Portes et fenêtres (m²)")}${I("q", "current.site.ouvertures", cur.site.ouvertures, { type: "number", n: "n", dis })}</div></div>
+      <div class="row"><div>${L(v.murs)}${I("q", "current.site.surfaceBrute", cur.site.surfaceBrute, { type: "number", n: "n", dis })}</div><div>${L(v.ouv)}${I("q", "current.site.ouvertures", cur.site.ouvertures, { type: "number", n: "n", dis })}</div></div>
       <p class="hint">Si tu remplis « surface des murs », l'application enlève elle-même les portes et fenêtres.</p></details>`}
-    ${L("Description courte du chantier (facultatif)")}${I("q", "current.site.name", cur.site.name, { ph: rf ? "Ex. : " + rf.ph.desc : "Ex. : Peinture d'un appartement", dis })}</div>${rf ? ficheMetier(cur, dis, rf) : ""}`;
+    ${L("Description courte du chantier (facultatif)")}${I("q", "current.site.name", cur.site.name, { ph: "Ex. : " + v.desc, dis })}</div>${rf ? ficheMetier(cur, dis, rf) : ""}`;
 }
 // Fiche « avant de chiffrer » (électricité : section 22 du référentiel ; plomberie : section 40) : réponses imprimées sous l'objet du chantier.
 function ficheMetier(cur, dis, rf) {
@@ -199,8 +200,7 @@ function guideCard(met) {
 // ---------- Écran 2 du technicien : un tableau, comme sur un devis papier ----------
 const SEC0 = [["produits", "Produits et matériaux", "Ajouter un produit"], ["ouvriers", "Main-d'œuvre", "Ajouter la main-d'œuvre"], ["outils", "Outils et machines", "Ajouter un outil"], ["autres", "Transport et divers", "Ajouter un transport ou autre"]];
 const secOf = (met) => { const lb = refOf(met)?.labels || {}; return SEC0.map(([k, t, ad]) => (lb[k] ? [k, lb[k][0], lb[k][1]] : [k, t, ad])); };
-const COND = ["1 L", "5 kg", "10 kg", "22 L", "25 kg", "30 kg"]; // conditionnements relevés sur tes devis
-const UNITS_ROW = { produits: ["Pot", "Sac", "Litre", "Kg", "Pièce", "Rouleau", "Mètre", "m²"], ouvriers: ["forfait", "jour", "heure", "m²"], outils: ["forfait", "jour"], autres: ["forfait", "trajet", "jour"] };
+const UNITS_ROW = { ouvriers: ["forfait", "jour", "heure", "m²"], outils: ["forfait", "jour"], autres: ["forfait", "trajet", "jour"] };
 const composeLabel = (t) => `${(t.label || "").trim()}${(t.brand || "").trim() ? " " + t.brand.trim() : ""}${(t.cond || "").trim() ? " (" + t.cond.trim() + ")" : ""}`.trim();
 // Une ligne = un produit déjà proposé. On touche la ligne, la fiche s'ouvre, on remplit, le total se calcule tout seul.
 function sheetRows(q, ev, tab) {
@@ -220,23 +220,23 @@ function sheetRows(q, ev, tab) {
   }
   return rows.sort((x, y) => (y.line ? 1 : 0) - (x.line ? 1 : 0));
 }
-function sheetForm(t, prod, rf) {
-  const elec = !!rf;
+function sheetForm(t, prod, rf, met) {
+  const elec = !!rf, v = vocab(met);
   const tot = t.qty > 0 && t.price > 0 ? t.qty * t.price : null;
   const ref = rf ? rf.find(t.label) : null;
-  const base = rf ? [...unitsOf(ref?.unit), ...(t.tab === "produits" ? [] : UNITS_ROW[t.tab] || []), ...rf.units] : UNITS_ROW[t.tab] || [];
+  const base = rf ? [...unitsOf(ref?.unit), ...(t.tab === "produits" ? [] : UNITS_ROW[t.tab] || []), ...rf.units] : t.tab === "produits" ? v.unitsP : UNITS_ROW[t.tab] || [];
   const opts = [["", "—"], ...[...new Set([...base, t.unit].filter(Boolean))].map((u) => [u, u])];
   const specHint = ref && ref.spec ? `<p class="hint" style="margin:2px 0 8px">${t.tab === "autres" ? "Contenu" : rf.specLabel} : ${esc(ref.spec)}</p>` : "";
   const normHint = ref && ref.norm ? `<p class="hint" style="margin:2px 0 8px">Norme de référence : ${esc(ref.norm)}</p>` : "";
   return `<div class="sheet">
-    ${prod ? `${L(elec ? "Marque ou référence fabricant (facultatif)" : "Référence ou marque (facultatif)")}${I("tmp", "row.brand", t.brand, { ph: rf ? rf.ph.brand : "Ex. : National" })}` : ""}
+    ${prod ? `${L(elec ? "Marque ou référence fabricant (facultatif)" : "Référence ou marque (facultatif)")}${I("tmp", "row.brand", t.brand, { ph: v.brand })}` : ""}
     ${L(prod ? "Nom du produit" : "Désignation")}${I("tmp", "row.label", t.label)}
-    ${prod && elec ? `${L("Caractéristiques (écrites sur le devis)")}${I("tmp", "row.cond", t.cond, { ph: rf.met === "maconnerie" ? "Ex. : classe, dimensions, épaisseur" : ref && ref.spec ? "Ex. : " + ref.spec.split(",").slice(0, 2).join(",") : "Ex. : calibre, section, indice IP" })}` : ""}
+    ${prod && !v.cond ? `${L(v.condLabel)}${I("tmp", "row.cond", t.cond, { ph: rf && rf.met !== "maconnerie" && ref && ref.spec ? "Ex. : " + ref.spec.split(",").slice(0, 2).join(",") : v.condPh })}` : ""}
     ${ref ? specHint + normHint : ""}
-    ${prod && !elec ? `${L("Contenance")}<div class="chips">${COND.map((c) => `<button type="button" class="chip ${nz(t.cond) === nz(c) ? "on" : ""}" data-act="rowCond" data-c="${esc(c)}">${esc(c)}</button>`).join("")}</div>` : ""}
+    ${prod && v.cond ? `${L(v.condLabel)}<div class="chips">${v.cond.map((c) => `<button type="button" class="chip ${nz(t.cond) === nz(c) ? "on" : ""}" data-act="rowCond" data-c="${esc(c)}">${esc(c)}</button>`).join("")}</div>` : ""}
     <div class="row"><div>${L("Quantité")}${I("tmp", "row.qty", t.qty, { type: "number", n: "n" })}</div><div>${L("Unité")}${Sel("tmp", "row.unit", t.unit, opts)}</div></div>
     <div class="row"><div>${L("Prix unitaire (FCFA)")}${I("tmp", "row.price", t.price, { type: "number", n: "n" })}</div><div>${L("Montant")}<div class="rowtot"><b>${tot === null ? "—" : fmt(tot)}</b></div></div></div>
-    <details><summary>Écrire à quoi ça sert (facultatif)</summary>${I("tmp", "row.role", t.role, { ph: !rf ? "Ex. : lissage des murs avant la peinture" : rf.ph.role })}</details>
+    <details><summary>Écrire à quoi ça sert (facultatif)</summary>${I("tmp", "row.role", t.role, { ph: "Ex. : " + v.role })}</details>
     <div class="row" style="margin-top:8px"><button class="sec" data-act="rowClose">▲ Fermer</button>${t.lineId ? `<button class="sec danger" data-act="rowRemove">Retirer du devis</button>` : `<p class="hint" style="margin:0;align-self:center">Remplis la quantité et le prix : la ligne entre dans le devis.</p>`}</div></div>`;
 }
 // Électricité, plomberie : le matériel est rangé en sous-ensembles, puis en familles repliables (avec les points de vigilance du référentiel).
@@ -277,10 +277,10 @@ function stepTravauxS(q, ev, dis) {
       const head = `<button type="button" class="rowc ${l ? "ok" : "empty"} ${unk ? "warn" : ""} ${open ? "open" : ""}" data-act="rowToggle" data-key="${esc(r.key)}" data-tab="${k}" ${dis || (r.man && r.man.mode === "equip") ? "disabled" : ""}>
         ${l ? `<em class="tick ${unk ? "w" : ""}">${unk ? "!" : "✓"}</em>` : ""}<span class="rn"><b>${esc(r.name)}</b><small>${l ? `${l.qty === null ? "quantité ?" : fmtN(l.qty) + " " + esc(l.unit)} × ${l.price === null ? "prix ?" : fmtN(l.price)}` : "Toucher pour remplir"}</small></span>
         <span class="rt">${l ? (l.total === null ? "prix manquant" : fmtN(l.total)) : ""}<i>${open ? "▲" : "▼"}</i></span></button>`;
-      return head + (open ? sheetForm(t, k === "produits", rf) : "");
+      return head + (open ? sheetForm(t, k === "produits", rf, met) : "");
     };
     const rowHtml = rf ? refBrowser(q, k, rows, oneRow, dis, rf) : rows.map(oneRow).join("");
-    const custom = t.open === "new:" + k && t.tab === k ? sheetForm(t, k === "produits", rf) : dis ? "" : `<button type="button" class="addrow" data-act="rowToggle" data-key="new:${k}" data-tab="${k}">＋ ${add}</button>`;
+    const custom = t.open === "new:" + k && t.tab === k ? sheetForm(t, k === "produits", rf, met) : dis ? "" : `<button type="button" class="addrow" data-act="rowToggle" data-key="new:${k}" data-tab="${k}">＋ ${add}</button>`;
     return `<div class="card sec"><button type="button" class="sech" data-act="secToggle" data-tab="${k}"><b>${filled.length ? '<em class="tick sm">✓</em>' : ""}${title}${filled.length ? ` · ${filled.length}` : ""}</b><span>${filled.length ? fmt(sum) : ""} <i>${isOpen ? "▲" : "▼"}</i></span></button>
       ${isOpen ? rowHtml + custom : ""}</div>`;
   }).join("");
@@ -377,7 +377,7 @@ function freeSection(q, ev, dis) {
   const cur = sub(t.tab), shown = lines.filter((l) => tabOf(l) === t.tab);
   const match = db.catalogue.find((i) => !i.archived && nz(i.label) === nz(t.label));
   const field = cm ? "cost" : "price", prev = match ? match[field] : null;
-  const units = FREE_UNITS[t.tab].map((u) => `<button type="button" class="chip ${nz(t.unit) === nz(u) ? "on" : ""}" data-act="freeUnit" data-u="${esc(u)}">${esc(u)}</button>`).join("");
+  const units = (t.tab === "produits" ? vocab(metierOf(q)).freeP : FREE_UNITS[t.tab]).map((u) => `<button type="button" class="chip ${nz(t.unit) === nz(u) ? "on" : ""}" data-act="freeUnit" data-u="${esc(u)}">${esc(u)}</button>`).join("");
   const met = metierOf(q);
   const saved = db.catalogue.filter((i) => !i.archived && TAB_OF[i.cat] === t.tab && (i.pack === met || String(i.id).startsWith("TER-"))).map((i) => i.label);
   const rfm = refOf(met), elecPick = !!rfm;
@@ -392,9 +392,9 @@ function freeSection(q, ev, dis) {
     ${names.length ? `<div class="chips names">${names.map((n) => `<button type="button" class="chip nm ${nz(t.label) === nz(n) ? "on" : ""}" data-act="pickName" data-n="${esc(n)}">${esc(n)}</button>`).join("")}</div><p class="hint">Touche un nom, ou écris-le plus bas. Ce sont des noms seulement : aucun prix ni quantité.</p>` : `<p class="hint">Choisis ton métier pour voir la liste, ou écris le nom plus bas.</p>`}`;
   const form = dis ? "" : `<div class="card"><b>+ Ajouter</b>
     ${L("Choisir dans la liste")}${picker}
-    ${L("Nom (ex. : ciment, carreaux, maçon)")}<input data-r="tmp" data-p="free.label" list="dl-items" value="${esc(t.label)}" autocomplete="off"><datalist id="dl-items">${db.catalogue.filter((i) => !i.archived).map((i) => `<option value="${esc(i.label)}">`).join("")}</datalist>
+    ${L("Nom (ex. : " + vocab(met).exemples + ")")}<input data-r="tmp" data-p="free.label" list="dl-items" value="${esc(t.label)}" autocomplete="off"><datalist id="dl-items">${db.catalogue.filter((i) => !i.archived).map((i) => `<option value="${esc(i.label)}">`).join("")}</datalist>
     ${match ? `<p class="hint">Déjà enregistré : ${esc(match.label)} (${esc(match.unit)})${prev !== null && prev !== undefined ? ` — dernier ${cm ? "prix d'achat" : "prix"} : ${fmt(prev)}${match.priceDate ? " le " + frDate(match.priceDate) : ""}${match.fieldPrice ? ", saisi sur place, à confirmer" : ""}` : " — pas de prix"}.</p>` : ""}
-    ${L("À quoi ça sert ? (facultatif, écrit sur le devis)")}${I("tmp", "free.role", t.role, { ph: "Ex. : lissage des murs avant la peinture" })}
+    ${L("À quoi ça sert ? (facultatif, écrit sur le devis)")}${I("tmp", "free.role", t.role, { ph: "Ex. : " + vocab(met).role })}
     ${L("Unité")}<div class="chips">${units}</div>${I("tmp", "free.unit", match ? match.unit : t.unit, { ph: "ou écris l'unité" })}
     <div class="row"><div>${L("Quantité")}${I("tmp", "free.qty", t.qty, { type: "number", n: "n" })}</div><div>${L(cm ? "Prix d'achat par unité (FCFA)" : "Prix par unité (FCFA)")}${I("tmp", "free.price", t.price, { type: "number", n: "n" })}</div></div>
     <p class="hint">${t.price > 0 ? "Tu écris : <b>" + fmt(t.price) + "</b> par unité. " : ""}Prix pas connu ? Laisse vide : tu le mettras plus tard. Rien n'est compté à zéro.</p>
@@ -983,7 +983,7 @@ document.addEventListener("click", (e) => {
 window.addEventListener("hashchange", () => { ui.file = null; render(); window.scrollTo(0, 0); });
 window.addEventListener("beforeprint", () => document.body.classList.add("printing"));
 window.addEventListener("afterprint", () => document.body.classList.remove("printing"));
-export const BUILD = "27";
+export const BUILD = "28";
 // Mise à jour automatique : quand une nouvelle version est publiée, l'application la prend toute seule
 // (au retour sur l'application, ou dès que la personne n'est plus en train de taper). Les données ne sont jamais touchées.
 if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {

@@ -42,3 +42,7 @@ Format : quoi · pourquoi · date.
 - Aides non bloquantes (technicien et entreprise, étape « Vérifier ») : contrôles de prix et de métré, à préciser dans l'offre, double comptage, documents à demander, relevé sur place, sécurité, 17 erreurs fréquentes. Formules de métré du document affichées en lecture seule : aucun calculateur de quantités (le document refuse les ratios universels).
 - Ajout hors document : « Fil d'attache » (ta liste habituelle), signalé dans la fiche.
 - Calcul de surface murs − ouvertures conservé pour la maçonnerie (partie 6.2).
+
+## Vocabulaire par métier (oct. 2026)
+- metiers/vocab.js : libellés, exemples, unités et formats propres à chaque métier (surface, support, finition, marque, à quoi ça sert, unités des produits). Plus aucun mot de peinture (pot, contenance en litres, « lissage des murs », marque « National ») hors de la peinture.
+- Plomberie et électricité : pas de calcul « murs − ouvertures » (surface du local facultative). Maçonnerie et carrelage : calcul conservé.
