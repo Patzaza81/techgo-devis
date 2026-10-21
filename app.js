@@ -99,7 +99,7 @@ function viewQuote() {
   const head = "";
   const frozen = dis ? `<div class="banner info">Ce devis est « ${S.STATUS[q.status]} » : les versions envoyées sont figées. ${["envoye", "refuse", "expire"].includes(q.status) ? "Prépare une nouvelle version pour modifier." : ""}</div>` : "";
   const steps = [stepClient, stepPrest, stepBesoins, stepPrix, stepVerifier, stepVersions];
-  const bar = onSuivi ? "" : `<div class="actbar noprint"><div class="acts">${ui.step > 0 ? `<button class="sec sq" data-act="prev" aria-label="Précédent">${ic("back", 24)}</button>` : ""}${ui.step < LAST ? `<button class="go" data-act="next"><span>Continuer</span><span class="amt">${miss ? `${miss} prix manquant${miss > 1 ? "s" : ""}` : fmt(ev.result.totals.base)}</span></button>` : `<a class="btn go sec" href="#/devis/${q.id}/${LAST + 1}"><span>Suivi du devis</span>${ic("next", 22)}</a>`}</div></div>`;
+  const bar = onSuivi ? "" : `<div class="actbar noprint"><div class="acts">${ui.step > 0 ? `<button class="sec sq" data-act="prev" aria-label="Précédent">${ic("back", 24)}</button>` : ""}${ui.step < LAST ? `<button class="go" data-act="next"><span>Continuer</span><span class="amt">${miss ? `${miss} prix manquant${miss > 1 ? "s" : ""}` : fmt(ev.result.totals.base)}</span></button>` : `<button class="go" data-act="toApercu"><span>Aperçu, PDF et envoi</span>${ic("next", 22)}</button>`}</div></div>`;
   return `<a class="back" href="#/devis">${ic("back", 18)} Tous les devis</a>${head}${prog}${frozen}${steps[ui.step](q, ev, dis)}${bar}`;
 }
 
@@ -269,7 +269,7 @@ function stepControle(q, ev, dis) {
     ${r_warn(ev)}${dis ? "" : `<div class="row">${acts.join("")}</div>`}`;
 }
 function stepVerifier(q, ev, dis) {
-  return `<div class="noprint">${stepControle(q, ev, dis)}</div>${stepApercu(q, ev, dis)}`;
+  return `<div class="noprint">${stepControle(q, ev, dis)}</div>${stepApercu(q, ev, dis)}<div class="noprint"><a class="btn sec" href="#/devis/${q.id}/${LAST + 1}" style="margin-top:14px;width:100%">Suivi du devis : statut, versions, décision du client</a></div>`;
 }
 const r_warn = (ev) => (ev.result.warnings.length ? `<div class="card"><b>Alertes de calcul</b>${ev.result.warnings.map((w) => `<div class="hint">• ${esc(w)}</div>`).join("")}</div>` : "");
 
@@ -285,7 +285,7 @@ function stepApercu(q, ev, dis) {
   const opts = [...(S.editable(q) || !q.versions.length ? [["draft", "Brouillon actuel"]] : []), ...q.versions.map((v) => [String(v.n), `V${v.n} — ${frDate(v.at)}`])];
   const seg = `<div class="seg noprint"><button class="${ui.view === "client" ? "on" : ""}" data-act="view" data-v="client">Version client</button><button class="${ui.view === "interne" ? "on" : ""}" data-act="view" data-v="interne">Interne (marge)</button></div>`;
   const canSend = ["pret", "negociation"].includes(q.status);
-  const top = `<div class="noprint"><h2>Aperçu et envoi</h2>${seg}<div class="row">${L("Version affichée")}${Sel("ui", "ver", sel, opts)}</div></div>`;
+  const top = `<div class="noprint" id="apercu"><h2>Aperçu et envoi</h2>${seg}<div class="row">${L("Version affichée")}${Sel("ui", "ver", sel, opts)}</div></div>`;
   if (ui.view === "interne") return top + internal(snap, q);
   const wa = `https://wa.me/?text=${encodeURIComponent(summaryText(snap, q.ref))}`;
   const blocked = ev.checks.status === "bloque";
@@ -555,6 +555,7 @@ const actions = {
     if (!it) throw new Error("Choisis un article."); if (!(t.qty > 0)) throw new Error("Saisis une quantité supérieure à zéro.");
     ui.tmp.free.tab = TAB_OF[it.cat] || "autres"; q.current.manual.push({ id: "m" + S.uid(), itemId: it.id, group: CATS[it.cat], mode: "fixed", qty: t.qty, option: !!t.option }); ui.tmp.line = { itemId: "", qty: 1, option: false }; touchQuote(q);
   },
+  toApercu() { const el = document.getElementById("apercu"); if (el) el.scrollIntoView?.({ behavior: "smooth", block: "start" }); return "skip"; },
   freeTab(b) { ui.tmp.free.tab = b.dataset.k; ui.tmp.free.unit = ""; ui.tmp.free.ask = null; },
   freeUnit(b) { ui.tmp.free.unit = b.dataset.u; },
   askNo() { ui.tmp.free.ask = null; },
