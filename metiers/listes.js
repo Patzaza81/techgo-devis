@@ -3,7 +3,7 @@
 // une fois est gardé dans « Produits » et réapparaît dans la liste.
 export const LISTES = {
   peinture: {
-    produits: ["Peinture intérieure", "Peinture extérieure", "Sous-couche", "Enduit de rebouchage", "Enduit de lissage", "Papier de verre", "Bâche de protection", "Ruban de masquage"],
+    produits: ["Peinture acrylique", "Peinture à huile", "Peinture intérieure", "Peinture extérieure", "Sous-couche", "Multiprim", "Soytex", "Pancoat Hydro", "Stucco", "Mastic de pontage", "Enduit de rebouchage", "Enduit de lissage", "Diluant", "Colorants", "Ciment ordinaire", "Papier abrasif", "Bandes adhésives", "Rouleaux et pinceaux", "Flintkote", "Bâche de protection"],
     outils: ["Rouleau", "Pinceau", "Échafaudage", "Échelle", "Ponceuse", "Pistolet à peinture"],
     ouvriers: ["Peintre", "Aide-peintre", "Manœuvre"],
     autres: ["Transport du matériel", "Nettoyage de fin de chantier", "Évacuation des déchets"],

@@ -177,48 +177,50 @@ const SEC = [["produits", "Produits et matériaux", "Ajouter un produit"], ["ouv
 const COND = ["1 L", "5 kg", "10 kg", "22 L", "25 kg", "30 kg"]; // conditionnements relevés sur tes devis
 const UNITS_ROW = { produits: ["Pot", "Sac", "Litre", "Kg", "Pièce", "Rouleau", "Mètre", "m²"], ouvriers: ["forfait", "jour", "heure", "m²"], outils: ["forfait", "jour"], autres: ["forfait", "trajet", "jour"] };
 const composeLabel = (t) => `${(t.label || "").trim()}${(t.brand || "").trim() ? " " + t.brand.trim() : ""}${(t.cond || "").trim() ? " (" + t.cond.trim() + ")" : ""}`.trim();
-function rowEditor(q, ev, t) {
-  const db = S.state.db, label = composeLabel(t), tot = t.qty > 0 && t.price > 0 ? t.qty * t.price : null;
-  const known = db.catalogue.find((i) => !i.archived && TAB_OF[i.cat] === t.tab && (nz(i.label) === nz(label) || nz(i.label) === nz(t.label)) && i.price != null);
-  const met = metierOf(q);
-  const saved = db.catalogue.filter((i) => !i.archived && TAB_OF[i.cat] === t.tab && String(i.id).startsWith("TER-") && i.price != null).slice(0, 12);
-  const names = [...new Set(LISTES[met]?.[t.tab] || [])];
-  const prod = t.tab === "produits";
-  return `<div class="rowed">
-    ${!t.label ? `${saved.length ? `<p class="hint">Tes produits habituels (touche pour reprendre le prix) :</p><div class="chips names">${saved.map((i) => `<button type="button" class="chip nm" data-act="rowPick" data-id="${esc(i.id)}">${esc(i.label)}</button>`).join("")}</div>` : ""}
-    ${names.length ? `<p class="hint">Ou choisis un nom :</p><div class="chips names">${names.map((n) => `<button type="button" class="chip nm" data-act="rowName" data-n="${esc(n)}">${esc(n)}</button>`).join("")}</div>` : ""}` : ""}
-    ${L(prod ? "Produit" : "Désignation")}${I("tmp", "row.label", t.label, { ph: prod ? "Ex. : Peinture acrylique" : "Ex. : Peintres, 5 jours" })}
-    ${prod ? `<div class="row"><div>${L("Marque")}${I("tmp", "row.brand", t.brand, { ph: "Ex. : National" })}</div><div>${L("Contenance")}${I("tmp", "row.cond", t.cond, { ph: "Ex. : 30 kg" })}</div></div>
-      <div class="chips">${COND.map((c) => `<button type="button" class="chip ${nz(t.cond) === nz(c) ? "on" : ""}" data-act="rowCond" data-c="${esc(c)}">${esc(c)}</button>`).join("")}</div>` : ""}
-    ${known && !(t.price > 0) ? `<div class="banner info">Dernier prix enregistré : <b>${fmt(known.price)}</b> par ${esc(known.unit)}. <button type="button" class="linkbtn" data-act="rowUse" data-id="${esc(known.id)}">Reprendre</button></div>` : ""}
-    ${L("Unité")}<div class="chips">${UNITS_ROW[t.tab].map((u) => `<button type="button" class="chip ${nz(t.unit) === nz(u) ? "on" : ""}" data-act="rowUnit" data-u="${esc(u)}">${esc(u)}</button>`).join("")}</div>${I("tmp", "row.unit", t.unit, { ph: "ou écris l'unité" })}
-    <div class="row"><div>${L("Quantité")}${I("tmp", "row.qty", t.qty, { type: "number", n: "n" })}</div><div>${L("Prix par unité (FCFA)")}${I("tmp", "row.price", t.price, { type: "number", n: "n" })}</div></div>
-    <div class="rowtot"><span>Total de la ligne</span><b>${tot === null ? "—" : fmt(tot)}</b></div>
+// Une ligne = un produit déjà proposé. On touche la ligne, la fiche s'ouvre, on remplit, le total se calcule tout seul.
+function sheetRows(q, ev, tab) {
+  const db = S.state.db, met = metierOf(q), manIds = new Set(q.current.manual.map((m) => m.id));
+  const lines = ev.result.lines.filter((l) => manIds.has(l.id) && !l.option && tabOf(l) === tab);
+  const used = new Set(), rows = [];
+  for (const l of lines) { const m = q.current.manual.find((x) => x.id === l.id); const nm = m.nom ?? l.label; used.add(nz(nm)); rows.push({ key: nz(nm), name: nm, line: l, man: m }); }
+  const names = [...(LISTES[met]?.[tab] || []), ...db.catalogue.filter((i) => !i.archived && TAB_OF[i.cat] === tab && String(i.id).startsWith("TER-") && i.price != null && (!i.pack || i.pack === met)).map((i) => i.nom || i.label)];
+  for (const n of names) { if (used.has(nz(n))) continue; used.add(nz(n)); rows.push({ key: nz(n), name: n, line: null, man: null }); }
+  return rows.sort((x, y) => (y.line ? 1 : 0) - (x.line ? 1 : 0));
+}
+function sheetForm(t, prod) {
+  const tot = t.qty > 0 && t.price > 0 ? t.qty * t.price : null;
+  const opts = [["", "—"], ...[...new Set([...(UNITS_ROW[t.tab] || []), t.unit].filter(Boolean))].map((u) => [u, u])];
+  return `<div class="sheet">
+    ${prod ? `${L("Référence ou marque (facultatif)")}${I("tmp", "row.brand", t.brand, { ph: "Ex. : National" })}` : ""}
+    ${L(prod ? "Nom du produit" : "Désignation")}${I("tmp", "row.label", t.label)}
+    ${prod ? `${L("Contenance")}<div class="chips">${COND.map((c) => `<button type="button" class="chip ${nz(t.cond) === nz(c) ? "on" : ""}" data-act="rowCond" data-c="${esc(c)}">${esc(c)}</button>`).join("")}</div>` : ""}
+    <div class="row"><div>${L("Quantité")}${I("tmp", "row.qty", t.qty, { type: "number", n: "n" })}</div><div>${L("Unité")}${Sel("tmp", "row.unit", t.unit, opts)}</div></div>
+    <div class="row"><div>${L("Prix unitaire (FCFA)")}${I("tmp", "row.price", t.price, { type: "number", n: "n" })}</div><div>${L("Montant")}<div class="rowtot"><b>${tot === null ? "—" : fmt(tot)}</b></div></div></div>
     <details><summary>Écrire à quoi ça sert (facultatif)</summary>${I("tmp", "row.role", t.role, { ph: "Ex. : lissage des murs avant la peinture" })}</details>
-    <div class="row" style="margin-top:10px"><button data-act="rowSave" data-more="1">Valider et ajouter une autre ligne</button><button class="sec" data-act="rowSave">Valider</button></div>
-    <p style="text-align:center;margin:6px 0 0"><button type="button" class="linkbtn" data-act="rowCancel">Annuler</button>${t.open !== "new" ? ` · <button type="button" class="linkbtn" data-act="delManual" data-id="${esc(t.open)}">Supprimer cette ligne</button>` : ""}</p></div>`;
+    <div class="row" style="margin-top:8px"><button class="sec" data-act="rowClose">▲ Fermer</button>${t.lineId ? `<button class="sec danger" data-act="rowRemove">Retirer du devis</button>` : `<p class="hint" style="margin:0;align-self:center">Remplis la quantité et le prix : la ligne entre dans le devis.</p>`}</div></div>`;
 }
 function stepTravauxS(q, ev, dis) {
-  const t = ui.tmp.row, manIds = new Set(q.current.manual.map((m) => m.id));
-  const lines = ev.result.lines.filter((l) => manIds.has(l.id) && !l.option);
-  const auto = ev.result.lines.filter((l) => !manIds.has(l.id));
-  const secOf = (l) => tabOf(l);
-  const sums = SEC.map(([k]) => lines.filter((l) => secOf(l) === k).reduce((s, l) => s + (l.total ?? 0), 0));
-  const rowv = (l) => {
-    const open = t.open === l.id, man = q.current.manual.find((m) => m.id === l.id), unk = l.price === null || l.qty === null;
-    return open ? rowEditor(q, ev, t) : `<button type="button" class="rowc ${unk ? "warn" : ""}" data-act="rowEdit" data-id="${esc(l.id)}" ${dis || (man && man.mode === "equip") ? "disabled" : ""}><span class="rn"><b>${esc(l.label)}</b><small>${l.qty === null ? "quantité ?" : fmtN(l.qty) + " " + esc(l.unit)} × ${l.price === null ? "prix ?" : fmtN(l.price)}</small></span><span class="rt">${l.total === null ? "prix manquant" : fmtN(l.total)}</span></button>`;
-  };
-  const sec = ([k, title, add], i) => {
-    const ls = lines.filter((l) => secOf(l) === k);
-    return `<div class="card sec"><div class="sech"><b>${title}</b><span>${ls.length ? fmt(sums[i]) : ""}</span></div>
-      ${ls.map(rowv).join("")}
-      ${t.open === "new" && t.tab === k ? rowEditor(q, ev, t) : dis ? "" : `<button type="button" class="addrow" data-act="rowNew" data-tab="${k}">＋ ${add}</button>`}</div>`;
-  };
+  const t = ui.tmp.row, sec = ui.tmp.sec || (ui.tmp.sec = {});
+  const auto = ev.result.lines.filter((l) => !q.current.manual.some((m) => m.id === l.id));
+  const body = SEC.map(([k, title, add]) => {
+    const rows = sheetRows(q, ev, k), filled = rows.filter((r) => r.line), sum = filled.reduce((s, r) => s + (r.line.total ?? 0), 0);
+    const isOpen = sec[k] ?? (k === "produits" || filled.length > 0);
+    const rowHtml = rows.map((r) => {
+      const open = t.open === r.key && t.tab === k, l = r.line, unk = l && (l.price === null || l.qty === null);
+      const head = `<button type="button" class="rowc ${l ? "ok" : "empty"} ${unk ? "warn" : ""} ${open ? "open" : ""}" data-act="rowToggle" data-key="${esc(r.key)}" data-tab="${k}" ${dis || (r.man && r.man.mode === "equip") ? "disabled" : ""}>
+        <span class="rn"><b>${esc(r.name)}</b><small>${l ? `${l.qty === null ? "quantité ?" : fmtN(l.qty) + " " + esc(l.unit)} × ${l.price === null ? "prix ?" : fmtN(l.price)}` : "Toucher pour remplir"}</small></span>
+        <span class="rt">${l ? (l.total === null ? "prix manquant" : fmtN(l.total)) : ""}<i>${open ? "▲" : "▼"}</i></span></button>`;
+      return head + (open ? sheetForm(t, k === "produits") : "");
+    }).join("");
+    const custom = t.open === "new:" + k && t.tab === k ? sheetForm(t, k === "produits") : dis ? "" : `<button type="button" class="addrow" data-act="rowToggle" data-key="new:${k}" data-tab="${k}">＋ ${add}</button>`;
+    return `<div class="card sec"><button type="button" class="sech" data-act="secToggle" data-tab="${k}"><b>${title}${filled.length ? ` · ${filled.length}` : ""}</b><span>${filled.length ? fmt(sum) : ""} <i>${isOpen ? "▲" : "▼"}</i></span></button>
+      ${isOpen ? rowHtml + custom : ""}</div>`;
+  }).join("");
   return `<h2>Le travail et le matériel</h2>
-    <p class="hint">Remplis comme sur ton devis papier : ce que tu écris ici apparaît sur le devis. Touche une ligne pour la corriger.</p>
+    <p class="hint">Touche un produit, remplis la quantité et le prix : le montant se calcule tout seul. Seules les lignes remplies entrent dans le devis.</p>
     <div class="total"><div><span>Total du devis</span><span class="big">${fmt(ev.result.totals.base)}</span></div></div>
-    ${SEC.map(sec).join("")}
-    ${auto.length ? `<p class="hint">${auto.length} ligne${auto.length > 1 ? "s" : ""} calculée${auto.length > 1 ? "s" : ""} automatiquement (voir « Calcul à partir de la surface » plus bas) sont aussi comptées.</p>` : ""}
+    ${body}
+    ${auto.length ? `<p class="hint">${auto.length} ligne${auto.length > 1 ? "s" : ""} calculée${auto.length > 1 ? "s" : ""} automatiquement (voir « Calcul automatique » plus bas) sont aussi comptées.</p>` : ""}
     <details class="more"><summary>Calcul automatique à partir de la surface (facultatif)</summary>${stepPrest(q, ev, dis, true)}</details>
     ${stepBesoins(q, ev, dis, true, true)}`;
 }
@@ -647,6 +649,37 @@ function touchQuote(q, quiet = false) {
   if (q.status === "pret") { q.status = "brouillon"; q.statusLog.push({ at: new Date().toISOString(), to: "brouillon", reason: "Modifié après validation" }); }
   S.commit(); if (!quiet) rerender();
 }
+// Enregistre la fiche ouverte dans le devis, sans message d'erreur : une fiche incomplète n'entre pas dans le devis.
+function commitRow() {
+  const q = S.getQuote(ui.qid), t = ui.tmp.row, db = S.state.db; if (!q || !t || !t.open) return false;
+  const nom = (t.label || "").trim(), unit = (t.unit || "").trim(), has = t.price !== null && t.price !== undefined && t.price !== "";
+  if (!nom || !unit || !(t.qty > 0) || (has && !(t.price > 0))) { return false; }
+  const label = composeLabel(t);
+  let it = db.catalogue.find((i) => !i.archived && nz(i.label) === nz(label) && nz(i.unit) === nz(unit));
+  if (!it) { const id = S.newItemId("TER"); it = { id, ref: id, label, cat: FREE_CAT[t.tab], unit, pricing: "unitaire", price: null, cost: null, priceDate: null, supplier: t.brand || "", brand: t.brand || "", yield: null, yieldUnit: "m²", tags: [], pack: metierOf(q) || "", archived: false, fieldPrice: true }; }
+  const isNew = !db.catalogue.some((i) => i.id === it.id), priceChanged = has && it.price !== t.price;
+  if (has) { it.price = t.price; it.priceDate = S.today(); it.fieldPrice = true; }
+  Object.assign(it, { nom, cond: (t.cond || "").trim(), brand: (t.brand || "").trim() });
+  if (isNew || priceChanged) S.saveItem(it, "saisi sur place");
+  const fields = { itemId: it.id, label, nom, brand: (t.brand || "").trim(), cond: (t.cond || "").trim(), qty: t.qty, role: (t.role || "").trim() };
+  let id = t.lineId;
+  const m0 = id && q.current.manual.find((x) => x.id === id);
+  if (m0) Object.assign(m0, fields); else { id = "m" + S.uid(); q.current.manual.push({ id, group: CATS[it.cat], mode: "fixed", option: false, ...fields }); }
+  const adj = (q.current.adjust[id] = q.current.adjust[id] || {}); if (has) adj.priceOverride = t.price; else delete adj.priceOverride;
+  ui.tmp.row = { ...t, lineId: id, open: nz(nom) };
+  touchQuote(q, true); return true;
+}
+// Retire du devis une ligne dont la quantité a été effacée
+function dropIfEmpty() {
+  const q = S.getQuote(ui.qid), t = ui.tmp.row; if (!q || !t || !t.lineId || t.qty > 0) return;
+  q.current.manual = q.current.manual.filter((m) => m.id !== t.lineId); delete q.current.adjust[t.lineId]; ui.tmp.row = { ...t, lineId: null }; touchQuote(q, true);
+}
+// Total des fiches et barre du bas, mis à jour sans redessiner
+function refreshTotals() {
+  const q = S.getQuote(ui.qid); if (!q) return; const ev = S.evaluate(q), tot = ev.result.totals.base;
+  const big = document.querySelector(".total .big"); if (big) big.textContent = fmt(tot);
+  const amt = document.querySelector(".actbar .amt"); if (amt && !/manquant/.test(amt.textContent)) amt.textContent = fmt(tot);
+}
 // Met à jour sans redessiner le total de la ligne en cours de saisie et la barre du bas
 function liveTotals() {
   const r = ui.tmp.row, el = document.querySelector(".rowtot b");
@@ -672,6 +705,11 @@ document.addEventListener("pointercancel", () => setTimeout(flushDeferred, 0), t
 document.addEventListener("click", () => setTimeout(flushDeferred, 0), true);
 document.addEventListener("pointerup", () => setTimeout(() => { if (tapping) flushDeferred(); }, 400), true);
 const later = (full, quiet = () => {}) => { if (tapping) deferred = { full, quiet }; else keepFocus(full); };
+// Calcul automatique : le montant de la fiche se met à jour à chaque chiffre tapé
+document.addEventListener("input", (e) => {
+  const el = e.target; if (!el.dataset || el.dataset.r !== "tmp" || !/^row\.(qty|price)$/.test(el.dataset.p || "")) return;
+  const v = parseFloat(String(el.value).replace(",", ".")); ui.tmp.row[el.dataset.p.slice(4)] = isNaN(v) ? null : v; liveTotals();
+});
 document.addEventListener("change", (e) => {
   const el = e.target; if (!el.dataset) return; ui.flash = null;
   try {
@@ -679,44 +717,29 @@ document.addEventListener("change", (e) => {
     if (!el.dataset.p) return;
     const root = el.dataset.r || "q", o = roots()[root]; if (!o) return;
     setPath(o, el.dataset.p, parseValue(el));
-    later(() => { if (root === "q") touchQuote(o); else if (root === "db") { S.commit(); rerender(); } else rerender(); }, () => { if (root === "q") touchQuote(o, true); else if (root === "db") S.commit(); });
+    if (root === "tmp" && /^row\./.test(el.dataset.p)) { if (!commitRow()) dropIfEmpty(); }
+    later(() => { if (root === "q") touchQuote(o); else if (root === "db") { S.commit(); rerender(); } else rerender(); }, () => { if (root === "q") touchQuote(o, true); else if (root === "db") S.commit(); else refreshTotals(); });
   } catch (err) { ui.flash = { type: "err", text: err.message }; rerender(); }
 });
 
 const actions = {
   reload() { S.reloadAfterConflict(); },
-  rowNew(b) { const tab = b.dataset.tab; ui.tmp.row = { open: "new", tab, label: "", brand: "", cond: "", unit: tab === "ouvriers" || tab === "outils" || tab === "autres" ? "forfait" : "", qty: tab === "produits" ? null : 1, price: null, role: "" }; },
-  rowEdit(b) {
-    const q = S.getQuote(ui.qid), m = q.current.manual.find((x) => x.id === b.dataset.id), l = S.evaluate(q).result.lines.find((x) => x.id === b.dataset.id); if (!m || !l) return;
-    const it = S.state.db.catalogue.find((i) => i.id === m.itemId);
-    ui.tmp.row = { open: m.id, tab: tabOf(l), label: m.nom ?? l.label, brand: m.brand || "", cond: m.cond || "", unit: l.unit, qty: l.qty, price: l.price, role: m.role || "" };
-  },
-  rowCancel() { ui.tmp.row = { ...ui.tmp.row, open: null, label: "", brand: "", cond: "", qty: null, price: null, role: "" }; },
-  rowName(b) { ui.tmp.row.label = b.dataset.n; },
-  rowPick(b) { const it = S.state.db.catalogue.find((i) => i.id === b.dataset.id); if (!it) return; const t = ui.tmp.row; t.label = it.label; t.unit = it.unit; t.price = it.price; },
-  rowUse(b) { const it = S.state.db.catalogue.find((i) => i.id === b.dataset.id); if (!it) return; const t = ui.tmp.row; t.price = it.price; if (!t.unit) t.unit = it.unit; },
-  rowCond(b) { ui.tmp.row.cond = ui.tmp.row.cond === b.dataset.c ? "" : b.dataset.c; },
-  rowUnit(b) { const t = ui.tmp.row; t.unit = b.dataset.u; if (b.dataset.u === "forfait" && !(t.qty > 0)) t.qty = 1; },
-  rowSave(b) {
-    const q = S.getQuote(ui.qid), t = ui.tmp.row, db = S.state.db, more = b.dataset.more === "1";
-    const nom = (t.label || "").trim(); if (!nom) throw new Error("Écris le nom (ex. : peinture acrylique).");
-    const unit = (t.unit || "").trim(); if (!unit) throw new Error("Choisis l'unité (pot, sac, litre, jour…).");
-    if (!(t.qty > 0)) throw new Error("Écris la quantité (plus grande que zéro).");
-    const has = t.price !== null && t.price !== undefined && t.price !== ""; if (has && !(t.price > 0)) throw new Error("Le prix doit être plus grand que zéro. Si tu ne le connais pas, laisse vide.");
-    const label = composeLabel(t);
-    let it = db.catalogue.find((i) => !i.archived && nz(i.label) === nz(label) && nz(i.unit) === nz(unit));
-    if (!it) { const id = S.newItemId("TER"); it = { id, ref: id, label, cat: FREE_CAT[t.tab], unit, pricing: "unitaire", price: null, cost: null, priceDate: null, supplier: t.brand || "", brand: t.brand || "", yield: null, yieldUnit: "m²", tags: [], pack: metierOf(q) || "", archived: false, fieldPrice: true }; }
-    if (has) { it.price = t.price; it.priceDate = S.today(); it.fieldPrice = true; }
-    S.saveItem(it, "saisi sur place");
-    const fields = { itemId: it.id, label, nom, brand: (t.brand || "").trim(), cond: (t.cond || "").trim(), qty: t.qty, role: (t.role || "").trim() };
-    let id = t.open;
-    if (t.open === "new") { id = "m" + S.uid(); q.current.manual.push({ id, group: CATS[it.cat], mode: "fixed", option: false, ...fields }); }
-    else { const m = q.current.manual.find((x) => x.id === id); Object.assign(m, fields); }
-    const adj = (q.current.adjust[id] = q.current.adjust[id] || {}); if (has) adj.priceOverride = t.price; else delete adj.priceOverride;
-    ui.tmp.row = more ? { open: "new", tab: t.tab, label: "", brand: "", cond: "", unit: t.tab === "produits" ? "" : unit, qty: t.tab === "produits" ? null : 1, price: null, role: "" } : { ...t, open: null, label: "", brand: "", cond: "", qty: null, price: null, role: "" };
-    ui.flash = { type: "ok", text: `${label} enregistré.` }; touchQuote(q);
+  secToggle(b) { const k = b.dataset.tab, s = ui.tmp.sec || (ui.tmp.sec = {}); const q = S.getQuote(ui.qid); const cur = s[k] ?? (k === "produits" || sheetRows(q, S.evaluate(q), k).some((r) => r.line)); s[k] = !cur; },
+  rowToggle(b) {
+    const q = S.getQuote(ui.qid), tab = b.dataset.tab, key = b.dataset.key, t = ui.tmp.row;
+    if (t.open === key && t.tab === tab) { ui.tmp.row = { ...t, open: null }; return; }
+    const blank = { open: key, tab, label: "", brand: "", cond: "", unit: tab === "produits" ? "" : "forfait", qty: tab === "produits" ? null : 1, price: null, role: "", lineId: null };
+    if (key.startsWith("new:")) { ui.tmp.row = blank; return; }
+    const row = sheetRows(q, S.evaluate(q), tab).find((r) => r.key === key); if (!row) return;
+    if (row.line) { const m = row.man; ui.tmp.row = { ...blank, label: m.nom ?? row.line.label, brand: m.brand || "", cond: m.cond || "", unit: row.line.unit, qty: row.line.qty, price: row.line.price, role: m.role || "", lineId: m.id }; return; }
+    // produit déjà utilisé : on reprend son dernier prix, sa marque et sa contenance
+    const it = S.state.db.catalogue.filter((i) => !i.archived && TAB_OF[i.cat] === tab && nz(i.nom || i.label) === key && i.price != null).sort((x, y) => String(y.priceDate || "").localeCompare(String(x.priceDate || "")))[0];
+    ui.tmp.row = { ...blank, label: row.name, unit: it ? it.unit : blank.unit, price: it ? it.price : null, brand: it?.brand || "", cond: it?.cond || "" };
   },
   formChoice(b) { const q = S.getQuote(ui.qid); q.current.form = b.dataset.f; touchQuote(q); },
+  rowClose() { ui.tmp.row = { ...ui.tmp.row, open: null }; },
+  rowCond(b) { const t = ui.tmp.row; t.cond = t.cond === b.dataset.c ? "" : b.dataset.c; commitRow(); },
+  rowRemove() { const q = S.getQuote(ui.qid), t = ui.tmp.row; if (t.lineId) { q.current.manual = q.current.manual.filter((m) => m.id !== t.lineId); delete q.current.adjust[t.lineId]; } ui.tmp.row = { ...t, open: null, lineId: null }; touchQuote(q); },
   newQuote() { const q = S.createQuote(); go(`#/devis/${q.id}/0`); },
   demoQuote() { const q = S.createQuote(); q.current = { ...referenceDraft(S.state.db.settings), ref: q.ref, date: S.today() }; S.state.db.settings.accessThresholdM ?? 0; S.commit(); go(`#/devis/${q.id}/0`); },
   prev() { go(`#/devis/${ui.qid}/${Math.max(0, ui.step - 1)}`); }, next() { go(`#/devis/${ui.qid}/${Math.min(lastOf(S.getQuote(ui.qid)), ui.step + 1)}`); },
