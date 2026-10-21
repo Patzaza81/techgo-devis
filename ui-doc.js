@@ -59,7 +59,7 @@ function groupTable(lines) {
   }).join("");
 }
 export const legalLine = (c) => [c.rccm ? "RCCM : " + c.rccm : "", c.niu ? "NIU : " + c.niu : ""].filter(Boolean).join(" — ");
-export const installLine = (q) => { const e = q.elec || {}; const t = ["projet", "alim", "env", "objet"].map((k) => e[k]).filter(Boolean); return t.length ? `<div class="note">${t.map(esc).join(" · ")}</div>` : ""; };
+export const installLine = (q) => { const e = q.fiche || q.elec || {}; const t = ["projet", "alim", "env", "objet", "travaux", "pose", "contraintes"].map((k) => (Array.isArray(e[k]) ? e[k].join(", ") : e[k])).filter(Boolean); return t.length ? `<div class="note">${t.map(esc).join(" · ")}</div>` : ""; };
 const head = (c, pres, draft) => {
   const ph = (t) => draft ? `<span class="hph noprint">${t}</span>` : "";
   const v = (x, t) => x ? esc(x) : ph(t);

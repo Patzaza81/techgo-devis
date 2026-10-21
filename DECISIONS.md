@@ -23,3 +23,11 @@ Format : quoi · pourquoi · date.
 - Norme imprimée sur le devis seulement si l'utilisateur coche l'option, et seulement si c'est une vraie référence (IEC, EN, ISO, NF, OIML). Le document précise qu'une norme citée ne prouve pas la conformité ni son caractère obligatoire au Cameroun.
 - Unité par défaut = celle du document ; jamais devinée pour les accessoires (laissée vide).
 - Fiche « avant de chiffrer » (section 22) : 4 questions imprimées sous l'objet du chantier.
+
+## Plomberie — référentiel (oct. 2026)
+- Source : « Référentiel professionnel du matériel de plomberie » fourni par Patrick (792 matériels, 36 familles).
+- Même mécanisme que l'électricité, généralisé : metiers/ref.js (refOf(métier)) lit elec-data.js / plo-data.js. Un nouveau métier = un fichier de données + une entrée dans ref.js.
+- 12 sous-ensembles ; outillage (section 33) → onglet « Outils et machines » (au forfait par défaut) ; épreuves et essais (36) → « Transport et divers ».
+- Points de vigilance de chaque famille affichés quand elle est ouverte. Unités de métré (39), vérifications avant commande (41.G), « ce que le devis doit distinguer », 12 erreurs fréquentes (42) : aides non bloquantes.
+- Fiche « avant de chiffrer » : clé `current.fiche` (l'ancienne clé `elec` reste lue).
+- Les données *-data.js sont générées depuis les documents : ne pas les modifier à la main.

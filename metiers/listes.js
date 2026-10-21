@@ -27,7 +27,7 @@ export const LISTES = {
     autres: ["Transport du matériel", "Évacuation des déchets"],
   },
   electricite: {
-    produits: ["Câble électrique", "Gaine", "Prise", "Interrupteur", "Disjoncteur", "Tableau électrique", "Boîte d'encastrement", "Luminaire"], // repli : la liste complète vient du référentiel (elec-ref.js)
+    produits: ["Câble électrique", "Gaine", "Prise", "Interrupteur", "Disjoncteur", "Tableau électrique", "Boîte d'encastrement", "Luminaire"], // repli : la liste complète vient du référentiel (ref.js)
     outils: ["Pince à dénuder", "Perceuse", "Multimètre", "Pince ampèremétrique", "Mégohmmètre", "Mesureur de terre", "Testeur d'installation", "Caméra thermique"],
     ouvriers: ["Électricien", "Aide-électricien", "Manœuvre"],
     autres: ["Transport du matériel", "Évacuation des déchets"],
