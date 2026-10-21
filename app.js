@@ -1,5 +1,5 @@
 import * as S from "./store.js";
-import { CATS, PRICING, DECISION_TAGS, PACKS, scaffoldLines, referenceDraft, effSurface, surfaceSource } from "./packs.js";
+import { PLAN_TECH, CATS, PRICING, DECISION_TAGS, PACKS, scaffoldLines, referenceDraft, effSurface, surfaceSource } from "./packs.js";
 import { buildDocx, DOCX_MIME } from "./docx.js";
 import { analyseCsv, exportCatalogueCsv, templateCsv, exportRowsCsv } from "./csv.js";
 import { LOGO } from "./logo.js";
@@ -45,7 +45,7 @@ const ui = {
   tmp: { addPrest: "", line: { itemId: "", qty: 1, option: false }, equip: { itemId: "", days: null, basis: "jour", trips: 1, bill: "inclus", markupPct: null },
     scaf: { itemId: "", longueur: null, hauteur: null, jours: null, basis: "jour", trips: 1, bill: "inclus", markupPct: null },
     accept: { by: "", note: "", option: false }, reason: "",
-    free: { tab: "produits", metier: "", label: "", unit: "", qty: null, price: null, save: true, ask: null, ok: false } },
+    free: { tab: "produits", metier: "", role: "", label: "", unit: "", qty: null, price: null, save: true, ask: null, ok: false } },
 };
 
 // ---------- Utilitaires de formulaire ----------
@@ -183,7 +183,12 @@ function stepEnvoiS(q, ev, dis) {
     <div class="row"><div>${L("TVA (%) — laisse vide si pas de TVA")}${I("q", "current.terms.vatPct", cur.terms.vatPct, { type: "number", n: "n", dis })}</div><div>${L("Le devis reste valable (jours)")}${I("q", "current.validityDays", cur.validityDays, { type: "number", n: "n", dis })}</div></div>
     <div class="row"><div>${L("Remise en % (facultatif)")}${I("q", "current.discount.pct", cur.discount.pct, { type: "number", n: "n", dis })}</div><div>${L("ou remise en FCFA")}${I("q", "current.discount.amount", cur.discount.amount, { type: "number", n: "n", dis })}</div></div>
     ${L("Message pour le client (facultatif)")}${Txt("q", "current.notes", cur.notes, { dis })}
-    <p class="hint">Le paiement en tranches et les autres conditions viennent de tes Réglages.</p></div>
+    </div>
+    <div class="card"><b>Paiement et durée</b>
+    ${L("Comment le client paie")}<select data-on="payPlan" ${dis ? "disabled" : ""}>${Object.entries(PLAN_TECH).map(([k, p]) => `<option value="${k}" ${JSON.stringify(cur.terms.payment.materials) === JSON.stringify(p.pct) ? "selected" : ""}>${p.label}</option>`).join("")}${Object.values(PLAN_TECH).some((p) => JSON.stringify(cur.terms.payment.materials) === JSON.stringify(p.pct)) ? "" : `<option value="" selected>Autre plan (voir Réglages)</option>`}</select>
+    <div class="row"><div>${L("Durée des travaux : de (jours)")}${I("q", "current.terms.delayMin", cur.terms.delayMin, { type: "number", n: "n", dis })}</div><div>${L("à (jours)")}${I("q", "current.terms.delayMax", cur.terms.delayMax, { type: "number", n: "n", dis })}</div></div>
+    <div class="row"><div>${L("Nombre d'ouvriers (facultatif)")}${I("q", "current.terms.crew.workers", cur.terms.crew?.workers ?? null, { type: "number", n: "n", dis })}</div><div>${L("Supplément par jour si le chantier dépasse (FCFA)")}${I("q", "current.terms.crew.extraDay", cur.terms.crew?.extraDay ?? null, { type: "number", n: "n", dis })}</div></div>
+    <p class="hint">Ces informations sont écrites sur le devis, comme sur tes devis habituels.</p></div>
     ${stepVerifier(q, ev, dis)}`;
 }
 
@@ -258,6 +263,7 @@ function freeSection(q, ev, dis) {
     ${L("Choisir dans la liste")}${picker}
     ${L("Nom (ex. : ciment, carreaux, maçon)")}<input data-r="tmp" data-p="free.label" list="dl-items" value="${esc(t.label)}" autocomplete="off"><datalist id="dl-items">${db.catalogue.filter((i) => !i.archived).map((i) => `<option value="${esc(i.label)}">`).join("")}</datalist>
     ${match ? `<p class="hint">Déjà enregistré : ${esc(match.label)} (${esc(match.unit)})${prev !== null && prev !== undefined ? ` — dernier ${cm ? "prix d'achat" : "prix"} : ${fmt(prev)}${match.priceDate ? " le " + frDate(match.priceDate) : ""}${match.fieldPrice ? ", saisi sur place, à confirmer" : ""}` : " — pas de prix"}.</p>` : ""}
+    ${L("À quoi ça sert ? (facultatif, écrit sur le devis)")}${I("tmp", "free.role", t.role, { ph: "Ex. : lissage des murs avant la peinture" })}
     ${L("Unité")}<div class="chips">${units}</div>${I("tmp", "free.unit", match ? match.unit : t.unit, { ph: "ou écris l'unité" })}
     <div class="row"><div>${L("Quantité")}${I("tmp", "free.qty", t.qty, { type: "number", n: "n" })}</div><div>${L(cm ? "Prix d'achat par unité (FCFA)" : "Prix par unité (FCFA)")}${I("tmp", "free.price", t.price, { type: "number", n: "n" })}</div></div>
     <p class="hint">${t.price > 0 ? "Tu écris : <b>" + fmt(t.price) + "</b> par unité. " : ""}Prix pas connu ? Laisse vide : tu le mettras plus tard. Rien n'est compté à zéro.</p>
@@ -543,6 +549,7 @@ function parseValue(el) {
   return el.value;
 }
 const onHandlers = {
+  payPlan(el) { const q = S.getQuote(ui.qid), p = PLAN_TECH[el.value]; if (!p) return; q.current.terms.payment = { materials: [...p.pct], services: [...p.pct] }; q.current.terms.triggers = [...p.triggers]; touchQuote(q); },
   pickClient(el) { const q = S.getQuote(ui.qid); const c = S.state.db.clients.find((x) => x.id === el.value); q.current.client = c ? { id: c.id, name: c.name, type: c.type, contact: c.contact || "" } : { ...q.current.client, id: "" }; touchQuote(q); },
   decide(el) { const q = S.getQuote(ui.qid); if (el.value) q.current.decisions[el.dataset.k] = el.value; else delete q.current.decisions[el.dataset.k]; touchQuote(q); },
   adj(el) {
@@ -640,9 +647,9 @@ const actions = {
     if (!it) { const id = S.newItemId("TER"); it = { id, ref: id, label, cat: FREE_CAT[t.tab], unit, pricing: "unitaire", price: null, cost: null, priceDate: null, supplier: "", brand: "", yield: null, yieldUnit: "m²", tags: [], pack: "", archived: false, fieldPrice: false }; created = true; }
     if (has && t.save && (it[field] === null || it[field] === undefined)) { it[field] = t.price; it.priceDate = S.today(); it.fieldPrice = true; }
     if (created || (has && t.save && it.fieldPrice)) S.saveItem(it, "saisi sur place");
-    const m = { id: "m" + S.uid(), itemId: it.id, group: CATS[it.cat], mode: "fixed", qty: t.qty, option: false }; q.current.manual.push(m);
+    const m = { id: "m" + S.uid(), itemId: it.id, group: CATS[it.cat], mode: "fixed", qty: t.qty, option: false, ...((t.role || "").trim() ? { role: t.role.trim() } : {}) }; q.current.manual.push(m);
     if (has && it[field] !== t.price) { const a = (q.current.adjust[m.id] = {}); if (cm) a.costOverride = t.price; else a.priceOverride = t.price; }
-    ui.tmp.free = { ...t, label: "", unit: "", qty: null, price: null, ask: null, ok: false };
+    ui.tmp.free = { ...t, label: "", role: "", unit: "", qty: null, price: null, ask: null, ok: false };
     ui.flash = { type: "ok", text: has ? `${label} ajouté.` : `${label} ajouté. Il manque son prix : total pas fini.` }; touchQuote(q);
   },
   addEquip() {

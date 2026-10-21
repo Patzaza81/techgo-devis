@@ -109,6 +109,11 @@ export function packExpects(q) {
   return out;
 }
 
+// Plans de paiement du technicien, repris de tes devis (v4 TechGo ; ERCOG 2026-B01).
+export const PLAN_TECH = {
+  "70-30": { label: "70 % à la signature, 30 % à la réception", pct: [70, 30], triggers: ["À la signature, avant démarrage du chantier", "À la réception des travaux"] },
+  "70-15-15": { label: "70 % à la commande, 15 % à mi-chantier, 15 % à la réception", pct: [70, 15, 15], triggers: ["À la commande, avant démarrage des travaux", "À l'avancement, à mi-chantier", "À la réception des travaux"] },
+};
 export function newDraft(settings, date) {
   const s = settings || {};
   return {
@@ -117,7 +122,10 @@ export function newDraft(settings, date) {
     site: { name: "", address: "", surface: null, surfaceBrute: null, ouvertures: null, levels: null, workHeightM: null, lossPct: s.lossPct ?? null, notes: "",
       buildingType: "", support: "", finish: "", occupied: "", water: "", power: "", vehicleAccess: "", transportKm: null, durationDays: null, wishedDate: "" },
     prestations: [], manual: [], adjust: {}, decisions: {},
-    terms: { delayMin: null, delayMax: null, vatPct: s.vatPct ?? null,
+    terms: s.profil === "technicien"
+      // Plan par défaut tiré de tes devis TechGo v4 (acompte 70 % à la signature, solde 30 % à la réception)
+      ? { delayMin: null, delayMax: null, vatPct: s.vatPct ?? null, crew: { workers: null, extraDay: null }, payment: { materials: [70, 30], services: [70, 30] }, triggers: [...PLAN_TECH["70-30"].triggers] }
+      : { delayMin: null, delayMax: null, vatPct: s.vatPct ?? null, crew: { workers: null, extraDay: null },
       payment: { materials: s.payMaterials ? [...s.payMaterials] : [100], services: s.payServices ? [...s.payServices] : [100] },
       triggers: s.triggers ? [...s.triggers] : ["À la signature", "À l'avancement convenu", "À la réception du chantier"] },
     pricing: { method: "catalogue", markupPct: null }, discount: { pct: null, amount: null },
