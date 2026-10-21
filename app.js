@@ -2,7 +2,7 @@ import * as S from "./store.js";
 import { PLAN_TECH, CATS, PRICING, DECISION_TAGS, PACKS, scaffoldLines, referenceDraft, effSurface, surfaceSource } from "./packs.js";
 import { buildDocx, DOCX_MIME } from "./docx.js";
 import { analyseCsv, exportCatalogueCsv, templateCsv, exportRowsCsv } from "./csv.js";
-import { LOGO } from "./logo.js";
+const NEUTRAL_LOGO = "data:image/svg+xml;utf8," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><rect width="40" height="40" rx="9" fill="#e7ebed"/><path d="M12 9h12l6 6v16H12z" fill="none" stroke="#69787e" stroke-width="2.2" stroke-linejoin="round"/><path d="M16 21h10M16 26h10" stroke="#69787e" stroke-width="2.2" stroke-linecap="round"/></svg>');
 import { LISTES, METIERS, visibleIn, metierLabel } from "./metiers/listes.js";
 import { esc, fmt, fmtN, fmtD, frDate, renderDoc, renderInvoice, summaryText } from "./ui-doc.js";
 
@@ -235,6 +235,8 @@ function stepEnvoiS(q, ev, dis) {
     ${L("Message pour le client (facultatif)")}${Txt("q", "current.notes", cur.notes, { dis })}
     </div>
     <div class="card"><b>Présentation du devis</b><p class="hint">Choisis la forme que ton client recevra. Elle ne change aucun montant.</p>
+    ${(() => { const p = S.state.db.settings.presentation; return `<div class="logorow">${p.logo ? `<img src="${p.logo}" alt="Ton logo">` : `<span class="logoph">Logo</span>`}<div><b>Logo de ton entreprise</b><div class="hint" style="margin:0">${p.logo ? "Il s'imprime en haut de tes devis." : "Facultatif. Ton logo s'imprimera en haut de tes devis."}</div>
+      <label class="btn sec" style="margin-top:6px;display:inline-block">${p.logo ? "Changer" : "Ajouter mon logo"}<input type="file" accept="image/png,image/jpeg" data-on="logoFile" hidden></label>${p.logo ? ` <button type="button" class="linkbtn" data-act="logoClear">Retirer</button>` : ""}</div></div>`; })()}
     ${[["express", "Express", "Un seul tableau, simple et direct (comme ton devis n° 1111)"], ["detaille", "Détaillé", "Produits avec leur rôle, synthèse financière, paiement"], ["chantier", "Chantier", "Fournitures d'abord, puis synthèse et paiement (comme ERCOG)"]].map(([k, n, d]) => `<button type="button" class="bigopt ${(cur.form || "detaille") === k ? "sel" : ""}" data-act="formChoice" data-f="${k}" ${dis ? "disabled" : ""}><b>${n}${(cur.form || "detaille") === k ? " ✓" : ""}</b><span>${d}</span></button>`).join("")}</div>
     <div class="card"><b>Paiement et durée</b>
     ${L("Comment le client paie")}<select data-on="payPlan" ${dis ? "disabled" : ""}>${Object.entries(PLAN_TECH).map(([k, p]) => `<option value="${k}" ${JSON.stringify(cur.terms.payment.materials) === JSON.stringify(p.pct) ? "selected" : ""}>${p.label}</option>`).join("")}${Object.values(PLAN_TECH).some((p) => JSON.stringify(cur.terms.payment.materials) === JSON.stringify(p.pct)) ? "" : `<option value="" selected>Autre plan (voir Réglages)</option>`}</select>
@@ -587,7 +589,7 @@ function render() {
   const tabs = [["devis", "Devis"], ["clients", "Clients"], ["catalogue", "Produits"], ["suivi", "Suivi"], ["reglages", "Réglages"]];
   $("#nav").innerHTML = tabs.map(([k, n]) => `<a class="${tab === k ? "on" : ""}" href="#/${k}">${ic(k, 26)}<span>${n}</span></a>`).join("");
   $("#hsub").textContent = ((S.listWorkspaces().find((w) => w.id === S.state.ws) || {}).name || "") + (activeMetier() ? " · " + metierLabel(activeMetier()) : "");
-  $("#hname").textContent = "TechGo Devis"; $("#hlogo").src = LOGO;
+  $("#hname").textContent = "TechGo Devis"; $("#hlogo").src = S.state.db.settings.presentation.logo || NEUTRAL_LOGO;
 }
 function rerender(keepScroll = true) { const y = window.scrollY; render(); if (keepScroll) window.scrollTo(0, y); }
 
@@ -852,7 +854,7 @@ document.addEventListener("click", (e) => {
 window.addEventListener("hashchange", () => { render(); window.scrollTo(0, 0); });
 window.addEventListener("beforeprint", () => document.body.classList.add("printing"));
 window.addEventListener("afterprint", () => document.body.classList.remove("printing"));
-export const BUILD = "20";
+export const BUILD = "21";
 // Mise à jour automatique : quand une nouvelle version est publiée, l'application la prend toute seule
 // (au retour sur l'application, ou dès que la personne n'est plus en train de taper). Les données ne sont jamais touchées.
 if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
@@ -867,5 +869,5 @@ if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
     setInterval(check, 5 * 60 * 1000);
   }).catch(() => {});
 }
-S.init();
+S.init({ blank: true });
 render();

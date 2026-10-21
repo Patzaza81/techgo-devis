@@ -57,9 +57,14 @@ function writeIndex(i) { ls.set(IDX, JSON.stringify(i)); }
 export function listWorkspaces() { const i = readIndex(); return i ? i.list : []; }
 export function activeWorkspace() { const i = readIndex(); return i ? i.active : null; }
 
-export function init() {
+// Premier lancement. blank = true (application publiée) : espace vide, sans l'identité, le logo ni les prix de TechGo.
+// L'espace de TechGo existe déjà dans le téléphone de TechGo et n'est jamais touché.
+export function init({ blank = false } = {}) {
   let idx = readIndex();
-  if (!idx || !idx.list.length) { const id = uid(); idx = { active: id, list: [{ id, name: "TechGo" }] }; writeIndex(idx); }
+  if (!idx || !idx.list.length) {
+    if (blank) return createWorkspace("Mon entreprise");
+    const id = uid(); idx = { active: id, list: [{ id, name: "TechGo" }] }; writeIndex(idx);
+  }
   return load(idx.active);
 }
 export function load(id) {

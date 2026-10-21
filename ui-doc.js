@@ -59,7 +59,7 @@ function groupTable(lines) {
   }).join("");
 }
 export const legalLine = (c) => [c.rccm ? "RCCM : " + c.rccm : "", c.niu ? "NIU : " + c.niu : ""].filter(Boolean).join(" — ");
-const head = (c, pres) => `<div class="dochead"><div class="dl">${pres && pres.logo ? `<img class="dlogo" src="${pres.logo}" alt="">` : ""}<div><b class="co">${esc(c.name)}</b><div class="note">${esc(c.tagline)}<br>${esc(c.address)}${c.phone ? " — Tél. " + esc(c.phone) : ""}<br>${c.whatsapp ? "WhatsApp " + esc(c.whatsapp) : ""}${c.web ? " — " + esc(c.web) : ""}</div></div></div></div>`;
+const head = (c, pres, draft) => `<div class="dochead"><div class="dl">${pres && pres.logo ? `<img class="dlogo" src="${pres.logo}" alt="">` : draft ? `<label class="logoslot noprint">+ Logo<input type="file" accept="image/png,image/jpeg" data-on="logoFile" hidden></label>` : ""}<div><b class="co">${esc(c.name)}</b><div class="note">${esc(c.tagline)}<br>${esc(c.address)}${c.phone ? " — Tél. " + esc(c.phone) : ""}<br>${c.whatsapp ? "WhatsApp " + esc(c.whatsapp) : ""}${c.web ? " — " + esc(c.web) : ""}</div></div></div></div>`;
 
 
 // ---------- Devis du technicien : court, sobre, professionnel (modèles 1111, v4 TechGo, ERCOG) ----------
@@ -98,7 +98,7 @@ function techExpress(snap, { draft = false } = {}) {
   const rows = (ls) => ls.map((l) => `<tr><td><b>${esc(l.label)}</b>${l.role ? `<div class="note">${esc(l.role)}</div>` : ""}</td><td class="n">${fmtN(l.qty)}</td><td>${esc(l.unit)}</td><td class="n">${fmtN(l.price)}</td><td class="n">${fmtN(l.total)}</td></tr>`).join("");
   const grp = [["Main-d'œuvre", x.mo], ["Outils, machines et accès", x.out], ["Transport, logistique et divers", x.log]].filter(([, ls]) => ls.length);
   return `<div id="doc" class="tpl-${x.tpl} tf tf-express" style="--dc:${x.acc}">
-    ${head(c, x.pres)}
+    ${head(c, x.pres, draft)}
     <h1>DEVIS${draft ? ' <span class="draftmark">PROJET — non figé</span>' : ""}</h1>
     <div class="meta">
       <div><span class="note">N° / DATE</span><b>${esc(x.ref)}${snap.n ? " — V" + snap.n : ""} — ${frDate(snap.at ? snap.at : q.date)}</b></div>
@@ -126,7 +126,7 @@ function techChantier(snap, { draft = false } = {}) {
   const partiel = x.sum(x.mat) + x.sum(x.out) + x.sum(x.log);
   const crew = q.terms.crew || {};
   return `<div id="doc" class="tpl-${x.tpl} tf tf-chantier" style="--dc:${x.acc}">
-    ${head(c, x.pres)}
+    ${head(c, x.pres, draft)}
     <h1>DEVIS N° ${esc(x.ref)}${snap.n ? " — V" + snap.n : ""}${draft ? ' <span class="draftmark">PROJET — non figé</span>' : ""}</h1>
     <p class="note">${esc(c.address ? c.address.split(",").pop().trim() : "")}, le ${frDate(snap.at ? snap.at : q.date)}</p>
     <div class="meta"><div><span class="note">CLIENT</span><b>${esc(q.client.name) || "........................"}</b>${q.client.contact ? `<div class="note">${esc(q.client.contact)}</div>` : ""}</div>
@@ -171,7 +171,7 @@ function techDetaille(snap, { draft = false, ref = "" } = {}) {
   const delay = dMin && dMax && dMin !== dMax ? `${dMin} à ${dMax} jours` : dMax || dMin ? `${dMax || dMin} jours maximum` : "";
   const crewTxt = [crew.workers > 0 ? `Ce poste couvre la mobilisation de ${crew.workers} ouvrier${crew.workers > 1 ? "s" : ""}${delay ? ` sur une durée prévisionnelle de ${delay}` : ""}, ainsi que la supervision et la coordination du chantier.` : "", crew.extraDay > 0 ? `Au-delà de la durée prévue, pour une cause non imputable à ${esc(c.name)}, un supplément journalier de ${fmtN(crew.extraDay)} FCFA sera appliqué et validé avec le client avant poursuite des travaux.` : ""].filter(Boolean).join(" ");
   return `<div id="doc" class="tpl-${tpl} tf tf-detaille" style="--dc:${acc}">
-    ${head(c, pres)}
+    ${head(c, pres, draft)}
     <h1>DEVIS ESTIMATIF${draft ? ' <span class="draftmark">PROJET — non figé</span>' : ""}</h1>
     <div class="meta">
       <div><span class="note">RÉFÉRENCE</span><b>${esc(ref || q.ref)}${snap.n ? " — V" + snap.n : ""}</b></div>
@@ -231,7 +231,7 @@ export function renderDoc(snap, { draft = false, ref = "" } = {}) {
   const acc = /^#[0-9a-fA-F]{6}$/.test(pres.color || "") ? pres.color : "#0b7a8c";
   const sNet = effSurface(q.site);
   return `<div id="doc" class="tpl-${tpl}" style="--dc:${acc}">
-    ${head(c, pres)}
+    ${head(c, pres, draft)}
     <h1>DEVIS ESTIMATIF${draft ? ' <span class="draftmark">PROJET — non figé</span>' : ""}</h1>
     <div class="meta">
       <div><span class="note">RÉFÉRENCE</span><b>${esc(ref || q.ref)}${snap.n ? " — V" + snap.n : ""}</b></div>
@@ -273,7 +273,7 @@ export function renderDoc(snap, { draft = false, ref = "" } = {}) {
 }
 
 export function renderInvoice(inv, c, pres) {
-  return `<div id="doc" class="tpl-classique">${head(c, pres)}
+  return `<div id="doc" class="tpl-classique">${head(c, pres, false)}
     <h1>FACTURE DE GESTION <span class="draftmark">${esc(inv.no)}</span></h1>
     <div class="meta"><div><span class="note">DATE</span><b>${frDate(inv.date)}</b></div><div><span class="note">COMMANDE / DEVIS</span><b>${esc(inv.orderRef)} / ${esc(inv.quoteRef)}</b></div>
       <div><span class="note">CLIENT</span><b>${esc(inv.client) || "........................"}</b></div><div><span class="note">CHANTIER</span><b>${esc(inv.site)}</b></div></div>
