@@ -194,5 +194,21 @@ eq("suppression d'un espace", S.listWorkspaces().length, 2);
   eq("tout supprimer ne touche que les brouillons", S.deleteAllDrafts() >= 1 && !!S.getQuote(b.id) && !S.getQuote(c.id), true);
   eq("audit de suppression", db().audit.some((x) => x.action === "devis_supprime"), true);
 }
+{ // reprise d'un devis depuis un PDF (autre navigateur)
+  const src = S.createQuote(); src.current = { ...referenceDraft(db().settings), ref: src.ref, date: S.today() };
+  const total = S.evaluate(src).result.totals.base;
+  const pay = JSON.parse(JSON.stringify(S.quotePayload(src)));
+  const n0 = db().quotes.length;
+  const r1 = S.importQuote(pay);
+  eq("import : un devis de plus", db().quotes.length, n0 + 1);
+  eq("import : même total", S.evaluate(r1).result.totals.base, total);
+  eq("import : référence déjà prise => nouvelle référence", r1.ref !== src.ref, true);
+  const pay2 = JSON.parse(JSON.stringify(pay)); pay2.ref = "DEV-OLD-007"; pay2.quote.ref = "DEV-OLD-007";
+  eq("import : référence libre conservée", S.importQuote(pay2).ref, "DEV-OLD-007");
+  eq("import : statut brouillon modifiable", r1.status, "brouillon");
+  throws("import refusé : rien", () => S.importQuote(null));
+  throws("import refusé : mauvais type", () => S.importQuote({ t: "autre", quote: {} }));
+  throws("import refusé : devis en tableau", () => S.importQuote({ t: "tgdq1", quote: [] }));
+}
 console.log(`\n${pass} réussis, ${fail} échoués`);
 process.exit(fail ? 1 : 0);

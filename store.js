@@ -161,6 +161,23 @@ export function createQuote(clientId) {
   const q = { id: uid(), ref: draft.ref, createdAt: new Date().toISOString(), status: "brouillon", current: draft, versions: [], statusLog: [{ at: new Date().toISOString(), to: "brouillon", reason: "Création" }] };
   db.quotes.unshift(q); audit("devis_cree", "devis", q.id, q.ref); commit(); return q;
 }
+// Reprise d'un devis dans un autre navigateur : le PDF créé par l'application contient les données du devis.
+export function quotePayload(q, quote = q.current) {
+  const cur = JSON.stringify(quote);
+  return { t: "tgdq1", ref: quote.ref || q.ref, quote, items: state.db.catalogue.filter((i) => cur.includes(`"${i.id}"`)), company: state.db.company };
+}
+export function importQuote(p) {
+  if (!p || p.t !== "tgdq1" || !p.quote || typeof p.quote !== "object" || Array.isArray(p.quote)) throw new Error("Ce fichier ne contient pas de devis de l'application.");
+  const db = state.db;
+  for (const it of Array.isArray(p.items) ? p.items : []) if (it && typeof it.id === "string" && !db.catalogue.some((x) => x.id === it.id)) db.catalogue.push(clone(it));
+  const used = db.quotes.some((x) => x.ref === p.ref);
+  const q = createQuote();
+  q.current = { ...clone(p.quote), ref: used || typeof p.ref !== "string" || !p.ref ? q.ref : p.ref };
+  q.ref = q.current.ref;
+  const c = db.company;
+  if (p.company && typeof p.company === "object" && (!c.name || c.name === "Mon entreprise")) for (const k of ["name", "tagline", "address", "phone", "whatsapp", "web", "responsible", "responsiblePhone", "rccm", "niu"]) if (typeof p.company[k] === "string") c[k] = p.company[k];
+  audit("devis_importe", "devis", q.id, q.ref); commit(); return q;
+}
 export function duplicateQuote(id) {
   const src = state.db.quotes.find((q) => q.id === id); const q = createQuote();
   q.current = { ...clone(src.current), ref: q.ref, date: today() }; audit("devis_duplique", "devis", q.id, "depuis " + src.ref); commit(); return q;

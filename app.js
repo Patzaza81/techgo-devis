@@ -97,7 +97,8 @@ function viewDevis() {
     <div class="card"><div class="row"><div>${L("Rechercher un devis")}${I("ui", "f.q", f.q, { ph: "Rechercher" })}</div>
     <div>${L("Statut")}${Sel("ui", "f.status", f.status, [["", "Tous"], ...Object.entries(S.STATUS)])}</div></div>
     ${counts.length ? `<div class="chips">${counts.map(([k, n]) => `<span class="st st-${k}">${S.STATUS[k]} ${n}</span>`).join("")}</div>` : ""}</div>
-    <p class="hint">Tes devis restent dans ce téléphone. Pense à faire une sauvegarde (Réglages).</p>
+    <p class="hint">Tes devis restent dans ce navigateur (Safari et Chrome ne partagent rien). Pour les retrouver ailleurs : rouvre un PDF créé par l'application, ou fais une sauvegarde (Réglages).</p>
+    <div class="card"><b>Rouvrir un ancien devis</b><p class="hint">Choisis un PDF créé par l'application (version 24 ou plus) : le devis revient ici, modifiable.</p><input type="file" accept="application/pdf" data-on="importQuote"></div>
     ${list.length ? list.map(quoteCard).join("") : `<div class="empty"><b>Aucun devis.</b><br>Touche « Nouveau devis » pour commencer.</div>`}`;
 }
 function quoteCard(q) {
@@ -619,6 +620,17 @@ const onHandlers = {
   },
   mf(el) { const q = S.getQuote(ui.qid); const m = q.current.manual.find((x) => x.id === el.dataset.id); if (!m) return; const f = el.dataset.f; m[f] = ["basis", "bill"].includes(f) ? el.value : num(el.value); touchQuote(q); },
   csvFile(el) { const f = el.files[0]; if (!f) return; const rd = new FileReader(); rd.onload = () => { ui.csv = analyseCsv(String(rd.result), S.state.db.catalogue); rerender(); }; rd.readAsText(f); },
+  importQuote(el) {
+    const f = el.files[0]; if (!f) return; const rd = new FileReader();
+    rd.onload = () => {
+      try {
+        const txt = new TextDecoder("latin1").decode(new Uint8Array(rd.result)); const m = txt.match(/TGDQ1:([A-Za-z0-9+/=]+)/);
+        if (!m) throw new Error("Ce PDF n'a pas été créé par l'application (ou date d'avant la version 24).");
+        const q = S.importQuote(decPayload(m[1])); ui.flash = { type: "ok", text: `Devis ${q.ref} rouvert.` }; go(`#/devis/${q.id}/0`);
+      } catch (err) { ui.flash = { type: "err", text: err.message || "Fichier illisible." }; rerender(); }
+    };
+    rd.readAsArrayBuffer(f);
+  },
   logoFile(el) { const f = el.files[0]; if (!f) return; processLogo(f).then((l) => { const p = S.state.db.settings.presentation; p.logo = l.url; p.logoW = l.w; p.logoH = l.h; S.commit(); ui.flash = { type: "ok", text: "Logo enregistré." }; rerender(); }).catch((e) => { ui.flash = { type: "err", text: e.message }; rerender(); }); },
   backupFile(el) { const file = el.files[0]; if (!file) return; const rd = new FileReader(); rd.onload = () => { ui.backup = S.verifyBackup(String(rd.result)); rerender(); }; rd.readAsText(file); },
 };
@@ -645,6 +657,8 @@ function processLogo(file) {
     rd.readAsDataURL(file);
   });
 }
+const encPayload = (o) => btoa(unescape(encodeURIComponent(JSON.stringify(o))));
+const decPayload = (b64) => JSON.parse(decodeURIComponent(escape(atob(b64))));
 function saveFile() {
   const f = ui.file; if (!f) return;
   const blob = new Blob([f.data], { type: f.mime });
@@ -849,7 +863,8 @@ const actions = {
     ui.busy = "pdf"; rerender();
     try {
       const { makePdf } = await import("./pdf.js");
-      const data = await makePdf(document.getElementById("doc"));
+      const snapNow = snapFor(q, S.evaluate(q)).snap;
+      const data = await makePdf(document.getElementById("doc"), "TGDQ1:" + encPayload(S.quotePayload(q, snapNow.quote)));
       const v = (snapFor(q, S.evaluate(q)).snap || {}).n;
       ui.file = { name: `${q.ref}${v ? "-V" + v : "-brouillon"}.pdf`, mime: "application/pdf", data: new Uint8Array(data) };
       ui.flash = { type: "ok", text: "PDF créé. Touche « Enregistrer / envoyer le fichier »." };
@@ -886,7 +901,7 @@ document.addEventListener("click", (e) => {
 window.addEventListener("hashchange", () => { ui.file = null; render(); window.scrollTo(0, 0); });
 window.addEventListener("beforeprint", () => document.body.classList.add("printing"));
 window.addEventListener("afterprint", () => document.body.classList.remove("printing"));
-export const BUILD = "23";
+export const BUILD = "24";
 // Mise à jour automatique : quand une nouvelle version est publiée, l'application la prend toute seule
 // (au retour sur l'application, ou dès que la personne n'est plus en train de taper). Les données ne sont jamais touchées.
 if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
