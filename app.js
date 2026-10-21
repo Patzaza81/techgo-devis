@@ -21,8 +21,12 @@ const ICONS = {
   back: '<path d="M15 5l-7 7 7 7"/>', next: '<path d="M9 5l7 7-7 7"/>',
 };
 const ic = (n, sz = 22) => `<svg class="ic" width="${sz}" height="${sz}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[n] || ""}</svg>`;
-const STEPS = ["Client et chantier", "Travaux", "Ce qu'il faut", "Prix et conditions", "Vérifier et envoyer"];
-const LAST = STEPS.length - 1; // 4 ; la page 5 = « Suivi du devis » (hors barre de progression)
+const STEPS_E = ["Client et chantier", "Travaux", "Produits et main-d'œuvre", "Prix et paiement", "Vérifier et envoyer"];
+const STEPS_T = ["Le client", "Le travail et le matériel", "Le prix et l'envoi"];
+// Technicien : 3 écrans rapides. Entreprise / marché public : 5 écrans complets. Le mode est fixé à la création du devis.
+const modeOf = (q) => (q && q.current && q.current.profil === "technicien" ? "technicien" : "entreprise");
+const stepsOf = (q) => (modeOf(q) === "technicien" ? STEPS_T : STEPS_E);
+const lastOf = (q) => stepsOf(q).length - 1; // la page suivante = « Suivi du devis » (hors barre de progression)
 const DECISIONS = [["", "Non examiné"], ["inclus", "Inclus (je chiffre une ligne)"], ["exclu", "Exclu du devis (chiffré séparément)"], ["client", "Fourni par le client"], ["na", "Sans objet"]];
 const STATE_LABEL = { complet: "Prêt", verifier: "À vérifier", bloque: "Il manque quelque chose" };
 const activeMetier = () => S.state.db.settings.metier || "";
@@ -76,11 +80,19 @@ function viewDevis() {
     return (!f.q || txt.includes(f.q.toLowerCase())) && (!f.status || S.effectiveStatus(q) === f.status);
   });
   const counts = Object.keys(S.STATUS).map((k) => [k, list.filter((q) => S.effectiveStatus(q) === k).length]).filter((x) => x[1]);
-  if (!am) return `<section class="welcome"><h2>Quel est ton métier ?</h2><p class="hint">Choisis-le une fois : l'application n'affiche ensuite que ce métier. Tu pourras le changer quand tu veux.</p>${chooser("")}</section>
-    ${db.quotes.length ? `<p class="hint">Tu as déjà ${db.quotes.length} devis : ils s'afficheront dès que tu auras choisi ton métier.</p>` : ""}`;
+  const pf = db.settings.profil;
+  if (!am) return `<section class="welcome"><p class="stepno">Question 1 sur 2</p><h2>Quel est ton métier ?</h2><p class="hint">Touche ton métier. Tu ne le fais qu'une fois.</p>${chooser("")}</section>
+    ${db.quotes.length ? `<p class="hint">Tes ${db.quotes.length} devis déjà créés s'afficheront ensuite.</p>` : ""}`;
+  if (pf !== "technicien" && pf !== "entreprise") return `<section class="welcome"><p class="stepno">Question 2 sur 2</p><h2>Tu travailles comment ?</h2>
+    <button type="button" class="bigopt" data-act="setProfil" data-k="technicien"><b>Je suis technicien ou artisan</b><span>Devis rapide en 3 écrans. Moins de 10 minutes.</span></button>
+    <button type="button" class="bigopt" data-act="setProfil" data-k="entreprise"><b>Je suis une entreprise, ou c'est un marché public</b><span>Devis complet en 5 écrans : paiement en tranches, frais, vérifications.</span></button>
+    <p class="metierbar"><button type="button" class="linkbtn" data-act="clearMetier">← Changer de métier (${esc(metierLabel(am))})</button></p></section>`;
+  const tech = pf === "technicien";
   return `<section class="welcome"><h2>Mes devis</h2>
-      <p class="metierbar">Métier : <b>${esc(metierLabel(am))}</b> <button type="button" class="linkbtn" data-act="clearMetier">Changer</button></p>
-      <div class="row" ${am === "peinture" ? "" : 'style="grid-template-columns:1fr"'}><button data-act="newQuote">＋ Nouveau devis</button>${am === "peinture" ? `<button class="sec" data-act="demoQuote">Voir un exemple</button>` : ""}</div></section>
+      <button class="bigcta" data-act="newQuote">＋ Faire un devis</button>
+      <p class="hint" style="text-align:center">${tech ? "3 écrans : le client → le travail et le matériel → le prix et l'envoi" : "5 écrans : client, travaux, produits, prix et paiement, vérification"}</p>
+      <p class="metierbar">${esc(metierLabel(am))} · ${tech ? "Technicien" : "Entreprise"} <button type="button" class="linkbtn" data-act="clearMetier">Changer</button></p>
+      ${am === "peinture" ? `<p class="metierbar"><button type="button" class="linkbtn" data-act="demoQuote">Voir un exemple de devis rempli</button></p>` : ""}</section>
     <div class="card"><div class="row"><div>${L("Rechercher un devis")}${I("ui", "f.q", f.q, { ph: "Rechercher" })}</div>
     <div>${L("Statut")}${Sel("ui", "f.status", f.status, [["", "Tous"], ...Object.entries(S.STATUS)])}</div></div>
     ${counts.length ? `<div class="chips">${counts.map(([k, n]) => `<span class="st st-${k}">${S.STATUS[k]} ${n}</span>`).join("")}</div>` : ""}</div>
@@ -91,7 +103,7 @@ function quoteCard(q) {
   const last = S.lastVersion(q); const ev = S.editable(q) || !last ? S.evaluate(q) : null;
   const total = last && !S.editable(q) ? last.result.totals.base : ev.result.totals.base;
   const st = S.effectiveStatus(q);
-  return `<a class="qcard" href="#/devis/${q.id}/${S.editable(q) ? 0 : LAST}"><div class="qtop"><b>${esc(q.ref)}${last ? ` · V${last.n}` : ""}</b>${stBadge(st)}</div>
+  return `<a class="qcard" href="#/devis/${q.id}/${S.editable(q) ? 0 : lastOf(q)}"><div class="qtop"><b>${esc(q.ref)}${last ? ` · V${last.n}` : ""}</b>${stBadge(st)}</div>
     <div class="note">${esc(q.current.client.name) || "Client non renseigné"} — ${esc(q.current.site.name) || "Chantier non renseigné"}</div>
     <div class="qbot"><b>${fmt(total)}</b>${ev ? badge(ev.checks.status, STATE_LABEL[ev.checks.status]) : ""}</div></a>`;
 }
@@ -100,6 +112,7 @@ function quoteCard(q) {
 function viewQuote() {
   const q = S.getQuote(ui.qid); if (!q) return `<div class="empty">Devis introuvable. <a href="#/devis">Retour à la liste</a></div>`;
   const dis = !S.editable(q); const ev = S.evaluate(q); const st = S.effectiveStatus(q);
+  const STEPS = stepsOf(q), LAST = lastOf(q), simple = modeOf(q) === "technicien";
   const onSuivi = ui.step > LAST, n = ui.step + 1;
   const miss = missingPrices(ev);
   const prog = onSuivi ? `<a class="back" href="#/devis/${q.id}/${LAST}">${ic("back", 18)} Retour au devis</a>`
@@ -107,7 +120,7 @@ function viewQuote() {
        <div class="progtop"><span>Étape ${n} sur ${STEPS.length}</span><span class="ref">${esc(q.ref)} · ${esc(S.STATUS[st])}</span></div></div>`;
   const head = "";
   const frozen = dis ? `<div class="banner info">Ce devis est « ${S.STATUS[q.status]} » : les versions envoyées sont figées. ${["envoye", "refuse", "expire"].includes(q.status) ? "Prépare une nouvelle version pour modifier." : ""}</div>` : "";
-  const steps = [stepClient, stepPrest, stepBesoins, stepPrix, stepVerifier, stepVersions];
+  const steps = simple ? [stepClientS, stepTravauxS, stepEnvoiS, stepVersions] : [stepClient, stepPrest, stepBesoins, stepPrix, stepVerifier, stepVersions];
   const bar = onSuivi ? "" : `<div class="actbar noprint"><div class="acts">${ui.step > 0 ? `<button class="sec sq" data-act="prev" aria-label="Précédent">${ic("back", 24)}</button>` : ""}${ui.step < LAST ? `<button class="go" data-act="next"><span>Continuer</span><span class="amt">${miss ? `${miss} prix manquant${miss > 1 ? "s" : ""}` : fmt(ev.result.totals.base)}</span></button>` : `<button class="go" data-act="toApercu"><span>Aperçu, PDF et envoi</span>${ic("next", 22)}</button>`}</div></div>`;
   return `<a class="back" href="#/devis">${ic("back", 18)} Tous les devis</a>${head}${prog}${frozen}${steps[ui.step](q, ev, dis)}${bar}`;
 }
@@ -126,11 +139,11 @@ function stepClient(q, ev, dis) {
     <div class="card"><b>Chantier</b>
     ${L("Nom du chantier")}${I("q", "current.site.name", cur.site.name, { ph: "Immeuble R+5", dis })}
     ${L("Adresse / quartier")}${I("q", "current.site.address", cur.site.address, { dis })}
-    <div class="row"><div>${L("Surface brute (m²)")}${I("q", "current.site.surfaceBrute", cur.site.surfaceBrute, { type: "number", n: "n", dis })}</div><div>${L("Ouvertures à déduire (m²)")}${I("q", "current.site.ouvertures", cur.site.ouvertures, { type: "number", n: "n", dis })}</div></div>
-    ${L("ou surface nette saisie directement (m²)")}${I("q", "current.site.surface", cur.site.surface, { type: "number", n: "n", dis })}
+    <div class="row"><div>${L("Surface des murs (m²)")}${I("q", "current.site.surfaceBrute", cur.site.surfaceBrute, { type: "number", n: "n", dis })}</div><div>${L("Portes et fenêtres à enlever (m²)")}${I("q", "current.site.ouvertures", cur.site.ouvertures, { type: "number", n: "n", dis })}</div></div>
+    ${L("ou surface déjà calculée (m²)")}${I("q", "current.site.surface", cur.site.surface, { type: "number", n: "n", dis })}
     <p class="hint"><b>Surface retenue pour le calcul : ${effSurface(cur.site) === null ? "non renseignée" : fmtD(effSurface(cur.site)) + " m² (" + surfaceSource(cur.site) + ")"}.</b> Si la surface brute est saisie, elle prime : surface nette = brute − ouvertures (portes, fenêtres).</p>
     <div class="row"><div>${L("Hauteur de travail maximale (m)")}${I("q", "current.site.workHeightM", cur.site.workHeightM, { type: "number", n: "n", dis })}</div><div>${L("Nombre de niveaux")}${I("q", "current.site.levels", cur.site.levels, { type: "number", n: "n", dis })}</div></div>
-    ${L("Marge de sécurité produits (%)")}${I("q", "current.site.lossPct", cur.site.lossPct, { type: "number", n: "n", dis })}
+    ${L("Produit en plus pour les pertes (%)")}${I("q", "current.site.lossPct", cur.site.lossPct, { type: "number", n: "n", dis })}
     <p class="hint">La marge de sécurité couvre pertes, reprises et irrégularités. Elle s'applique aux fournitures, jamais à la main-d'œuvre. Utilise la valeur observée sur tes chantiers. Seuil d'accès de l'entreprise : ${S.state.db.settings.accessThresholdM === null ? "non défini (Réglages)" : S.state.db.settings.accessThresholdM + " m"}.</p>
     <details><summary>Informations facultatives sur le chantier</summary>
     <div class="row"><div>${L("Type de bâtiment")}${I("q", "current.site.buildingType", cur.site.buildingType, { ph: "Villa, immeuble, entrepôt…", dis })}</div><div>${L("Occupation des lieux")}${Sel("q", "current.site.occupied", cur.site.occupied, [["", "—"], ["Occupé", "Occupé"], ["Vide", "Vide"]], { dis })}</div></div>
@@ -140,6 +153,38 @@ function stepClient(q, ev, dis) {
     <div class="row"><div>${L("Durée prévue (jours)")}${I("q", "current.site.durationDays", cur.site.durationDays, { type: "number", n: "n", dis })}</div><div>${L("Date souhaitée de démarrage")}${I("q", "current.site.wishedDate", cur.site.wishedDate, { type: "date", dis })}</div></div>
     <p class="hint">Aucun de ces champs n'est obligatoire. Ils servent de mémoire du chantier et sont conservés dans chaque version figée.</p></details>
     ${L("Observations (contraintes, accès, remarques)")}${Txt("q", "current.site.notes", cur.site.notes, { dis })}</div>`;
+}
+
+// ---------- Parcours Technicien : 3 écrans, mots simples ----------
+function stepClientS(q, ev, dis) {
+  const c = S.state.db.clients, cur = q.current;
+  return `<h2>Pour qui est le devis ?</h2><div class="card">
+    ${c.length ? `${L("Client déjà enregistré (facultatif)")}<select data-on="pickClient" ${dis ? "disabled" : ""}><option value="">— Nouveau client —</option>${c.map((x) => `<option value="${x.id}" ${cur.client.id === x.id ? "selected" : ""}>${esc(x.name)}</option>`).join("")}</select>` : ""}
+    ${L("Nom du client")}${I("q", "current.client.name", cur.client.name, { ph: "Ex. : M. Mballa", dis })}
+    ${L("Téléphone du client")}${I("q", "current.client.contact", cur.client.contact, { ph: "6 xx xx xx xx", dis })}</div>
+    <div class="card"><b>Où est le chantier ?</b>
+    ${L("Quartier ou adresse")}${I("q", "current.site.address", cur.site.address, { ph: "Ex. : Bonamoussadi, près du carrefour", dis })}
+    ${L("Surface à traiter (m²)")}${I("q", "current.site.surface", cur.site.surface, { type: "number", n: "n", ph: "Ex. : 120", dis })}
+    <p class="hint">${effSurface(cur.site) === null ? "Pas de surface ? Laisse vide si ton travail ne se mesure pas en m²." : `Surface retenue : <b>${fmtD(effSurface(cur.site))} m²</b> (${esc(surfaceSource(cur.site))})`}</p>
+    <details><summary>Je veux calculer la surface (murs moins portes et fenêtres)</summary>
+      <div class="row"><div>${L("Surface des murs (m²)")}${I("q", "current.site.surfaceBrute", cur.site.surfaceBrute, { type: "number", n: "n", dis })}</div><div>${L("Portes et fenêtres (m²)")}${I("q", "current.site.ouvertures", cur.site.ouvertures, { type: "number", n: "n", dis })}</div></div>
+      <p class="hint">Si tu remplis « surface des murs », l'application enlève elle-même les portes et fenêtres.</p></details>
+    ${L("Description courte du chantier (facultatif)")}${I("q", "current.site.name", cur.site.name, { ph: "Ex. : Peinture d'un appartement", dis })}</div>`;
+}
+function stepTravauxS(q, ev, dis) {
+  return `<h2>Quel travail ?</h2>${stepPrest(q, ev, dis, true)}${stepBesoins(q, ev, dis, true)}`;
+}
+function stepEnvoiS(q, ev, dis) {
+  const cur = q.current, r = ev.result, miss = missingPrices(ev);
+  return `<h2>Le prix</h2>
+    <div class="total"><div><span>Total du devis</span><span class="big">${fmt(r.totals.base)}</span></div>${miss ? `<div class="opt"><span>Total pas fini : ${miss} prix manquant${miss > 1 ? "s" : ""}</span></div>` : ""}${r.totals.vatBase !== null ? `<div><span>Avec TVA</span><span>${fmt(r.totals.ttcBase)}</span></div>` : ""}</div>
+    ${miss ? `<div class="banner warn">Il manque ${miss} prix. <a href="#/devis/${q.id}/1">Retourne au travail et au matériel</a> pour les remplir.</div>` : ""}
+    <div class="card"><b>Conditions</b>
+    <div class="row"><div>${L("TVA (%) — laisse vide si pas de TVA")}${I("q", "current.terms.vatPct", cur.terms.vatPct, { type: "number", n: "n", dis })}</div><div>${L("Le devis reste valable (jours)")}${I("q", "current.validityDays", cur.validityDays, { type: "number", n: "n", dis })}</div></div>
+    <div class="row"><div>${L("Remise en % (facultatif)")}${I("q", "current.discount.pct", cur.discount.pct, { type: "number", n: "n", dis })}</div><div>${L("ou remise en FCFA")}${I("q", "current.discount.amount", cur.discount.amount, { type: "number", n: "n", dis })}</div></div>
+    ${L("Message pour le client (facultatif)")}${Txt("q", "current.notes", cur.notes, { dis })}
+    <p class="hint">Le paiement en tranches et les autres conditions viennent de tes Réglages.</p></div>
+    ${stepVerifier(q, ev, dis)}`;
 }
 
 function skipped(q) {
@@ -173,7 +218,7 @@ function lineCard(l, q, dis) {
       <button class="sec" data-act="skipLine" data-id="${esc(l.id)}">Retirer cette ligne</button>${man ? ` <button class="sec" data-act="delManual" data-id="${esc(l.id)}">Supprimer</button>` : ""}</details>`}</div>`;
 }
 
-function stepPrest(q, ev, dis) {
+function stepPrest(q, ev, dis, simple) {
   const cur = q.current;
   const mt = metierOf(q);
   const opts = [["", "— Choisir un travail —"]];
@@ -184,14 +229,14 @@ function stepPrest(q, ev, dis) {
     return `<div class="card"><div style="display:flex;justify-content:space-between;gap:8px"><b>${esc(pack.label)} — ${esc(pres.label)}</b>${dis ? "" : `<button class="del" data-act="delPrest" data-i="${i}">✕</button>`}</div>
       <div class="params">${pres.params.map((p) => `<div>${L(p.label)}${p.type === "select" ? Sel("q", `current.prestations.${i}.params.${p.key}`, inst.params[p.key], p.options, { dis }) : I("q", `current.prestations.${i}.params.${p.key}`, inst.params[p.key], { type: "number", n: "n", dis })}</div>`).join("")}</div>
       ${pres.params.some((p) => p.type === "number" && p.def === null) ? `<p class="hint">Les champs vides sont à renseigner : aucune valeur n'est supposée.</p>` : ""}
-      <h3>Lignes calculées</h3>${lines.map((l) => lineCard(l, q, dis)).join("") || `<p class="hint">Aucune ligne.</p>`}</div>`;
+      <h3>Ce que l'application a compté</h3>${lines.map((l) => lineCard(l, q, dis)).join("") || `<p class="hint">Aucune ligne.</p>`}</div>`;
   }).join("");
   const sk = skipped(q);
-  return `<h2>Prestations</h2><p class="hint">Les quantités se calculent seules : surface de calcul ÷ rendement, arrondie au conditionnement supérieur. Une correction garde le calcul d'origine et exige un motif.</p>
-    ${blocks || `<div class="empty">Aucune prestation. Ajoute-en une ci-dessous.</div>`}
+  return `${simple ? "" : "<h2>Travaux à faire</h2>"}<p class="hint">${simple ? "Choisis le travail, réponds aux questions : les quantités de produit se calculent toutes seules." : "Les quantités se calculent seules à partir de la surface. Si tu corriges une quantité, l'application garde le calcul d'origine et te demande pourquoi."}</p>
+    ${blocks || `<div class="empty">Aucun travail pour l'instant. Choisis-en un ci-dessous.</div>`}
     ${sk.length && !dis ? `<div class="card"><b>Lignes retirées</b>${sk.map(([id, lab]) => `<div class="chk"><div style="flex:1">${esc(lab)}</div><button class="sec" data-act="restoreLine" data-id="${esc(id)}">Rétablir</button></div>`).join("")}</div>` : ""}
-    ${dis ? "" : !mt ? `<div class="card"><b>Quel est ton métier ?</b>${chooser("")}</div>` : `<div class="card"><b>Ajouter un travail (${esc(metierLabel(mt))})</b>${L("Travail")}${Sel("tmp", "addPrest", ui.tmp.addPrest, opts)}<button class="gold" data-act="addPrest" style="margin-top:10px">Ajouter</button>
-      <p class="hint">Les quantités se calculent seules à partir de la surface. Les prix et les rendements viennent de tes produits : ce qui manque est demandé à l'étape suivante.</p></div>`}`;
+    ${dis ? "" : !mt ? `<div class="card"><b>Quel est ton métier ?</b>${chooser("")}</div>` : `<div class="card"><b>Ajouter un travail (${esc(metierLabel(mt))})</b>${L("Choisis dans la liste")}${Sel("tmp", "addPrest", ui.tmp.addPrest, opts)}<button class="gold" data-act="addPrest" style="margin-top:10px">Ajouter</button>
+      <p class="hint">Les prix manquants te seront demandés juste après, pour chaque produit.</p></div>`}`;
 }
 
 const tabOf = (l) => TAB_OF[l.cat] || "autres";
@@ -224,7 +269,7 @@ function freeSection(q, ev, dis) {
     ${shown.map((l) => lineCard(l, q, dis)).join("") || `<p class="hint">Rien ici pour l'instant.</p>`}`;
 }
 
-function stepBesoins(q, ev, dis) {
+function stepBesoins(q, ev, dis, simple) {
   const cur = q.current, db = S.state.db, t = ui.tmp;
   const hasTag = (k) => ev.result.lines.some((l) => l.tags.includes(k) && (l.qty ?? 0) > 0 && !l.option);
   const dec = Object.entries(DECISION_TAGS).map(([k, lab]) => `<div class="chk"><div class="dot d-${hasTag(k) || cur.decisions[k] ? "ok" : "verifier"}">${hasTag(k) || cur.decisions[k] ? "✓" : "!"}</div>
@@ -238,35 +283,35 @@ function stepBesoins(q, ev, dis) {
     ${key === "scaf" ? `<div class="row"><div>${L("Longueur de façade (m)")}${I("tmp", "scaf.longueur", t.scaf.longueur, { type: "number", n: "n" })}</div><div>${L("Hauteur (m)")}${I("tmp", "scaf.hauteur", t.scaf.hauteur, { type: "number", n: "n" })}</div></div>` : ""}
     <div class="row3"><div>${L("Durée (jours)")}${I("tmp", `${key}.${key === "scaf" ? "jours" : "days"}`, t[key][key === "scaf" ? "jours" : "days"], { type: "number", n: "n" })}</div>
     <div>${L("Tarif")}${Sel("tmp", `${key}.basis`, t[key].basis, [["jour", "Jour"], ["semaine", "Semaine"], ["mois", "Mois"]])}</div><div>${L("Trajets")}${I("tmp", `${key}.trips`, t[key].trips, { type: "number", n: "n" })}</div></div>
-    <div class="row"><div>${L("Facturation")}${Sel("tmp", `${key}.bill`, t[key].bill, [["inclus", "Absorbé (non facturé séparément)"], ["refacture", "Refacturé avec majoration"]])}</div>
+    <div class="row"><div>${L("Facturation")}${Sel("tmp", `${key}.bill`, t[key].bill, [["inclus", "Compris dans mon prix"], ["refacture", "Je le facture en plus"]])}</div>
     <div>${t[key].bill === "refacture" ? L("Majoration (%)") + I("tmp", `${key}.markupPct`, t[key].markupPct, { type: "number", n: "n" }) : ""}</div></div>
     <button class="gold" data-act="${key === "scaf" ? "addScaf" : "addEquip"}" style="margin-top:10px">Ajouter</button></div>`;
-  return `<h2>Ce qu'il faut</h2>${freeSection(q, ev, dis)}
-    <h3>Points à examiner</h3><p class="hint">Ce que les devis oublient le plus : accès en hauteur, outillage, protections, transport, nettoyage. Chiffre chaque point ou indique pourquoi il n'y en a pas.</p>
+  return `<h2>${simple ? "Produits, outils et ouvriers" : "Produits et main-d'œuvre"}</h2>${freeSection(q, ev, dis)}
+    ${simple ? `<details class="more"><summary>Échafaudage, outils loués, oublis fréquents</summary>` : ""}<h3>À ne pas oublier</h3><p class="hint">Ce que les devis oublient le plus : accès en hauteur, outillage, protections, transport, nettoyage. Chiffre chaque point ou indique pourquoi il n'y en a pas.</p>
     <div class="card">${dec}</div>
     ${dis ? "" : `${eqForm("scaf", ac, "Accès en hauteur / échafaudage", `<div class="banner info">L'application chiffre ce que tu décides. Le type d'échafaudage, la hauteur autorisée, les protections collectives et les vérifications dépendent du site, du matériel et de l'évaluation des risques par une personne compétente.</div>`)}
     ${eqForm("equip", eq, "Équipements et outillage", `<p class="hint">Un équipement <b>possédé</b> n'est jamais facturé en location : seul son coût interne d'utilisation est compté. Un équipement <b>loué</b> compte location, montage/démontage et transport, sans doublon si le fournisseur inclut déjà le montage.</p>`)}
     <div class="card"><b>Ajouter un produit déjà enregistré</b>${L("Article")}<select data-r="tmp" data-p="line.itemId">${optItems(others).replace(`value="${esc(t.line.itemId)}"`, `value="${esc(t.line.itemId)}" selected`)}</select>
       <div class="row"><div>${L("Quantité")}${I("tmp", "line.qty", t.line.qty, { type: "number", n: "n" })}</div><div>${Chk("tmp", "line.option", t.line.option, "Option")}</div></div>
       <button class="gold" data-act="addLine">Ajouter</button></div>`}
-    `;
+    ${simple ? "</details>" : ""}`;
 }
 
 function stepPrix(q, ev, dis) {
   const cur = q.current, r = ev.result, m = r.margin;
   return `<h2>Prix et conditions</h2>
-    <div class="card"><b>Méthode de tarification</b>${L("Prix de vente")}${Sel("q", "current.pricing.method", cur.pricing.method, [["catalogue", "Prix de vente du catalogue"], ["cout_plus_marge", "Coût d'achat + majoration"]], { dis })}
+    <div class="card"><b>Comment calculer le prix de vente</b>${L("Prix de vente")}${Sel("q", "current.pricing.method", cur.pricing.method, [["catalogue", "Prix de vente du catalogue"], ["cout_plus_marge", "Prix d'achat + ma marge"]], { dis })}
     ${cur.pricing.method === "cout_plus_marge" ? `${L("Majoration sur coût d'achat (%)")}${I("q", "current.pricing.markupPct", cur.pricing.markupPct, { type: "number", n: "n", dis })}<p class="hint">Chaque article doit avoir un coût d'achat dans le Catalogue, sinon son prix reste inconnu.</p>` : ""}</div>
     <div class="card"><b>Remise</b><div class="row"><div>${L("Remise (%)")}${I("q", "current.discount.pct", cur.discount.pct, { type: "number", n: "n", dis })}</div><div>${L("ou montant (FCFA)")}${I("q", "current.discount.amount", cur.discount.amount, { type: "number", n: "n", dis })}</div></div>
     <p class="hint">Si les deux sont remplis, le pourcentage prime. La remise s'applique sur le total HT, une seule fois, et alerte si la marge passe sous le minimum.</p></div>
-    <div class="card"><b>Frais généraux</b><div class="row"><div>${L("Taux (% du coût direct)")}${I("q", "current.overhead.pct", cur.overhead.pct, { type: "number", n: "z", dis })}</div>
+    <div class="card"><b>Frais de fonctionnement (bureau, assurance, véhicule…)</b><div class="row"><div>${L("Taux (% du coût direct)")}${I("q", "current.overhead.pct", cur.overhead.pct, { type: "number", n: "z", dis })}</div>
     <div>${L("Traitement")}${Sel("q", "current.overhead.mode", cur.overhead.mode, [["inclus", "Déjà inclus dans mes prix"], ["ligne", "Ligne séparée facturée"]], { dis })}</div></div>
     <p class="hint">Jamais les deux : « inclus » compte les frais dans le coût de revient interne seulement ; « ligne séparée » les ajoute au devis. Le choix évite le double comptage.</p></div>
-    <div class="card"><b>Taxes, délais, paiement</b><div class="row"><div>${L("TVA (%) — vide = hors taxes")}${I("q", "current.terms.vatPct", cur.terms.vatPct, { type: "number", n: "n", dis })}</div><div>${L("Validité (jours)")}${I("q", "current.validityDays", cur.validityDays, { type: "number", n: "n", dis })}</div></div>
+    <div class="card"><b>TVA, délais et paiement en tranches</b><div class="row"><div>${L("TVA (%) — vide = hors taxes")}${I("q", "current.terms.vatPct", cur.terms.vatPct, { type: "number", n: "n", dis })}</div><div>${L("Validité (jours)")}${I("q", "current.validityDays", cur.validityDays, { type: "number", n: "n", dis })}</div></div>
     <div class="row"><div>${L("Délai minimum (jours)")}${I("q", "current.terms.delayMin", cur.terms.delayMin, { type: "number", n: "n", dis })}</div><div>${L("Délai maximum (jours)")}${I("q", "current.terms.delayMax", cur.terms.delayMax, { type: "number", n: "n", dis })}</div></div>
-    ${L("Échéancier des fournitures (% séparés par « / », total 100)")}${I("q", "current.terms.payment.materials", joinPct(cur.terms.payment.materials), { list: "slash", dis })}
-    ${L("Échéancier main-d'œuvre et services (% séparés par « / », total 100)")}${I("q", "current.terms.payment.services", joinPct(cur.terms.payment.services), { list: "slash", dis })}
-    ${L("Déclencheurs des versements (un par ligne, dans l'ordre)")}${Txt("q", "current.terms.triggers", (cur.terms.triggers || []).join("\n"), { list: "lines", dis })}
+    ${L("Paiement en tranches des produits (% séparés par « / », total 100)")}${I("q", "current.terms.payment.materials", joinPct(cur.terms.payment.materials), { list: "slash", dis })}
+    ${L("Paiement en tranches de la main-d'œuvre (% séparés par « / », total 100)")}${I("q", "current.terms.payment.services", joinPct(cur.terms.payment.services), { list: "slash", dis })}
+    ${L("À quel moment chaque tranche est payée (une par ligne, dans l'ordre)")}${Txt("q", "current.terms.triggers", (cur.terms.triggers || []).join("\n"), { list: "lines", dis })}
     ${L("Hypothèses et remarques pour le client (facultatif)")}${Txt("q", "current.notes", cur.notes, { dis })}</div>
     <div class="total"><div><span>Offre de base HT</span><span class="big">${fmt(r.totals.base)}</span></div>${r.lines.some((l) => l.option) ? `<div class="opt"><span>Avec option HT</span><span>${fmt(r.totals.withOption)}</span></div>` : ""}
     ${r.totals.vatBase !== null ? `<div><span>TTC (base)</span><span>${fmt(r.totals.ttcBase)}</span></div>` : ""}${r.totals.discountBase ? `<div><span>dont remise</span><span>− ${fmt(r.totals.discountBase)}</span></div>` : ""}</div>
@@ -285,7 +330,7 @@ function stepControle(q, ev, dis) {
     ${r_warn(ev)}${dis ? "" : `<div class="row">${acts.join("")}</div>`}`;
 }
 function stepVerifier(q, ev, dis) {
-  return `<div class="noprint">${stepControle(q, ev, dis)}</div>${stepApercu(q, ev, dis)}<div class="noprint"><a class="btn sec" href="#/devis/${q.id}/${LAST + 1}" style="margin-top:14px;width:100%">Suivi du devis : statut, versions, décision du client</a></div>`;
+  return `<div class="noprint">${stepControle(q, ev, dis)}</div>${stepApercu(q, ev, dis)}<div class="noprint"><a class="btn sec" href="#/devis/${q.id}/${lastOf(q) + 1}" style="margin-top:14px;width:100%">Suivi du devis : statut, versions, décision du client</a></div>`;
 }
 const r_warn = (ev) => (ev.result.warnings.length ? `<div class="card"><b>Alertes de calcul</b>${ev.result.warnings.map((w) => `<div class="hint">• ${esc(w)}</div>`).join("")}</div>` : "");
 
@@ -324,7 +369,7 @@ function internal(snap, q) {
 
 function stepVersions(q, ev) {
   const last = S.lastVersion(q), st = S.effectiveStatus(q), t = ui.tmp;
-  const vers = q.versions.map((v) => { const ok = S.verifyVersion(v).ok; return `<div class="chk"><div class="dot d-${ok ? "ok" : "bloque"}">${ok ? "✓" : "✕"}</div><div style="flex:1"><b>V${v.n}</b> — ${frDate(v.at)} — ${fmt(v.result.totals.base)} HT<div class="note">Empreinte ${v.hash} · ${ok ? "intégrité vérifiée par recalcul" : "INTÉGRITÉ NON VÉRIFIÉE"}</div></div><a class="btn sec" href="#/devis/${q.id}/${LAST}" data-act="seeVer" data-n="${v.n}">Voir</a></div>`; }).join("");
+  const vers = q.versions.map((v) => { const ok = S.verifyVersion(v).ok; return `<div class="chk"><div class="dot d-${ok ? "ok" : "bloque"}">${ok ? "✓" : "✕"}</div><div style="flex:1"><b>V${v.n}</b> — ${frDate(v.at)} — ${fmt(v.result.totals.base)} HT<div class="note">Empreinte ${v.hash} · ${ok ? "intégrité vérifiée par recalcul" : "INTÉGRITÉ NON VÉRIFIÉE"}</div></div><a class="btn sec" href="#/devis/${q.id}/${lastOf(q)}" data-act="seeVer" data-n="${v.n}">Voir</a></div>`; }).join("");
   const actions = [];
   if (["envoye", "refuse", "expire"].includes(q.status)) actions.push(`<button data-act="startNeg">Préparer V${q.versions.length + 1}${q.status === "expire" ? " (renouveler)" : ""}</button>`);
   if (q.status === "negociation") actions.push(`<button class="sec" data-act="discardNeg">Abandonner le brouillon de V${q.versions.length + 1}</button>`);
@@ -424,7 +469,7 @@ function viewSuivi(a) {
   const pipe = ["envoye", "negociation", "accepte", "refuse", "expire"].map((k) => [k, db.quotes.filter((q) => S.effectiveStatus(q) === k)]);
   const soon = db.quotes.filter((q) => ["envoye", "negociation"].includes(q.status) && S.lastVersion(q)).map((q) => [q, S.expiryDate(q)]).filter(([, e]) => e && e >= S.today() && e <= new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10));
   return `<h2>Suivi</h2><div class="card"><b>Devis en cours</b><div class="chips">${pipe.map(([k, a2]) => `<span class="st st-${k}">${S.STATUS[k]} ${a2.length}</span>`).join("")}</div>
-    ${soon.length ? `<p class="hint">À relancer (validité dans moins de 7 jours) : ${soon.map(([q, e]) => `<a href="#/devis/${q.id}/${LAST + 1}">${esc(q.ref)}</a> (${frDate(e)})`).join(", ")}</p>` : ""}</div>
+    ${soon.length ? `<p class="hint">À relancer (validité dans moins de 7 jours) : ${soon.map(([q, e]) => `<a href="#/devis/${q.id}/${lastOf(q) + 1}">${esc(q.ref)}</a> (${frDate(e)})`).join(", ")}</p>` : ""}</div>
     <h3>Commandes</h3>${db.orders.map((o) => `<div class="card"><div class="qtop"><b>${esc(o.ref)}</b>${badge(o.status === "solde" ? "complet" : "verifier", o.status === "solde" ? "Soldée" : "En cours")}</div>
       <div class="note">${esc(o.client) || "Client non renseigné"} — ${esc(o.site)} — depuis ${esc(o.quoteRef)} V${o.version}${o.option ? " (avec option)" : ""}</div><b>${fmt(o.totalHT)} HT</b>
       ${o.tranches.map((t, i) => `<div class="chk"><div style="flex:1"><b>${esc(t.label)}</b><div class="note">${fmt(t.amountHT)} HT${t.vat !== null ? " · TTC " + fmt(t.amountHT + t.vat) : ""} — ${{ a_facturer: "à facturer", facture: "facturé", paye: "payé le " + frDate(t.paidAt) }[t.status]}</div></div>
@@ -471,7 +516,7 @@ function render() {
   const tab = r.tab;
   if (tab === "devis" && r.a && r.a !== ui.qid) { ui.tmp.free.tab = "produits"; ui.tmp.free.ask = null; ui.tmp.free.ok = false; }
   ui.qid = tab === "devis" && r.a ? r.a : ui.qid;
-  if (tab === "devis") { if (r.a) { ui.step = Math.min(LAST + 1, Math.max(0, Number(r.b) || 0)); html = viewQuote(); } else html = viewDevis(); }
+  if (tab === "devis") { if (r.a) { const qq = S.getQuote(r.a); ui.step = Math.min((qq ? lastOf(qq) : 4) + 1, Math.max(0, Number(r.b) || 0)); html = viewQuote(); } else html = viewDevis(); }
   else if (tab === "clients") html = viewClients(r.a);
   else if (tab === "catalogue") html = viewCatalogue(r.a);
   else if (tab === "suivi") html = viewSuivi(r.a);
@@ -560,7 +605,7 @@ const actions = {
   reload() { S.reloadAfterConflict(); },
   newQuote() { const q = S.createQuote(); go(`#/devis/${q.id}/0`); },
   demoQuote() { const q = S.createQuote(); q.current = { ...referenceDraft(S.state.db.settings), ref: q.ref, date: S.today() }; S.state.db.settings.accessThresholdM ?? 0; S.commit(); go(`#/devis/${q.id}/0`); },
-  prev() { go(`#/devis/${ui.qid}/${Math.max(0, ui.step - 1)}`); }, next() { go(`#/devis/${ui.qid}/${Math.min(LAST, ui.step + 1)}`); },
+  prev() { go(`#/devis/${ui.qid}/${Math.max(0, ui.step - 1)}`); }, next() { go(`#/devis/${ui.qid}/${Math.min(lastOf(S.getQuote(ui.qid)), ui.step + 1)}`); },
   addPrest() {
     const q = S.getQuote(ui.qid); const [pid, rid] = (ui.tmp.addPrest || "").split("|"); if (!pid) throw new Error("Choisis une prestation.");
     const pres = PACKS[pid].prestations.find((x) => x.id === rid); const params = {}; pres.params.forEach((p) => (params[p.key] = p.def));
@@ -578,7 +623,8 @@ const actions = {
   toApercu() { const el = document.getElementById("apercu"); if (el) el.scrollIntoView?.({ behavior: "smooth", block: "start" }); return "skip"; },
   freeTab(b) { ui.tmp.free.tab = b.dataset.k; ui.tmp.free.unit = ""; ui.tmp.free.ask = null; },
   setMetier(b) { const k = b.dataset.k; S.state.db.settings.metier = k; const q = ui.qid && S.getQuote(ui.qid); if (q && location.hash.includes("/devis/") && S.editable(q) && !q.current.metier) q.current.metier = k; S.commit(); },
-  clearMetier() { S.state.db.settings.metier = ""; S.commit(); },
+  clearMetier() { S.state.db.settings.metier = ""; S.state.db.settings.profil = ""; S.commit(); },
+  setProfil(b) { S.state.db.settings.profil = b.dataset.k; S.commit(); },
   pickName(b) { const it = S.state.db.catalogue.find((i) => !i.archived && nz(i.label) === nz(b.dataset.n)); ui.tmp.free.label = b.dataset.n; ui.tmp.free.unit = it ? it.unit : ""; ui.tmp.free.ask = null; ui.tmp.free.ok = false; },
   freeUnit(b) { ui.tmp.free.unit = b.dataset.u; },
   askNo() { ui.tmp.free.ask = null; },

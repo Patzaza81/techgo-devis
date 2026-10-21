@@ -41,6 +41,7 @@ function defaultDb() {
     company: { name: "TECHGO S.A.R.L.", tagline: "Coordination, supervision et garantie des travaux", address: "Douala, Bonamoussadi", phone: "+237 694 375 420", whatsapp: "+237 699 881 729", web: "techgo-douala.netlify.app", responsible: "M. Bangue Henri Nkondo", responsiblePhone: "+237 694 375 420", rccm: "", niu: "" },
     settings: {
       metier: "",
+      profil: "",
       presentation: { template: "classique", color: "#0b7a8c", logo: LOGO, logoW: 128, logoH: 128 },
       accessThresholdM: null, lossPct: null, vatPct: null, validityDays: 30, minMarginPct: null, overheadPct: 0, overheadMode: "inclus", quotePrefix: "DEV",
       payMaterials: [70, 30], payServices: [35, 40, 25], triggers: ["À la signature", "À 50 % d'avancement du chantier", "Chantier terminé, à la réception"],
