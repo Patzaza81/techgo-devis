@@ -34,3 +34,10 @@ export const LISTES = {
   },
 };
 export const METIERS = [["peinture", "Peinture"], ["carrelage", "Carrelage"], ["maconnerie", "Maçonnerie"], ["plomberie", "Plomberie"], ["electricite", "Électricité"]];
+
+// Articles communs qui ne servent que dans certains métiers (par référence). Les autres articles communs
+// (échafaudage, transport, protections, nettoyage…) restent visibles dans tous les métiers.
+export const COMMUN_METIERS = { "OUT-BETONNIERE": ["maconnerie"] };
+export const metierLabel = (k) => (METIERS.find(([x]) => x === k) || [, ""])[1];
+/** Un article est visible dans le métier m : le sien, ou un article commun non réservé à d'autres métiers. */
+export const visibleIn = (m, it) => !m || (it.pack ? it.pack === m : !COMMUN_METIERS[it.ref] || COMMUN_METIERS[it.ref].includes(m));

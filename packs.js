@@ -112,7 +112,7 @@ export function packExpects(q) {
 export function newDraft(settings, date) {
   const s = settings || {};
   return {
-    ref: "", date, validityDays: s.validityDays ?? null,
+    ref: "", date, metier: s.metier || "", validityDays: s.validityDays ?? null,
     client: { id: "", name: "", type: "Particulier", contact: "" },
     site: { name: "", address: "", surface: null, surfaceBrute: null, ouvertures: null, levels: null, workHeightM: null, lossPct: s.lossPct ?? null, notes: "",
       buildingType: "", support: "", finish: "", occupied: "", water: "", power: "", vehicleAccess: "", transportKm: null, durationDays: null, wishedDate: "" },
@@ -128,7 +128,7 @@ export function newDraft(settings, date) {
 // Devis de référence DEV-2026-09-001 (jeu de test et démonstration)
 export function referenceDraft(settings) {
   const q = newDraft(settings, "2026-09-28");
-  q.ref = "DEV-2026-09-001"; q.validityDays = 30;
+  q.ref = "DEV-2026-09-001"; q.validityDays = 30; q.metier = "peinture";
   q.client.name = "";
   q.site = { name: "Immeuble R+5 — Douala", address: "Douala", surface: 4629, levels: 6, workHeightM: 18, lossPct: 5, notes: "Niveaux 1 à 5, terrasse et cage d'escalier — métrés du client." };
   q.prestations = [{ id: "p1", packId: "peinture", prestId: "systeme3", params: { primer: "option", additifKg: 10, abr60: 3, abr100: 4, abr120: 4, abr220: 20, transport: "oui" } }];

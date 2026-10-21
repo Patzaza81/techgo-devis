@@ -3,7 +3,7 @@ import { CATS, PRICING, DECISION_TAGS, PACKS, scaffoldLines, referenceDraft, eff
 import { buildDocx, DOCX_MIME } from "./docx.js";
 import { analyseCsv, exportCatalogueCsv, templateCsv, exportRowsCsv } from "./csv.js";
 import { LOGO } from "./logo.js";
-import { LISTES, METIERS } from "./metiers/listes.js";
+import { LISTES, METIERS, visibleIn, metierLabel } from "./metiers/listes.js";
 import { esc, fmt, fmtN, fmtD, frDate, renderDoc, renderInvoice, summaryText } from "./ui-doc.js";
 
 const $ = (s) => document.querySelector(s);
@@ -25,6 +25,9 @@ const STEPS = ["Client et chantier", "Travaux", "Ce qu'il faut", "Prix et condit
 const LAST = STEPS.length - 1; // 4 ; la page 5 = « Suivi du devis » (hors barre de progression)
 const DECISIONS = [["", "Non examiné"], ["inclus", "Inclus (je chiffre une ligne)"], ["exclu", "Exclu du devis (chiffré séparément)"], ["client", "Fourni par le client"], ["na", "Sans objet"]];
 const STATE_LABEL = { complet: "Prêt", verifier: "À vérifier", bloque: "Il manque quelque chose" };
+const activeMetier = () => S.state.db.settings.metier || "";
+const metierOf = (q) => q.current.metier || (q.current.prestations[0] && q.current.prestations[0].packId) || activeMetier();
+const chooser = (cur) => `<div class="chips">${METIERS.map(([k, n]) => `<button type="button" class="chip ${cur === k ? "on" : ""}" data-act="setMetier" data-k="${k}">${n}</button>`).join("")}</div>`;
 const nz = (s) => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
 const TABS = [["produits", "Produits"], ["outils", "Outils et machines"], ["ouvriers", "Ouvriers"], ["autres", "Transport et autres"]];
 const TAB_OF = { materiaux: "produits", consommables: "produits", equip_possede: "outils", equip_loue: "outils", outillage: "outils", acces: "outils", securite: "outils", main_oeuvre: "ouvriers", transport: "autres", installation: "autres", sous_traitance: "autres", frais: "autres" };
@@ -66,18 +69,23 @@ const go = (h) => { location.hash = h; };
 // ---------- Vues : liste des devis ----------
 function viewDevis() {
   const db = S.state.db, f = ui.f;
+  const am = activeMetier();
   const list = db.quotes.filter((q) => {
+    if (am && metierOf(q) && metierOf(q) !== am) return false;
     const txt = (q.ref + " " + q.current.client.name + " " + q.current.site.name).toLowerCase();
     return (!f.q || txt.includes(f.q.toLowerCase())) && (!f.status || S.effectiveStatus(q) === f.status);
   });
-  const counts = Object.keys(S.STATUS).map((k) => [k, db.quotes.filter((q) => S.effectiveStatus(q) === k).length]).filter((x) => x[1]);
+  const counts = Object.keys(S.STATUS).map((k) => [k, list.filter((q) => S.effectiveStatus(q) === k).length]).filter((x) => x[1]);
+  if (!am) return `<section class="welcome"><h2>Quel est ton métier ?</h2><p class="hint">Choisis-le une fois : l'application n'affiche ensuite que ce métier. Tu pourras le changer quand tu veux.</p>${chooser("")}</section>
+    ${db.quotes.length ? `<p class="hint">Tu as déjà ${db.quotes.length} devis : ils s'afficheront dès que tu auras choisi ton métier.</p>` : ""}`;
   return `<section class="welcome"><h2>Mes devis</h2>
-      <div class="row"><button data-act="newQuote">＋ Nouveau devis</button><button class="sec" data-act="demoQuote">Voir un exemple</button></div></section>
+      <p class="metierbar">Métier : <b>${esc(metierLabel(am))}</b> <button type="button" class="linkbtn" data-act="clearMetier">Changer</button></p>
+      <div class="row" ${am === "peinture" ? "" : 'style="grid-template-columns:1fr"'}><button data-act="newQuote">＋ Nouveau devis</button>${am === "peinture" ? `<button class="sec" data-act="demoQuote">Voir un exemple</button>` : ""}</div></section>
     <div class="card"><div class="row"><div>${L("Rechercher un devis")}${I("ui", "f.q", f.q, { ph: "Rechercher" })}</div>
     <div>${L("Statut")}${Sel("ui", "f.status", f.status, [["", "Tous"], ...Object.entries(S.STATUS)])}</div></div>
     ${counts.length ? `<div class="chips">${counts.map(([k, n]) => `<span class="st st-${k}">${S.STATUS[k]} ${n}</span>`).join("")}</div>` : ""}</div>
     <p class="hint">Tes devis restent dans ce téléphone. Pense à faire une sauvegarde (Réglages).</p>
-    ${list.length ? list.map(quoteCard).join("") : `<div class="empty"><b>Aucun devis.</b><br>Touche « Nouveau devis » pour commencer, ou « Voir un exemple ».</div>`}`;
+    ${list.length ? list.map(quoteCard).join("") : `<div class="empty"><b>Aucun devis.</b><br>Touche « Nouveau devis » pour commencer.</div>`}`;
 }
 function quoteCard(q) {
   const last = S.lastVersion(q); const ev = S.editable(q) || !last ? S.evaluate(q) : null;
@@ -167,8 +175,9 @@ function lineCard(l, q, dis) {
 
 function stepPrest(q, ev, dis) {
   const cur = q.current;
-  const opts = [["", "— Choisir une prestation —"]];
-  Object.values(PACKS).forEach((p) => p.prestations.forEach((x) => opts.push([`${p.id}|${x.id}`, `${p.label} — ${x.label}`])));
+  const mt = metierOf(q);
+  const opts = [["", "— Choisir un travail —"]];
+  if (mt && PACKS[mt]) PACKS[mt].prestations.forEach((x) => opts.push([`${mt}|${x.id}`, x.label]));
   const blocks = cur.prestations.map((inst, i) => {
     const pack = PACKS[inst.packId], pres = pack.prestations.find((x) => x.id === inst.prestId);
     const lines = ev.result.lines.filter((l) => l.id.startsWith(inst.id + "."));
@@ -181,8 +190,8 @@ function stepPrest(q, ev, dis) {
   return `<h2>Prestations</h2><p class="hint">Les quantités se calculent seules : surface de calcul ÷ rendement, arrondie au conditionnement supérieur. Une correction garde le calcul d'origine et exige un motif.</p>
     ${blocks || `<div class="empty">Aucune prestation. Ajoute-en une ci-dessous.</div>`}
     ${sk.length && !dis ? `<div class="card"><b>Lignes retirées</b>${sk.map(([id, lab]) => `<div class="chk"><div style="flex:1">${esc(lab)}</div><button class="sec" data-act="restoreLine" data-id="${esc(id)}">Rétablir</button></div>`).join("")}</div>` : ""}
-    ${dis ? "" : `<div class="card"><b>Ajouter une prestation</b>${L("Prestation")}${Sel("tmp", "addPrest", ui.tmp.addPrest, opts)}<button class="gold" data-act="addPrest" style="margin-top:10px">Ajouter</button>
-      <p class="hint">Seule la prestation « Enduit 3 couches + ponçage » (métier Peinture) contient des prix et rendements réels (devis du 28/09/2026). Les autres fournissent les formules ; saisis tes prix et rendements dans le Catalogue.</p></div>`}`;
+    ${dis ? "" : !mt ? `<div class="card"><b>Quel est ton métier ?</b>${chooser("")}</div>` : `<div class="card"><b>Ajouter un travail (${esc(metierLabel(mt))})</b>${L("Travail")}${Sel("tmp", "addPrest", ui.tmp.addPrest, opts)}<button class="gold" data-act="addPrest" style="margin-top:10px">Ajouter</button>
+      <p class="hint">Les quantités se calculent seules à partir de la surface. Les prix et les rendements viennent de tes produits : ce qui manque est demandé à l'étape suivante.</p></div>`}`;
 }
 
 const tabOf = (l) => TAB_OF[l.cat] || "autres";
@@ -195,12 +204,11 @@ function freeSection(q, ev, dis) {
   const match = db.catalogue.find((i) => !i.archived && nz(i.label) === nz(t.label));
   const field = cm ? "cost" : "price", prev = match ? match[field] : null;
   const units = FREE_UNITS[t.tab].map((u) => `<button type="button" class="chip ${nz(t.unit) === nz(u) ? "on" : ""}" data-act="freeUnit" data-u="${esc(u)}">${esc(u)}</button>`).join("");
-  const metiers = [...new Set(q.current.prestations.map((p) => p.packId))].filter((k) => LISTES[k]);
-  const met = t.metier || metiers[0] || "";
+  const met = metierOf(q);
   const saved = db.catalogue.filter((i) => !i.archived && TAB_OF[i.cat] === t.tab && (i.pack === met || String(i.id).startsWith("TER-"))).map((i) => i.label);
   const names = [...new Set([...saved, ...(LISTES[met]?.[t.tab] || [])])];
-  const picker = `<div class="chips">${METIERS.map(([k, n]) => `<button type="button" class="chip ${met === k ? "on" : ""}" data-act="pickMetier" data-k="${k}">${n}</button>`).join("")}</div>
-    ${names.length ? `<div class="chips names">${names.map((n) => `<button type="button" class="chip nm ${nz(t.label) === nz(n) ? "on" : ""}" data-act="pickName" data-n="${esc(n)}">${esc(n)}</button>`).join("")}</div><p class="hint">Touche un nom, ou écris-le plus bas. Ce sont des noms seulement : aucun prix ni quantité.</p>` : `<p class="hint">Choisis ton métier pour voir une liste de noms, ou écris le nom plus bas.</p>`}`;
+  const picker = `${met ? "" : chooser("")}
+    ${names.length ? `<div class="chips names">${names.map((n) => `<button type="button" class="chip nm ${nz(t.label) === nz(n) ? "on" : ""}" data-act="pickName" data-n="${esc(n)}">${esc(n)}</button>`).join("")}</div><p class="hint">Touche un nom, ou écris-le plus bas. Ce sont des noms seulement : aucun prix ni quantité.</p>` : `<p class="hint">Choisis ton métier pour voir la liste, ou écris le nom plus bas.</p>`}`;
   const form = dis ? "" : `<div class="card"><b>+ Ajouter</b>
     ${L("Choisir dans la liste")}${picker}
     ${L("Nom (ex. : ciment, carreaux, maçon)")}<input data-r="tmp" data-p="free.label" list="dl-items" value="${esc(t.label)}" autocomplete="off"><datalist id="dl-items">${db.catalogue.filter((i) => !i.archived).map((i) => `<option value="${esc(i.label)}">`).join("")}</datalist>
@@ -221,8 +229,8 @@ function stepBesoins(q, ev, dis) {
   const hasTag = (k) => ev.result.lines.some((l) => l.tags.includes(k) && (l.qty ?? 0) > 0 && !l.option);
   const dec = Object.entries(DECISION_TAGS).map(([k, lab]) => `<div class="chk"><div class="dot d-${hasTag(k) || cur.decisions[k] ? "ok" : "verifier"}">${hasTag(k) || cur.decisions[k] ? "✓" : "!"}</div>
     <div style="flex:1"><b>${lab}</b>${hasTag(k) ? `<div class="hint">Chiffré dans ce devis.</div>` : `<select data-on="decide" data-k="${k}" ${dis ? "disabled" : ""}>${DECISIONS.map(([v, tx]) => `<option value="${v}" ${(cur.decisions[k] || "") === v ? "selected" : ""}>${tx}</option>`).join("")}</select>`}</div></div>`).join("");
-  const eq = db.catalogue.filter((i) => EQUIP_CATS.includes(i.cat) && !i.archived), ac = eq.filter((i) => (i.tags || []).includes("acces"));
-  const others = db.catalogue.filter((i) => !EQUIP_CATS.includes(i.cat) && !i.archived);
+  const mt = metierOf(q), eq = db.catalogue.filter((i) => EQUIP_CATS.includes(i.cat) && !i.archived && visibleIn(mt, i)), ac = eq.filter((i) => (i.tags || []).includes("acces"));
+  const others = db.catalogue.filter((i) => !EQUIP_CATS.includes(i.cat) && !i.archived && visibleIn(mt, i));
   const optItems = (arr) => `<option value="">— Choisir —</option>${arr.map((i) => `<option value="${esc(i.id)}">${esc(i.label)}</option>`).join("")}`;
   const man = cur.manual.map((m) => ev.result.lines.find((l) => l.id === m.id)).filter(Boolean);
   const eqForm = (key, items, title, extra = "") => `<div class="card"><b>${title}</b>${extra}
@@ -382,10 +390,11 @@ function viewCatalogue(a) {
       ${hist.length ? `<h3>Historique des prix</h3><div class="card">${hist.map((h) => `<div class="chk"><div style="flex:1"><b>${esc(h.field)}</b> : ${fmtN(h.old)} → ${fmtN(h.new)}<div class="note">${esc(h.source)}</div></div><span class="note">${frDate(h.date)}</span></div>`).join("")}</div>` : ""}`;
   }
   const f = ui.f; const q = (f.q || "").toLowerCase();
-  const list = db.catalogue.filter((i) => (!f.cat || i.cat === f.cat) && (!f.pack || i.pack === f.pack) && (!q || (i.label + i.ref).toLowerCase().includes(q)));
+  const effPack = f.pack === "*" ? "" : (f.pack || activeMetier());
+  const list = db.catalogue.filter((i) => (!f.cat || i.cat === f.cat) && visibleIn(effPack, i) && (!q || (i.label + i.ref).toLowerCase().includes(q)));
   const unknown = db.catalogue.filter((i) => !i.archived && i.price === null && !EQUIP_CATS.includes(i.cat)).length;
   return `<h2>Catalogue</h2><div class="row"><a class="btn" href="#/catalogue/new">+ Nouvel article</a><div>${I("ui", "f.q", f.q, { ph: "Rechercher" })}</div></div>
-    <div class="row"><div>${Sel("ui", "f.cat", f.cat, [["", "Toutes les catégories"], ...Object.entries(CATS)])}</div><div>${Sel("ui", "f.pack", f.pack, [["", "Tous les métiers"], ["peinture", "Peinture et enduits"], ["carrelage", "Carrelage"], ["maconnerie", "Maçonnerie"], ["plomberie", "Plomberie"], ["electricite", "Électricité"]])}</div></div>
+    <div class="row"><div>${Sel("ui", "f.cat", f.cat, [["", "Toutes les catégories"], ...Object.entries(CATS)])}</div><div>${Sel("ui", "f.pack", f.pack, [["", activeMetier() ? "Mon métier : " + metierLabel(activeMetier()) : "Tous les métiers"], ...(activeMetier() ? [["*", "Tous les métiers"]] : []), ["peinture", "Peinture et enduits"], ["carrelage", "Carrelage"], ["maconnerie", "Maçonnerie"], ["plomberie", "Plomberie"], ["electricite", "Électricité"]])}</div></div>
     <div class="card"><b>Import / export Excel (CSV)</b>
       <div class="row"><button class="sec" data-act="csvExport">Exporter le catalogue</button><button class="sec" data-act="csvTemplate">Modèle vide</button></div>
       ${L("Importer un fichier CSV (enregistré depuis Excel)")}<input type="file" accept=".csv,text/csv,text/plain" data-on="csvFile">
@@ -471,7 +480,7 @@ function render() {
   $("#app").innerHTML = banners + html;
   const tabs = [["devis", "Devis"], ["clients", "Clients"], ["catalogue", "Produits"], ["suivi", "Suivi"], ["reglages", "Réglages"]];
   $("#nav").innerHTML = tabs.map(([k, n]) => `<a class="${tab === k ? "on" : ""}" href="#/${k}">${ic(k, 26)}<span>${n}</span></a>`).join("");
-  $("#hsub").textContent = (S.listWorkspaces().find((w) => w.id === S.state.ws) || {}).name || "";
+  $("#hsub").textContent = ((S.listWorkspaces().find((w) => w.id === S.state.ws) || {}).name || "") + (activeMetier() ? " · " + metierLabel(activeMetier()) : "");
   $("#hname").textContent = "TechGo Devis"; $("#hlogo").src = LOGO;
 }
 function rerender(keepScroll = true) { const y = window.scrollY; render(); if (keepScroll) window.scrollTo(0, y); }
@@ -565,7 +574,8 @@ const actions = {
   },
   toApercu() { const el = document.getElementById("apercu"); if (el) el.scrollIntoView?.({ behavior: "smooth", block: "start" }); return "skip"; },
   freeTab(b) { ui.tmp.free.tab = b.dataset.k; ui.tmp.free.unit = ""; ui.tmp.free.ask = null; },
-  pickMetier(b) { ui.tmp.free.metier = b.dataset.k; },
+  setMetier(b) { const k = b.dataset.k; S.state.db.settings.metier = k; const q = ui.qid && S.getQuote(ui.qid); if (q && location.hash.includes("/devis/") && S.editable(q) && !q.current.metier) q.current.metier = k; S.commit(); },
+  clearMetier() { S.state.db.settings.metier = ""; S.commit(); },
   pickName(b) { const it = S.state.db.catalogue.find((i) => !i.archived && nz(i.label) === nz(b.dataset.n)); ui.tmp.free.label = b.dataset.n; ui.tmp.free.unit = it ? it.unit : ""; ui.tmp.free.ask = null; ui.tmp.free.ok = false; },
   freeUnit(b) { ui.tmp.free.unit = b.dataset.u; },
   askNo() { ui.tmp.free.ask = null; },
