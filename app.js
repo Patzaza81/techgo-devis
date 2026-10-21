@@ -70,19 +70,13 @@ function viewDevis() {
     return (!f.q || txt.includes(f.q.toLowerCase())) && (!f.status || S.effectiveStatus(q) === f.status);
   });
   const counts = Object.keys(S.STATUS).map((k) => [k, db.quotes.filter((q) => S.effectiveStatus(q) === k).length]).filter((x) => x[1]);
-  return `<section class="welcome">
-      <span class="welcome-kicker">VOTRE ATELIER DE CHIFFRAGE</span>
-      <h2>Des devis clairs. Des coûts maîtrisés.</h2>
-      <p>Prépare un devis étape par étape, vérifie les oublis, puis exporte-le en PDF ou Word.</p>
-      <div class="welcome-steps"><span><b>1</b> Client et chantier</span><span><b>2</b> Travaux, produits et prix</span><span><b>3</b> Vérifier et envoyer</span></div>
-      <div class="row"><button data-act="newQuote">＋ Créer un devis</button><button class="sec" data-act="demoQuote">Voir un exemple</button></div>
-    </section>
-    <div class="card"><div class="qhead"><b>Tes devis</b><span class="note">${list.length} dossier${list.length > 1 ? "s" : ""}</span></div>
-    <div class="row"><div>${L("Rechercher un devis")}${I("ui", "f.q", f.q, { ph: "Nom, référence…" })}</div>
+  return `<section class="welcome"><h2>Mes devis</h2>
+      <div class="row"><button data-act="newQuote">＋ Nouveau devis</button><button class="sec" data-act="demoQuote">Voir un exemple</button></div></section>
+    <div class="card"><div class="row"><div>${L("Rechercher un devis")}${I("ui", "f.q", f.q, { ph: "Rechercher" })}</div>
     <div>${L("Statut")}${Sel("ui", "f.status", f.status, [["", "Tous"], ...Object.entries(S.STATUS)])}</div></div>
     ${counts.length ? `<div class="chips">${counts.map(([k, n]) => `<span class="st st-${k}">${S.STATUS[k]} ${n}</span>`).join("")}</div>` : ""}</div>
-    <p class="hint">Tes devis sont gardés dans ce téléphone seulement. Fais une sauvegarde de temps en temps (Réglages). Sur iPhone : bouton Partager, puis « Sur l'écran d'accueil ».</p>
-    ${list.length ? list.map(quoteCard).join("") : `<div class="empty"><b>Aucun devis.</b><br>Crée un devis, ou charge le devis de référence pour voir le fonctionnement complet (échéancier, contrôle, versions).</div>`}`;
+    <p class="hint">Tes devis restent dans ce téléphone. Pense à faire une sauvegarde (Réglages).</p>
+    ${list.length ? list.map(quoteCard).join("") : `<div class="empty"><b>Aucun devis.</b><br>Touche « Nouveau devis » pour commencer, ou « Voir un exemple ».</div>`}`;
 }
 function quoteCard(q) {
   const last = S.lastVersion(q); const ev = S.editable(q) || !last ? S.evaluate(q) : null;
@@ -98,16 +92,14 @@ function viewQuote() {
   const q = S.getQuote(ui.qid); if (!q) return `<div class="empty">Devis introuvable. <a href="#/devis">Retour à la liste</a></div>`;
   const dis = !S.editable(q); const ev = S.evaluate(q); const st = S.effectiveStatus(q);
   const onSuivi = ui.step > LAST, n = ui.step + 1;
-  const prog = onSuivi ? `<a class="back" href="#/devis/${q.id}/${LAST}">${ic("back", 18)} Retour au devis</a>`
-    : `<div class="prog noprint"><div class="progtop"><b>Étape ${n} sur ${STEPS.length}</b></div><div class="bar"><i style="width:${(n / STEPS.length) * 100}%"></i></div>
-       <div class="dots">${STEPS.map((t, i) => `<a class="${ui.step === i ? "on" : i < ui.step ? "done" : ""}" href="#/devis/${q.id}/${i}" aria-label="${esc(t)}">${i < ui.step ? ic("check", 18) : i + 1}</a>`).join("")}</div></div>`;
   const miss = missingPrices(ev);
-  const head = `<div class="qhead"><div><b>${esc(q.ref)}</b> ${stBadge(st)}</div><div>${badge(ev.checks.status, STATE_LABEL[ev.checks.status])}</div></div>`;
+  const prog = onSuivi ? `<a class="back" href="#/devis/${q.id}/${LAST}">${ic("back", 18)} Retour au devis</a>`
+    : `<div class="prog noprint"><div class="segs">${STEPS.map((t, i) => `<a class="${ui.step === i ? "on" : i < ui.step ? "done" : ""}" href="#/devis/${q.id}/${i}" aria-label="${esc(t)}"><i></i></a>`).join("")}</div>
+       <div class="progtop"><span>Étape ${n} sur ${STEPS.length}</span><span class="ref">${esc(q.ref)} · ${esc(S.STATUS[st])}</span></div></div>`;
+  const head = "";
   const frozen = dis ? `<div class="banner info">Ce devis est « ${S.STATUS[q.status]} » : les versions envoyées sont figées. ${["envoye", "refuse", "expire"].includes(q.status) ? "Prépare une nouvelle version pour modifier." : ""}</div>` : "";
   const steps = [stepClient, stepPrest, stepBesoins, stepPrix, stepVerifier, stepVersions];
-  const bar = onSuivi ? "" : `<div class="actbar noprint"><div class="acts"><button class="sec sq" ${ui.step === 0 ? "disabled" : ""} data-act="prev" aria-label="Précédent">${ic("back", 24)}</button>
-    <div class="tot"><span>${miss ? "Total pas fini (FCFA)" : "Total HT (FCFA)"}</span><b>${fmtN(ev.result.totals.base)}</b></div>${ui.step < LAST ? `<button class="go" data-act="next">Continuer ${ic("next", 22)}</button>` : `<a class="btn go sec" href="#/devis/${q.id}/${LAST + 1}">Suivi ${ic("next", 22)}</a>`}</div>
-    ${miss ? `<div class="miss1">${ic("warn", 16)} ${miss} prix manquant${miss > 1 ? "s" : ""} : total pas fini</div>` : ""}</div>`;
+  const bar = onSuivi ? "" : `<div class="actbar noprint"><div class="acts">${ui.step > 0 ? `<button class="sec sq" data-act="prev" aria-label="Précédent">${ic("back", 24)}</button>` : ""}${ui.step < LAST ? `<button class="go" data-act="next"><span>Continuer</span><span class="amt">${miss ? `${miss} prix manquant${miss > 1 ? "s" : ""}` : fmt(ev.result.totals.base)}</span></button>` : `<a class="btn go sec" href="#/devis/${q.id}/${LAST + 1}"><span>Suivi du devis</span>${ic("next", 22)}</a>`}</div></div>`;
   return `<a class="back" href="#/devis">${ic("back", 18)} Tous les devis</a>${head}${prog}${frozen}${steps[ui.step](q, ev, dis)}${bar}`;
 }
 
