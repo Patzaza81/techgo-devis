@@ -59,6 +59,7 @@ function groupTable(lines) {
   }).join("");
 }
 export const legalLine = (c) => [c.rccm ? "RCCM : " + c.rccm : "", c.niu ? "NIU : " + c.niu : ""].filter(Boolean).join(" — ");
+export const installLine = (q) => { const e = q.elec || {}; const t = ["projet", "alim", "env", "objet"].map((k) => e[k]).filter(Boolean); return t.length ? `<div class="note">${t.map(esc).join(" · ")}</div>` : ""; };
 const head = (c, pres, draft) => {
   const ph = (t) => draft ? `<span class="hph noprint">${t}</span>` : "";
   const v = (x, t) => x ? esc(x) : ph(t);
@@ -112,7 +113,7 @@ function techExpress(snap, { draft = false } = {}) {
       <div><span class="note">N° / DATE</span><b>${esc(x.ref)}${snap.n ? " — V" + snap.n : ""} — ${frDate(snap.at ? snap.at : q.date)}</b></div>
       <div><span class="note">VALABLE</span><b>${q.validityDays ?? "…"} jours</b></div>
       <div><span class="note">CLIENT</span><b>${esc(q.client.name) || "........................"}</b>${q.client.contact ? ` — ${esc(q.client.contact)}` : ""}</div>
-      <div><span class="note">CHANTIER</span><b>${esc(q.site.name) || "Travaux"}${q.site.address ? " — " + esc(q.site.address) : ""}</b></div>
+      <div><span class="note">CHANTIER</span><b>${esc(q.site.name) || "Travaux"}${q.site.address ? " — " + esc(q.site.address) : ""}</b>${installLine(q)}</div>
     </div>
     <table><thead><tr><th>Désignation</th><th class="n">Qté</th><th>Unité</th><th class="n">P.U.</th><th class="n">Montant</th></tr></thead>
       ${rows(x.mat)}${x.opt.length ? `<tr class="sub"><td colspan="5">Option non obligatoire</td></tr>${rows(x.opt)}` : ""}
@@ -138,7 +139,7 @@ function techChantier(snap, { draft = false } = {}) {
     <h1>DEVIS N° ${esc(x.ref)}${snap.n ? " — V" + snap.n : ""}${draft ? ' <span class="draftmark">PROJET — non figé</span>' : ""}</h1>
     <p class="note">${esc(c.address ? c.address.split(",").pop().trim() : "")}, le ${frDate(snap.at ? snap.at : q.date)}</p>
     <div class="meta"><div><span class="note">CLIENT</span><b>${esc(q.client.name) || "........................"}</b>${q.client.contact ? `<div class="note">${esc(q.client.contact)}</div>` : ""}</div>
-      <div><span class="note">OBJET DU DEVIS</span><b>${esc(q.site.name) || "Travaux"}</b><div class="note">${esc(q.site.address)}${x.sNet ? ` — ${fmtD(x.sNet)} m²` : ""}</div></div></div>
+      <div><span class="note">OBJET DU DEVIS</span><b>${esc(q.site.name) || "Travaux"}</b><div class="note">${esc(q.site.address)}${x.sNet ? ` — ${fmtD(x.sNet)} m²` : ""}</div>${installLine(q)}</div></div>
     <h3>1. Détail des fournitures et matériaux</h3>
     <table><thead><tr><th>Désignation</th><th class="n">Quantité</th><th class="n">P.U. (FCFA)</th><th class="n">Montant (FCFA)</th></tr></thead>${rows(x.mat)}<tr class="sub"><td colspan="3">SOUS-TOTAL MATÉRIAUX</td><td class="n">${fmtN(x.sum(x.mat))}</td></tr></table>
     ${x.opt.length ? `<h3>Option non obligatoire</h3><table><tr><th>Désignation</th><th class="n">Quantité</th><th class="n">P.U. (FCFA)</th><th class="n">Montant (FCFA)</th></tr>${rows(x.opt)}<tr class="sub"><td colspan="3">SOUS-TOTAL OPTION</td><td class="n">${fmtN(x.sum(x.opt))}</td></tr></table>` : ""}
@@ -186,7 +187,7 @@ function techDetaille(snap, { draft = false, ref = "" } = {}) {
       <div><span class="note">DATE</span><b>${frDate(snap.at ? snap.at : q.date)}</b></div>
       <div><span class="note">VALIDITÉ</span><b>${q.validityDays ?? "…"} jours</b></div>
       <div><span class="note">CLIENT</span><b>${esc(q.client.name) || "........................"}</b>${q.client.contact ? `<div class="note">${esc(q.client.contact)}</div>` : ""}</div>
-      <div style="grid-column:1/-1"><span class="note">OBJET ET LIEU DU CHANTIER</span><b>${esc(q.site.name) || "Travaux"}${q.site.address ? " — " + esc(q.site.address) : ""}${sNet ? ` — ${fmtD(sNet)} m²` : ""}</b></div>
+      <div style="grid-column:1/-1"><span class="note">OBJET ET LIEU DU CHANTIER</span><b>${esc(q.site.name) || "Travaux"}${q.site.address ? " — " + esc(q.site.address) : ""}${sNet ? ` — ${fmtD(sNet)} m²` : ""}</b>${installLine(q)}</div>
       ${c.responsible ? `<div style="grid-column:1/-1"><span class="note">RESPONSABLE CHANTIER</span><b>${esc(c.responsible)}${c.responsiblePhone ? " — " + esc(c.responsiblePhone) : ""}</b></div>` : ""}
     </div>
     <div class="gt"><div class="gl"><span>MONTANT TOTAL${vat === null ? " (hors taxes)" : " (HT)"}</span><b class="gb">${fmt(t.base)}</b></div>${vat === null ? "" : `<div class="gl"><span>Total TTC</span><b>${fmt(t.ttcBase)}</b></div>`}${opt.length ? `<div class="gl gold"><span>Avec option</span><b>${fmt(t.withOption)}</b></div>` : ""}</div>
@@ -247,7 +248,7 @@ export function renderDoc(snap, { draft = false, ref = "" } = {}) {
       <div><span class="note">VALIDITÉ</span><b>${q.validityDays ?? "…"} jours</b></div>
       <div><span class="note">SURFACE / QUANTITÉ DE BASE</span><b>${fmtD(sNet)} m²</b></div>
       <div><span class="note">CLIENT</span><b>${esc(q.client.name) || "........................"}</b></div>
-      <div><span class="note">CHANTIER</span><b>${esc(q.site.name)}${q.site.address ? " — " + esc(q.site.address) : ""}</b></div>
+      <div><span class="note">CHANTIER</span><b>${esc(q.site.name)}${q.site.address ? " — " + esc(q.site.address) : ""}</b>${installLine(q)}</div>
       ${c.responsible ? `<div style="grid-column:1/-1"><span class="note">RESPONSABLE CHANTIER</span><b>${esc(c.responsible)}${c.responsiblePhone ? " — " + esc(c.responsiblePhone) : ""}</b></div>` : ""}
     </div>
     <div class="gt"><div class="gl"><span>TOTAL OFFRE DE BASE${vat === null ? " (hors taxes)" : " (HT)"}</span><b class="gb">${fmt(t.base)}</b></div>

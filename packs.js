@@ -2,6 +2,7 @@
 // Règle du projet : aucun prix, rendement ou plafond inventé. Seule la prestation « Enduit 3 couches » (métier Peinture) porte des valeurs réelles
 // (devis DEV-2026-09-001 du 28/09/2026). Les autres packs fournissent les FORMULES ; prix et rendements restent
 // vides (donc bloquants) jusqu'à saisie par l'entreprise.
+import { printableNorm } from "./metiers/elec-ref.js";
 import { computeQuote } from "./engine.js";
 import { mk, rent, hasN } from "./metiers/commun.js";
 import peinture from "./metiers/peinture.js";
@@ -78,7 +79,7 @@ export function regen(q) {
       out.push(line);
     }
   }
-  for (const m of q.manual || []) { const adj = (q.adjust || {})[m.id]; const line = { ...m, ...(adj || {}) }; if (!line.skip) out.push(line); }
+  for (const m of q.manual || []) { const adj = (q.adjust || {})[m.id]; const line = { ...m, ...(adj || {}) }; const pn = q.showNorms && m.norm ? printableNorm(m.norm) : ""; if (pn) line.role = [m.role, "Norme de référence : " + pn].filter(Boolean).join(" — "); if (!line.skip) out.push(line); }
   return out;
 }
 // Surface retenue pour le calcul : brute − ouvertures si la surface brute est saisie, sinon la surface nette saisie directement.
