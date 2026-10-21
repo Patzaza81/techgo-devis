@@ -45,6 +45,7 @@ const ui = {
   tmp: { addPrest: "", line: { itemId: "", qty: 1, option: false }, equip: { itemId: "", days: null, basis: "jour", trips: 1, bill: "inclus", markupPct: null },
     scaf: { itemId: "", longueur: null, hauteur: null, jours: null, basis: "jour", trips: 1, bill: "inclus", markupPct: null },
     accept: { by: "", note: "", option: false }, reason: "",
+    row: { open: null, tab: "produits", label: "", brand: "", cond: "", unit: "", qty: null, price: null, role: "" },
     free: { tab: "produits", metier: "", role: "", label: "", unit: "", qty: null, price: null, save: true, ask: null, ok: false } },
 };
 
@@ -171,8 +172,55 @@ function stepClientS(q, ev, dis) {
       <p class="hint">Si tu remplis « surface des murs », l'application enlève elle-même les portes et fenêtres.</p></details>
     ${L("Description courte du chantier (facultatif)")}${I("q", "current.site.name", cur.site.name, { ph: "Ex. : Peinture d'un appartement", dis })}</div>`;
 }
+// ---------- Écran 2 du technicien : un tableau, comme sur un devis papier ----------
+const SEC = [["produits", "Produits et matériaux", "Ajouter un produit"], ["ouvriers", "Main-d'œuvre", "Ajouter la main-d'œuvre"], ["outils", "Outils et machines", "Ajouter un outil"], ["autres", "Transport et divers", "Ajouter un transport ou autre"]];
+const COND = ["1 L", "5 kg", "10 kg", "22 L", "25 kg", "30 kg"]; // conditionnements relevés sur tes devis
+const UNITS_ROW = { produits: ["Pot", "Sac", "Litre", "Kg", "Pièce", "Rouleau", "Mètre", "m²"], ouvriers: ["forfait", "jour", "heure", "m²"], outils: ["forfait", "jour"], autres: ["forfait", "trajet", "jour"] };
+const composeLabel = (t) => `${(t.label || "").trim()}${(t.brand || "").trim() ? " " + t.brand.trim() : ""}${(t.cond || "").trim() ? " (" + t.cond.trim() + ")" : ""}`.trim();
+function rowEditor(q, ev, t) {
+  const db = S.state.db, label = composeLabel(t), tot = t.qty > 0 && t.price > 0 ? t.qty * t.price : null;
+  const known = db.catalogue.find((i) => !i.archived && TAB_OF[i.cat] === t.tab && (nz(i.label) === nz(label) || nz(i.label) === nz(t.label)) && i.price != null);
+  const met = metierOf(q);
+  const saved = db.catalogue.filter((i) => !i.archived && TAB_OF[i.cat] === t.tab && String(i.id).startsWith("TER-") && i.price != null).slice(0, 12);
+  const names = [...new Set(LISTES[met]?.[t.tab] || [])];
+  const prod = t.tab === "produits";
+  return `<div class="rowed">
+    ${!t.label ? `${saved.length ? `<p class="hint">Tes produits habituels (touche pour reprendre le prix) :</p><div class="chips names">${saved.map((i) => `<button type="button" class="chip nm" data-act="rowPick" data-id="${esc(i.id)}">${esc(i.label)}</button>`).join("")}</div>` : ""}
+    ${names.length ? `<p class="hint">Ou choisis un nom :</p><div class="chips names">${names.map((n) => `<button type="button" class="chip nm" data-act="rowName" data-n="${esc(n)}">${esc(n)}</button>`).join("")}</div>` : ""}` : ""}
+    ${L(prod ? "Produit" : "Désignation")}${I("tmp", "row.label", t.label, { ph: prod ? "Ex. : Peinture acrylique" : "Ex. : Peintres, 5 jours" })}
+    ${prod ? `<div class="row"><div>${L("Marque")}${I("tmp", "row.brand", t.brand, { ph: "Ex. : National" })}</div><div>${L("Contenance")}${I("tmp", "row.cond", t.cond, { ph: "Ex. : 30 kg" })}</div></div>
+      <div class="chips">${COND.map((c) => `<button type="button" class="chip ${nz(t.cond) === nz(c) ? "on" : ""}" data-act="rowCond" data-c="${esc(c)}">${esc(c)}</button>`).join("")}</div>` : ""}
+    ${known && !(t.price > 0) ? `<div class="banner info">Dernier prix enregistré : <b>${fmt(known.price)}</b> par ${esc(known.unit)}. <button type="button" class="linkbtn" data-act="rowUse" data-id="${esc(known.id)}">Reprendre</button></div>` : ""}
+    ${L("Unité")}<div class="chips">${UNITS_ROW[t.tab].map((u) => `<button type="button" class="chip ${nz(t.unit) === nz(u) ? "on" : ""}" data-act="rowUnit" data-u="${esc(u)}">${esc(u)}</button>`).join("")}</div>${I("tmp", "row.unit", t.unit, { ph: "ou écris l'unité" })}
+    <div class="row"><div>${L("Quantité")}${I("tmp", "row.qty", t.qty, { type: "number", n: "n" })}</div><div>${L("Prix par unité (FCFA)")}${I("tmp", "row.price", t.price, { type: "number", n: "n" })}</div></div>
+    <div class="rowtot"><span>Total de la ligne</span><b>${tot === null ? "—" : fmt(tot)}</b></div>
+    <details><summary>Écrire à quoi ça sert (facultatif)</summary>${I("tmp", "row.role", t.role, { ph: "Ex. : lissage des murs avant la peinture" })}</details>
+    <div class="row" style="margin-top:10px"><button data-act="rowSave" data-more="1">Valider et ajouter une autre ligne</button><button class="sec" data-act="rowSave">Valider</button></div>
+    <p style="text-align:center;margin:6px 0 0"><button type="button" class="linkbtn" data-act="rowCancel">Annuler</button>${t.open !== "new" ? ` · <button type="button" class="linkbtn" data-act="delManual" data-id="${esc(t.open)}">Supprimer cette ligne</button>` : ""}</p></div>`;
+}
 function stepTravauxS(q, ev, dis) {
-  return `<h2>Quel travail ?</h2>${stepPrest(q, ev, dis, true)}${stepBesoins(q, ev, dis, true)}`;
+  const t = ui.tmp.row, manIds = new Set(q.current.manual.map((m) => m.id));
+  const lines = ev.result.lines.filter((l) => manIds.has(l.id) && !l.option);
+  const auto = ev.result.lines.filter((l) => !manIds.has(l.id));
+  const secOf = (l) => tabOf(l);
+  const sums = SEC.map(([k]) => lines.filter((l) => secOf(l) === k).reduce((s, l) => s + (l.total ?? 0), 0));
+  const rowv = (l) => {
+    const open = t.open === l.id, man = q.current.manual.find((m) => m.id === l.id), unk = l.price === null || l.qty === null;
+    return open ? rowEditor(q, ev, t) : `<button type="button" class="rowc ${unk ? "warn" : ""}" data-act="rowEdit" data-id="${esc(l.id)}" ${dis || (man && man.mode === "equip") ? "disabled" : ""}><span class="rn"><b>${esc(l.label)}</b><small>${l.qty === null ? "quantité ?" : fmtN(l.qty) + " " + esc(l.unit)} × ${l.price === null ? "prix ?" : fmtN(l.price)}</small></span><span class="rt">${l.total === null ? "prix manquant" : fmtN(l.total)}</span></button>`;
+  };
+  const sec = ([k, title, add], i) => {
+    const ls = lines.filter((l) => secOf(l) === k);
+    return `<div class="card sec"><div class="sech"><b>${title}</b><span>${ls.length ? fmt(sums[i]) : ""}</span></div>
+      ${ls.map(rowv).join("")}
+      ${t.open === "new" && t.tab === k ? rowEditor(q, ev, t) : dis ? "" : `<button type="button" class="addrow" data-act="rowNew" data-tab="${k}">＋ ${add}</button>`}</div>`;
+  };
+  return `<h2>Le travail et le matériel</h2>
+    <p class="hint">Remplis comme sur ton devis papier : ce que tu écris ici apparaît sur le devis. Touche une ligne pour la corriger.</p>
+    <div class="total"><div><span>Total du devis</span><span class="big">${fmt(ev.result.totals.base)}</span></div></div>
+    ${SEC.map(sec).join("")}
+    ${auto.length ? `<p class="hint">${auto.length} ligne${auto.length > 1 ? "s" : ""} calculée${auto.length > 1 ? "s" : ""} automatiquement (voir « Calcul à partir de la surface » plus bas) sont aussi comptées.</p>` : ""}
+    <details class="more"><summary>Calcul automatique à partir de la surface (facultatif)</summary>${stepPrest(q, ev, dis, true)}</details>
+    ${stepBesoins(q, ev, dis, true, true)}`;
 }
 function stepEnvoiS(q, ev, dis) {
   const cur = q.current, r = ev.result, miss = missingPrices(ev);
@@ -184,6 +232,8 @@ function stepEnvoiS(q, ev, dis) {
     <div class="row"><div>${L("Remise en % (facultatif)")}${I("q", "current.discount.pct", cur.discount.pct, { type: "number", n: "n", dis })}</div><div>${L("ou remise en FCFA")}${I("q", "current.discount.amount", cur.discount.amount, { type: "number", n: "n", dis })}</div></div>
     ${L("Message pour le client (facultatif)")}${Txt("q", "current.notes", cur.notes, { dis })}
     </div>
+    <div class="card"><b>Présentation du devis</b><p class="hint">Choisis la forme que ton client recevra. Elle ne change aucun montant.</p>
+    ${[["express", "Express", "1 page : un seul tableau, comme ton devis n° 1111"], ["detaille", "Détaillé", "1 à 2 pages : produits avec leur rôle, synthèse, paiement"], ["chantier", "Chantier", "2 pages : fournitures, puis synthèse et paiement"]].map(([k, n, d]) => `<button type="button" class="bigopt ${(cur.form || "detaille") === k ? "sel" : ""}" data-act="formChoice" data-f="${k}" ${dis ? "disabled" : ""}><b>${n}${(cur.form || "detaille") === k ? " ✓" : ""}</b><span>${d}</span></button>`).join("")}</div>
     <div class="card"><b>Paiement et durée</b>
     ${L("Comment le client paie")}<select data-on="payPlan" ${dis ? "disabled" : ""}>${Object.entries(PLAN_TECH).map(([k, p]) => `<option value="${k}" ${JSON.stringify(cur.terms.payment.materials) === JSON.stringify(p.pct) ? "selected" : ""}>${p.label}</option>`).join("")}${Object.values(PLAN_TECH).some((p) => JSON.stringify(cur.terms.payment.materials) === JSON.stringify(p.pct)) ? "" : `<option value="" selected>Autre plan (voir Réglages)</option>`}</select>
     <div class="row"><div>${L("Durée des travaux : de (jours)")}${I("q", "current.terms.delayMin", cur.terms.delayMin, { type: "number", n: "n", dis })}</div><div>${L("à (jours)")}${I("q", "current.terms.delayMax", cur.terms.delayMax, { type: "number", n: "n", dis })}</div></div>
@@ -275,7 +325,7 @@ function freeSection(q, ev, dis) {
     ${shown.map((l) => lineCard(l, q, dis)).join("") || `<p class="hint">Rien ici pour l'instant.</p>`}`;
 }
 
-function stepBesoins(q, ev, dis, simple) {
+function stepBesoins(q, ev, dis, simple, nofree) {
   const cur = q.current, db = S.state.db, t = ui.tmp;
   const hasTag = (k) => ev.result.lines.some((l) => l.tags.includes(k) && (l.qty ?? 0) > 0 && !l.option);
   const dec = Object.entries(DECISION_TAGS).map(([k, lab]) => `<div class="chk"><div class="dot d-${hasTag(k) || cur.decisions[k] ? "ok" : "verifier"}">${hasTag(k) || cur.decisions[k] ? "✓" : "!"}</div>
@@ -292,7 +342,7 @@ function stepBesoins(q, ev, dis, simple) {
     <div class="row"><div>${L("Facturation")}${Sel("tmp", `${key}.bill`, t[key].bill, [["inclus", "Compris dans mon prix"], ["refacture", "Je le facture en plus"]])}</div>
     <div>${t[key].bill === "refacture" ? L("Majoration (%)") + I("tmp", `${key}.markupPct`, t[key].markupPct, { type: "number", n: "n" }) : ""}</div></div>
     <button class="gold" data-act="${key === "scaf" ? "addScaf" : "addEquip"}" style="margin-top:10px">Ajouter</button></div>`;
-  return `<h2>${simple ? "Produits, outils et ouvriers" : "Produits et main-d'œuvre"}</h2>${freeSection(q, ev, dis)}
+  return `${nofree ? "" : `<h2>${simple ? "Produits, outils et ouvriers" : "Produits et main-d'œuvre"}</h2>${freeSection(q, ev, dis)}`}
     ${simple ? `<details class="more"><summary>Échafaudage, outils loués, oublis fréquents</summary>` : ""}<h3>À ne pas oublier</h3><p class="hint">Ce que les devis oublient le plus : accès en hauteur, outillage, protections, transport, nettoyage. Chiffre chaque point ou indique pourquoi il n'y en a pas.</p>
     <div class="card">${dec}</div>
     ${dis ? "" : `${eqForm("scaf", ac, "Accès en hauteur / échafaudage", `<div class="banner info">L'application chiffre ce que tu décides. Le type d'échafaudage, la hauteur autorisée, les protections collectives et les vérifications dépendent du site, du matériel et de l'évaluation des risques par une personne compétente.</div>`)}
@@ -593,23 +643,80 @@ function download(name, mime, data) {
   const blob = new Blob([data], { type: mime }); const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name;
   document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
 }
-function touchQuote(q) {
+function touchQuote(q, quiet = false) {
   if (q.status === "pret") { q.status = "brouillon"; q.statusLog.push({ at: new Date().toISOString(), to: "brouillon", reason: "Modifié après validation" }); }
-  S.commit(); rerender();
+  S.commit(); if (!quiet) rerender();
 }
+// Met à jour sans redessiner le total de la ligne en cours de saisie et la barre du bas
+function liveTotals() {
+  const r = ui.tmp.row, el = document.querySelector(".rowtot b");
+  if (el && r) el.textContent = r.qty > 0 && r.price > 0 ? fmt(r.qty * r.price) : "—";
+}
+// Un toucher sur un bouton après une saisie fait d'abord « sortir » du champ (événement change). Si l'écran se redessine
+// à ce moment, le bouton disparaît avant la fin du toucher et le toucher est perdu. On garde donc la valeur tout de suite,
+// mais on redessine seulement une fois le toucher terminé.
+let tapping = false, deferred = null;
+// Après un redessin, on remet le curseur dans le champ où la personne vient de toucher (sinon le clavier se ferme).
+function keepFocus(f) {
+  const ae = document.activeElement, p = ae && ae.dataset && ae.dataset.p;
+  const sel = p ? `[data-p="${CSS.escape(p)}"]${ae.dataset.r ? `[data-r="${CSS.escape(ae.dataset.r)}"]` : ":not([data-r])"}` : null;
+  let pos = null; try { pos = ae.selectionStart; } catch {}
+  f();
+  if (sel) { const n = document.querySelector(sel); if (n && n !== document.activeElement) { n.focus({ preventScroll: true }); if (pos !== null) { try { n.setSelectionRange(pos, pos); } catch {} } } }
+}
+const inField = () => { const e = document.activeElement; return !!(e && /^(INPUT|TEXTAREA)$/.test(e.tagName) && e.dataset && e.dataset.p); };
+// deferred = { full, quiet } : si la personne est passée dans un autre champ, on enregistre sans redessiner (le clavier reste ouvert)
+const flushDeferred = () => { tapping = false; const d = deferred; deferred = null; if (!d) return; if (inField()) { d.quiet(); liveTotals(); } else keepFocus(d.full); };
+document.addEventListener("pointerdown", () => { tapping = true; }, true);
+document.addEventListener("pointercancel", () => setTimeout(flushDeferred, 0), true);
+document.addEventListener("click", () => setTimeout(flushDeferred, 0), true);
+document.addEventListener("pointerup", () => setTimeout(() => { if (tapping) flushDeferred(); }, 400), true);
+const later = (full, quiet = () => {}) => { if (tapping) deferred = { full, quiet }; else keepFocus(full); };
 document.addEventListener("change", (e) => {
   const el = e.target; if (!el.dataset) return; ui.flash = null;
   try {
-    if (el.dataset.on) return onHandlers[el.dataset.on](el);
+    if (el.dataset.on) { const h = onHandlers[el.dataset.on]; return later(() => { try { h(el); } catch (err) { ui.flash = { type: "err", text: err.message }; rerender(); } }); }
     if (!el.dataset.p) return;
     const root = el.dataset.r || "q", o = roots()[root]; if (!o) return;
     setPath(o, el.dataset.p, parseValue(el));
-    if (root === "q") touchQuote(o); else if (root === "db") { S.commit(); rerender(); } else rerender();
+    later(() => { if (root === "q") touchQuote(o); else if (root === "db") { S.commit(); rerender(); } else rerender(); }, () => { if (root === "q") touchQuote(o, true); else if (root === "db") S.commit(); });
   } catch (err) { ui.flash = { type: "err", text: err.message }; rerender(); }
 });
 
 const actions = {
   reload() { S.reloadAfterConflict(); },
+  rowNew(b) { const tab = b.dataset.tab; ui.tmp.row = { open: "new", tab, label: "", brand: "", cond: "", unit: tab === "ouvriers" || tab === "outils" || tab === "autres" ? "forfait" : "", qty: tab === "produits" ? null : 1, price: null, role: "" }; },
+  rowEdit(b) {
+    const q = S.getQuote(ui.qid), m = q.current.manual.find((x) => x.id === b.dataset.id), l = S.evaluate(q).result.lines.find((x) => x.id === b.dataset.id); if (!m || !l) return;
+    const it = S.state.db.catalogue.find((i) => i.id === m.itemId);
+    ui.tmp.row = { open: m.id, tab: tabOf(l), label: m.nom ?? l.label, brand: m.brand || "", cond: m.cond || "", unit: l.unit, qty: l.qty, price: l.price, role: m.role || "" };
+  },
+  rowCancel() { ui.tmp.row = { ...ui.tmp.row, open: null, label: "", brand: "", cond: "", qty: null, price: null, role: "" }; },
+  rowName(b) { ui.tmp.row.label = b.dataset.n; },
+  rowPick(b) { const it = S.state.db.catalogue.find((i) => i.id === b.dataset.id); if (!it) return; const t = ui.tmp.row; t.label = it.label; t.unit = it.unit; t.price = it.price; },
+  rowUse(b) { const it = S.state.db.catalogue.find((i) => i.id === b.dataset.id); if (!it) return; const t = ui.tmp.row; t.price = it.price; if (!t.unit) t.unit = it.unit; },
+  rowCond(b) { ui.tmp.row.cond = ui.tmp.row.cond === b.dataset.c ? "" : b.dataset.c; },
+  rowUnit(b) { const t = ui.tmp.row; t.unit = b.dataset.u; if (b.dataset.u === "forfait" && !(t.qty > 0)) t.qty = 1; },
+  rowSave(b) {
+    const q = S.getQuote(ui.qid), t = ui.tmp.row, db = S.state.db, more = b.dataset.more === "1";
+    const nom = (t.label || "").trim(); if (!nom) throw new Error("Écris le nom (ex. : peinture acrylique).");
+    const unit = (t.unit || "").trim(); if (!unit) throw new Error("Choisis l'unité (pot, sac, litre, jour…).");
+    if (!(t.qty > 0)) throw new Error("Écris la quantité (plus grande que zéro).");
+    const has = t.price !== null && t.price !== undefined && t.price !== ""; if (has && !(t.price > 0)) throw new Error("Le prix doit être plus grand que zéro. Si tu ne le connais pas, laisse vide.");
+    const label = composeLabel(t);
+    let it = db.catalogue.find((i) => !i.archived && nz(i.label) === nz(label) && nz(i.unit) === nz(unit));
+    if (!it) { const id = S.newItemId("TER"); it = { id, ref: id, label, cat: FREE_CAT[t.tab], unit, pricing: "unitaire", price: null, cost: null, priceDate: null, supplier: t.brand || "", brand: t.brand || "", yield: null, yieldUnit: "m²", tags: [], pack: metierOf(q) || "", archived: false, fieldPrice: true }; }
+    if (has) { it.price = t.price; it.priceDate = S.today(); it.fieldPrice = true; }
+    S.saveItem(it, "saisi sur place");
+    const fields = { itemId: it.id, label, nom, brand: (t.brand || "").trim(), cond: (t.cond || "").trim(), qty: t.qty, role: (t.role || "").trim() };
+    let id = t.open;
+    if (t.open === "new") { id = "m" + S.uid(); q.current.manual.push({ id, group: CATS[it.cat], mode: "fixed", option: false, ...fields }); }
+    else { const m = q.current.manual.find((x) => x.id === id); Object.assign(m, fields); }
+    const adj = (q.current.adjust[id] = q.current.adjust[id] || {}); if (has) adj.priceOverride = t.price; else delete adj.priceOverride;
+    ui.tmp.row = more ? { open: "new", tab: t.tab, label: "", brand: "", cond: "", unit: t.tab === "produits" ? "" : unit, qty: t.tab === "produits" ? null : 1, price: null, role: "" } : { ...t, open: null, label: "", brand: "", cond: "", qty: null, price: null, role: "" };
+    ui.flash = { type: "ok", text: `${label} enregistré.` }; touchQuote(q);
+  },
+  formChoice(b) { const q = S.getQuote(ui.qid); q.current.form = b.dataset.f; touchQuote(q); },
   newQuote() { const q = S.createQuote(); go(`#/devis/${q.id}/0`); },
   demoQuote() { const q = S.createQuote(); q.current = { ...referenceDraft(S.state.db.settings), ref: q.ref, date: S.today() }; S.state.db.settings.accessThresholdM ?? 0; S.commit(); go(`#/devis/${q.id}/0`); },
   prev() { go(`#/devis/${ui.qid}/${Math.max(0, ui.step - 1)}`); }, next() { go(`#/devis/${ui.qid}/${Math.min(lastOf(S.getQuote(ui.qid)), ui.step + 1)}`); },

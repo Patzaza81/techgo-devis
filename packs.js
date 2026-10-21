@@ -117,7 +117,7 @@ export const PLAN_TECH = {
 export function newDraft(settings, date) {
   const s = settings || {};
   return {
-    ref: "", date, metier: s.metier || "", profil: s.profil === "technicien" ? "technicien" : "entreprise", validityDays: s.validityDays ?? null,
+    ref: "", date, metier: s.metier || "", profil: s.profil === "technicien" ? "technicien" : "entreprise", form: s.profil === "technicien" ? "detaille" : "", validityDays: s.validityDays ?? null,
     client: { id: "", name: "", type: "Particulier", contact: "" },
     site: { name: "", address: "", surface: null, surfaceBrute: null, ouvertures: null, levels: null, workHeightM: null, lossPct: s.lossPct ?? null, notes: "",
       buildingType: "", support: "", finish: "", occupied: "", water: "", power: "", vehicleAccess: "", transportKm: null, durationDays: null, wishedDate: "" },
