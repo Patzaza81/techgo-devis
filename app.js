@@ -211,7 +211,7 @@ function sheetRows(q, ev, tab) {
   const rf = refOf(met);
   // Électricité, plomberie : la liste vient du référentiel (sous-ensemble choisi ou recherche), pas d'une liste à plat.
   const generic = rf && tab === "produits" ? [] : LISTES[met]?.[tab] || [];
-  const names = [...generic, ...db.catalogue.filter((i) => !i.archived && TAB_OF[i.cat] === tab && String(i.id).startsWith("TER-") && i.price != null && (!i.pack || i.pack === met) && !(rf && tab === "produits" && rf.find(i.nom || i.label))).map((i) => i.nom || i.label)];
+  const names = [...generic, ...db.catalogue.filter((i) => !i.archived && TAB_OF[i.cat] === tab && String(i.id).startsWith("TER-") && i.price != null && ownsItem(i, met) && !(rf && tab === "produits" && rf.find(i.nom || i.label))).map((i) => i.nom || i.label)];
   for (const n of names) { if (used.has(nz(n))) continue; used.add(nz(n)); rows.push({ key: nz(n), name: n, line: null, man: null }); }
   if (rf) {
     for (const r of rows) r.ref = rf.find(r.name) || null;
@@ -367,6 +367,8 @@ function stepPrest(q, ev, dis, simple) {
 }
 
 const tabOf = (l) => TAB_OF[l.cat] || "autres";
+// Un article saisi par l'utilisateur (TER-) n'appartient qu'à son métier. Les anciens articles sans métier sont de la peinture : ils ne polluent plus les autres métiers.
+const ownsItem = (i, met) => (String(i.id).startsWith("TER-") ? (i.pack ? i.pack === met : met === "peinture") : !i.pack || i.pack === met);
 // Maçonnerie : les lignes de l'onglet « Ouvrages » sont marquées, le devis les détaille (qté, unité, prix) au lieu d'un total de main-d'œuvre.
 const ouvrageTags = (tab, met) => (tab === "ouvriers" && refOf(met)?.labels?.ouvriers ? ["ouvrage"] : []);
 function freeSection(q, ev, dis) {
@@ -379,12 +381,12 @@ function freeSection(q, ev, dis) {
   const field = cm ? "cost" : "price", prev = match ? match[field] : null;
   const units = (t.tab === "produits" ? vocab(metierOf(q)).freeP : FREE_UNITS[t.tab]).map((u) => `<button type="button" class="chip ${nz(t.unit) === nz(u) ? "on" : ""}" data-act="freeUnit" data-u="${esc(u)}">${esc(u)}</button>`).join("");
   const met = metierOf(q);
-  const saved = db.catalogue.filter((i) => !i.archived && TAB_OF[i.cat] === t.tab && (i.pack === met || String(i.id).startsWith("TER-"))).map((i) => i.label);
+  const saved = db.catalogue.filter((i) => !i.archived && TAB_OF[i.cat] === t.tab && ownsItem(i, met)).map((i) => i.label);
   const rfm = refOf(met), elecPick = !!rfm;
   const e = ui.tmp.elec, eq = (e.q || "").trim();
   if (rfm && !rfm.domaines.some((d) => d[0] === e.dom)) e.dom = rfm.firstDomain;
   const uniq = (arr) => { const seen = new Set(); return arr.filter((n) => { const k = nz(n); if (seen.has(k)) return false; seen.add(k); return true; }); };
-  const savedOwn = db.catalogue.filter((i) => !i.archived && TAB_OF[i.cat] === t.tab && String(i.id).startsWith("TER-") && (!i.pack || i.pack === met)).map((i) => i.label);
+  const savedOwn = db.catalogue.filter((i) => !i.archived && TAB_OF[i.cat] === t.tab && String(i.id).startsWith("TER-") && ownsItem(i, met)).map((i) => i.label);
   const names = elecPick ? uniq([...savedOwn.filter((n) => !rfm.find(n)), ...(t.tab === "produits" ? [] : LISTES[met]?.[t.tab] || []), ...rfm.rows(t.tab, e.dom, e.q).slice(0, 80).map((r) => r.name)]) : [...new Set([...saved, ...(LISTES[met]?.[t.tab] || [])])];
   const elecHead = elecPick && t.tab === "produits" ? `<div class="chips">${rfm.domaines.map(([id, lab]) => `<button type="button" class="chip ${!eq && e.dom === id ? "on" : ""}" data-act="elecDom" data-d="${id}">${esc(lab)}</button>`).join("")}</div>
     ${L("Ou cherche un matériel")}<input type="search" data-r="tmp" data-p="elec.q" value="${esc(e.q)}" placeholder="${rfm.ph.search}" autocomplete="off">` : "";
@@ -392,7 +394,7 @@ function freeSection(q, ev, dis) {
     ${names.length ? `<div class="chips names">${names.map((n) => `<button type="button" class="chip nm ${nz(t.label) === nz(n) ? "on" : ""}" data-act="pickName" data-n="${esc(n)}">${esc(n)}</button>`).join("")}</div><p class="hint">Touche un nom, ou écris-le plus bas. Ce sont des noms seulement : aucun prix ni quantité.</p>` : `<p class="hint">Choisis ton métier pour voir la liste, ou écris le nom plus bas.</p>`}`;
   const form = dis ? "" : `<div class="card"><b>+ Ajouter</b>
     ${L("Choisir dans la liste")}${picker}
-    ${L("Nom (ex. : " + vocab(met).exemples + ")")}<input data-r="tmp" data-p="free.label" list="dl-items" value="${esc(t.label)}" autocomplete="off"><datalist id="dl-items">${db.catalogue.filter((i) => !i.archived).map((i) => `<option value="${esc(i.label)}">`).join("")}</datalist>
+    ${L("Nom (ex. : " + vocab(met).exemples + ")")}<input data-r="tmp" data-p="free.label" list="dl-items" value="${esc(t.label)}" autocomplete="off"><datalist id="dl-items">${db.catalogue.filter((i) => !i.archived && ownsItem(i, met)).map((i) => `<option value="${esc(i.label)}">`).join("")}</datalist>
     ${match ? `<p class="hint">Déjà enregistré : ${esc(match.label)} (${esc(match.unit)})${prev !== null && prev !== undefined ? ` — dernier ${cm ? "prix d'achat" : "prix"} : ${fmt(prev)}${match.priceDate ? " le " + frDate(match.priceDate) : ""}${match.fieldPrice ? ", saisi sur place, à confirmer" : ""}` : " — pas de prix"}.</p>` : ""}
     ${L("À quoi ça sert ? (facultatif, écrit sur le devis)")}${I("tmp", "free.role", t.role, { ph: "Ex. : " + vocab(met).role })}
     ${L("Unité")}<div class="chips">${units}</div>${I("tmp", "free.unit", match ? match.unit : t.unit, { ph: "ou écris l'unité" })}
@@ -888,7 +890,7 @@ const actions = {
     if (!(t.qty > 0)) throw new Error("Écris la quantité (plus grande que zéro).");
     const has = t.price !== null && t.price !== undefined && t.price !== ""; if (has && !(t.price > 0)) throw new Error("Le prix doit être plus grand que zéro. Si tu ne le connais pas, laisse vide.");
     if (it && has && it[field] != null && it[field] !== t.price && !t.ok) { t.ask = { prev: it[field] }; return; }
-    if (!it) { const id = S.newItemId("TER"); it = { id, ref: id, label, cat: FREE_CAT[t.tab], unit, pricing: "unitaire", price: null, cost: null, priceDate: null, supplier: "", brand: "", yield: null, yieldUnit: "m²", tags: ouvrageTags(t.tab, metierOf(q)), pack: "", archived: false, fieldPrice: false }; created = true; }
+    if (!it) { const id = S.newItemId("TER"); it = { id, ref: id, label, cat: FREE_CAT[t.tab], unit, pricing: "unitaire", price: null, cost: null, priceDate: null, supplier: "", brand: "", yield: null, yieldUnit: "m²", tags: ouvrageTags(t.tab, metierOf(q)), pack: metierOf(q) || "", archived: false, fieldPrice: false }; created = true; }
     if (has && t.save && (it[field] === null || it[field] === undefined)) { it[field] = t.price; it.priceDate = S.today(); it.fieldPrice = true; }
     if (created || (has && t.save && it.fieldPrice)) S.saveItem(it, "saisi sur place");
     const m = { id: "m" + S.uid(), itemId: it.id, group: CATS[it.cat], mode: "fixed", qty: t.qty, option: false, ...((t.role || "").trim() ? { role: t.role.trim() } : {}), ...(t.norm ? { norm: t.norm } : {}) }; q.current.manual.push(m);
@@ -983,7 +985,7 @@ document.addEventListener("click", (e) => {
 window.addEventListener("hashchange", () => { ui.file = null; render(); window.scrollTo(0, 0); });
 window.addEventListener("beforeprint", () => document.body.classList.add("printing"));
 window.addEventListener("afterprint", () => document.body.classList.remove("printing"));
-export const BUILD = "28";
+export const BUILD = "29";
 // Mise à jour automatique : quand une nouvelle version est publiée, l'application la prend toute seule
 // (au retour sur l'application, ou dès que la personne n'est plus en train de taper). Les données ne sont jamais touchées.
 if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {

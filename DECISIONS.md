@@ -46,3 +46,4 @@ Format : quoi · pourquoi · date.
 ## Vocabulaire par métier (oct. 2026)
 - metiers/vocab.js : libellés, exemples, unités et formats propres à chaque métier (surface, support, finition, marque, à quoi ça sert, unités des produits). Plus aucun mot de peinture (pot, contenance en litres, « lissage des murs », marque « National ») hors de la peinture.
 - Plomberie et électricité : pas de calcul « murs − ouvertures » (surface du local facultative). Maçonnerie et carrelage : calcul conservé.
+- Articles saisis par l'utilisateur (TER-) : rattachés à leur métier ; les anciens articles sans métier sont traités comme de la peinture. Ils n'apparaissent plus dans les listes ni dans l'autocomplétion des autres métiers.
