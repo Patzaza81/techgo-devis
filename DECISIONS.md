@@ -31,3 +31,14 @@ Format : quoi · pourquoi · date.
 - Points de vigilance de chaque famille affichés quand elle est ouverte. Unités de métré (39), vérifications avant commande (41.G), « ce que le devis doit distinguer », 12 erreurs fréquentes (42) : aides non bloquantes.
 - Fiche « avant de chiffrer » : clé `current.fiche` (l'ancienne clé `elec` reste lue).
 - Les données *-data.js sont générées depuis les documents : ne pas les modifier à la main.
+
+## Maçonnerie — référentiel (oct. 2026)
+- Source : « Référentiel professionnel de maçonnerie et gros œuvre » fourni par Patrick. Ce n'est pas un catalogue de matériel : matériaux (partie 2), ouvrages (bordereau, partie 18), normes (13), métrés (11), contrôles, sécurité, check-lists, fiche de relevé (19).
+- Adaptation (générateur gen_mac.py → metiers/mac-data.js, 161 fiches) : matériaux → « Produits » en 6 sous-ensembles ; les 45 postes du bordereau + 15 ouvrages industriels → onglet « Ouvrages et main-d'œuvre », rangés par lot GO-01…GO-14 (tableau 1.1) ; essais du béton, protections (15.2), frais annexes → « Contrôles, sécurité et frais » ; moyens de coffrage, levage, vibration → « Outils ».
+- Unités : celles du bordereau et du tableau 1.2 (« m² ou m³ » → deux choix). Matériaux : unité vide si le document n'en donne pas (sac, tonne… à choisir). Aucun prix, quantité, rendement ni coefficient de perte.
+- Normes : liées à une fiche seulement quand les tableaux 13.x les rattachent au produit (ciment courant EN 197-1, granulats EN 12620, eau EN 1008, adjuvants EN 934-2, acier EN 10080, blocs EN 771, mortiers EN 998-1/2, chapes EN 13813, béton EN 206/13670). Pour les ouvrages : DTU 13.1, 13.3, 20.1, 26.1 et EN 13914 selon 13.5. Option « Écrire la norme » décochée par défaut.
+- Un ouvrage du bordereau est enregistré avec l'étiquette « ouvrage » : le devis le détaille (désignation, quantité, unité, prix) comme un matériau, au lieu de le noyer dans un total « Main-d'œuvre ». Le libellé du sous-total devient « fournitures et ouvrages ».
+- Fiche « avant de chiffrer » (technicien) : type d'ouvrage, lots, ce que le prix comprend, documents (plans, étude de sol), béton, contraintes. Alerte si fondations, béton armé, dallages, linteaux/chaînages, réhabilitation ou ouvrage industriel : dimensions et armatures viennent des plans validés.
+- Aides non bloquantes (technicien et entreprise, étape « Vérifier ») : contrôles de prix et de métré, à préciser dans l'offre, double comptage, documents à demander, relevé sur place, sécurité, 17 erreurs fréquentes. Formules de métré du document affichées en lecture seule : aucun calculateur de quantités (le document refuse les ratios universels).
+- Ajout hors document : « Fil d'attache » (ta liste habituelle), signalé dans la fiche.
+- Calcul de surface murs − ouvertures conservé pour la maçonnerie (partie 6.2).

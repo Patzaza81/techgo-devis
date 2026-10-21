@@ -59,7 +59,7 @@ function groupTable(lines) {
   }).join("");
 }
 export const legalLine = (c) => [c.rccm ? "RCCM : " + c.rccm : "", c.niu ? "NIU : " + c.niu : ""].filter(Boolean).join(" — ");
-export const installLine = (q) => { const e = q.fiche || q.elec || {}; const t = ["projet", "alim", "env", "objet", "travaux", "pose", "contraintes"].map((k) => (Array.isArray(e[k]) ? e[k].join(", ") : e[k])).filter(Boolean); return t.length ? `<div class="note">${t.map(esc).join(" · ")}</div>` : ""; };
+export const installLine = (q) => { const e = q.fiche || q.elec || {}; const t = ["projet", "alim", "env", "objet", "travaux", "plans", "beton", "pose", "contraintes"].map((k) => (Array.isArray(e[k]) ? e[k].join(", ") : e[k])).filter(Boolean); return t.length ? `<div class="note">${t.map(esc).join(" · ")}</div>` : ""; };
 const head = (c, pres, draft) => {
   const ph = (t) => draft ? `<span class="hph noprint">${t}</span>` : "";
   const v = (x, t) => x ? esc(x) : ph(t);
@@ -73,7 +73,10 @@ const head = (c, pres, draft) => {
 
 // ---------- Devis du technicien : court, sobre, professionnel (modèles 1111, v4 TechGo, ERCOG) ----------
 const MAT_CATS_D = ["materiaux", "consommables"];
-const SECT = (l) => (MAT_CATS_D.includes(l.cat) ? "mat" : l.cat === "main_oeuvre" ? "mo" : ["transport", "installation", "sous_traitance", "frais"].includes(l.cat) ? "log" : "out");
+// Maçonnerie : un ouvrage du bordereau (fourniture et pose, au m², au m³…) est détaillé comme un matériau, pas noyé dans un total de main-d'œuvre.
+const isOuv = (l) => (l.tags || []).includes("ouvrage");
+const hasOuv = (ls) => ls.some(isOuv);
+const SECT = (l) => (MAT_CATS_D.includes(l.cat) || isOuv(l) ? "mat" : l.cat === "main_oeuvre" ? "mo" : ["transport", "installation", "sous_traitance", "frais"].includes(l.cat) ? "log" : "out");
 const TECH_FORMS = { express: "Express", detaille: "Détaillé", chantier: "Chantier" };
 function renderDocTech(snap, o = {}) {
   const f = snap.quote.form;
@@ -140,12 +143,12 @@ function techChantier(snap, { draft = false } = {}) {
     <p class="note">${esc(c.address ? c.address.split(",").pop().trim() : "")}, le ${frDate(snap.at ? snap.at : q.date)}</p>
     <div class="meta"><div><span class="note">CLIENT</span><b>${esc(q.client.name) || "........................"}</b>${q.client.contact ? `<div class="note">${esc(q.client.contact)}</div>` : ""}</div>
       <div><span class="note">OBJET DU DEVIS</span><b>${esc(q.site.name) || "Travaux"}</b><div class="note">${esc(q.site.address)}${x.sNet ? ` — ${fmtD(x.sNet)} m²` : ""}</div>${installLine(q)}</div></div>
-    <h3>1. Détail des fournitures et matériaux</h3>
-    <table><thead><tr><th>Désignation</th><th class="n">Quantité</th><th class="n">P.U. (FCFA)</th><th class="n">Montant (FCFA)</th></tr></thead>${rows(x.mat)}<tr class="sub"><td colspan="3">SOUS-TOTAL MATÉRIAUX</td><td class="n">${fmtN(x.sum(x.mat))}</td></tr></table>
+    <h3>1. Détail des fournitures${hasOuv(x.mat) ? ", matériaux et ouvrages" : " et matériaux"}</h3>
+    <table><thead><tr><th>Désignation</th><th class="n">Quantité</th><th class="n">P.U. (FCFA)</th><th class="n">Montant (FCFA)</th></tr></thead>${rows(x.mat)}<tr class="sub"><td colspan="3">${hasOuv(x.mat) ? "SOUS-TOTAL FOURNITURES ET OUVRAGES" : "SOUS-TOTAL MATÉRIAUX"}</td><td class="n">${fmtN(x.sum(x.mat))}</td></tr></table>
     ${x.opt.length ? `<h3>Option non obligatoire</h3><table><tr><th>Désignation</th><th class="n">Quantité</th><th class="n">P.U. (FCFA)</th><th class="n">Montant (FCFA)</th></tr>${rows(x.opt)}<tr class="sub"><td colspan="3">SOUS-TOTAL OPTION</td><td class="n">${fmtN(x.sum(x.opt))}</td></tr></table>` : ""}
     <div class="gt"><div class="gl"><span>MONTANT TOTAL DU DEVIS${vat === null ? " (HT)" : " (TTC)"}<br><small>Transport et main-d'œuvre inclus — détail dans la synthèse financière</small></span><b class="gb">${fmt(x.grand)}</b></div></div>
     <h3>2. Synthèse financière</h3>
-    <table><tr><td>Sous-total matériaux</td><td class="n">${fmt(x.sum(x.mat))}</td></tr>
+    <table><tr><td>${hasOuv(x.mat) ? "Sous-total fournitures et ouvrages" : "Sous-total matériaux"}</td><td class="n">${fmt(x.sum(x.mat))}</td></tr>
       ${x.out.length ? `<tr><td>Outils, machines et accès</td><td class="n">${fmt(x.sum(x.out))}</td></tr>` : ""}${x.log.length ? `<tr><td>Transport, logistique et divers</td><td class="n">${fmt(x.sum(x.log))}</td></tr>` : ""}
       <tr class="sub"><td>Total partiel (coût des travaux)</td><td class="n">${fmt(partiel)}</td></tr>
       ${x.mo.length ? `<tr><td>Main-d'œuvre</td><td class="n">${fmt(x.sum(x.mo))}</td></tr>` : ""}
@@ -176,7 +179,7 @@ function techDetaille(snap, { draft = false, ref = "" } = {}) {
   const sNet = effSurface(q.site);
   const matRows = (ls) => ls.map((l) => `<tr><td><b>${esc(l.label)}</b>${l.role ? `<div class="note">${esc(l.role)}</div>` : ""}</td><td>${esc(l.unit)}</td><td class="n">${fmtN(l.qty)}</td><td class="n">${fmtN(l.price)}</td><td class="n">${fmtN(l.total)}</td></tr>`).join("");
   const head5 = `<tr><th>Désignation</th><th>Unité</th><th class="n">Qté</th><th class="n">P.U. (FCFA)</th><th class="n">Total (FCFA)</th></tr>`;
-  const synth = [["Fournitures et matériaux", sum(mat)], ["Main-d'œuvre", sum(mo)], ["Outils, machines et accès", sum(out)], ["Transport, logistique et divers", sum(log)]].filter((x) => x[1] > 0);
+  const synth = [[hasOuv(mat) ? "Fournitures, matériaux et ouvrages" : "Fournitures et matériaux", sum(mat)], ["Main-d'œuvre", sum(mo)], ["Outils, machines et accès", sum(out)], ["Transport, logistique et divers", sum(log)]].filter((x) => x[1] > 0);
   const delay = dMin && dMax && dMin !== dMax ? `${dMin} à ${dMax} jours` : dMax || dMin ? `${dMax || dMin} jours maximum` : "";
   const crewTxt = [crew.workers > 0 ? `Ce poste couvre la mobilisation de ${crew.workers} ouvrier${crew.workers > 1 ? "s" : ""}${delay ? ` sur une durée prévisionnelle de ${delay}` : ""}, ainsi que la supervision et la coordination du chantier.` : "", crew.extraDay > 0 ? `Au-delà de la durée prévue, pour une cause non imputable à ${esc(c.name)}, un supplément journalier de ${fmtN(crew.extraDay)} FCFA sera appliqué et validé avec le client avant poursuite des travaux.` : ""].filter(Boolean).join(" ");
   return `<div id="doc" class="tpl-${tpl} tf tf-detaille" style="--dc:${acc}">
@@ -191,7 +194,7 @@ function techDetaille(snap, { draft = false, ref = "" } = {}) {
       ${c.responsible ? `<div style="grid-column:1/-1"><span class="note">RESPONSABLE CHANTIER</span><b>${esc(c.responsible)}${c.responsiblePhone ? " — " + esc(c.responsiblePhone) : ""}</b></div>` : ""}
     </div>
     <div class="gt"><div class="gl"><span>MONTANT TOTAL${vat === null ? " (hors taxes)" : " (HT)"}</span><b class="gb">${fmt(t.base)}</b></div>${vat === null ? "" : `<div class="gl"><span>Total TTC</span><b>${fmt(t.ttcBase)}</b></div>`}${opt.length ? `<div class="gl gold"><span>Avec option</span><b>${fmt(t.withOption)}</b></div>` : ""}</div>
-    ${mat.length ? `<h3>1. Fournitures et matériaux</h3><table><thead>${head5}</thead>${matRows(mat)}<tr class="sub"><td colspan="4">SOUS-TOTAL FOURNITURES</td><td class="n">${fmtN(sum(mat))}</td></tr></table>` : ""}
+    ${mat.length ? `<h3>1. ${hasOuv(mat) ? "Fournitures, matériaux et ouvrages" : "Fournitures et matériaux"}</h3><table><thead>${head5}</thead>${matRows(mat)}<tr class="sub"><td colspan="4">${hasOuv(mat) ? "SOUS-TOTAL FOURNITURES ET OUVRAGES" : "SOUS-TOTAL FOURNITURES"}</td><td class="n">${fmtN(sum(mat))}</td></tr></table>` : ""}
     ${opt.length ? `<h3>Option non obligatoire</h3><table><thead>${head5}</thead>${matRows(opt)}<tr class="sub"><td colspan="4">SOUS-TOTAL OPTION</td><td class="n">${fmtN(sum(opt))}</td></tr></table>` : ""}
     <h3>${mat.length ? "2" : "1"}. Synthèse financière</h3>
     <table>${synth.map(([k, v]) => `<tr><td>${k}</td><td class="n">${fmt(v)}</td></tr>`).join("")}

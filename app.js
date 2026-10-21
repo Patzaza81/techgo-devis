@@ -34,7 +34,8 @@ const activeMetier = () => S.state.db.settings.metier || "";
 const metierOf = (q) => q.current.metier || (q.current.prestations[0] && q.current.prestations[0].packId) || activeMetier();
 const chooser = (cur) => `<div class="chips">${METIERS.map(([k, n]) => `<button type="button" class="chip ${cur === k ? "on" : ""}" data-act="setMetier" data-k="${k}">${n}</button>`).join("")}</div>`;
 const nz = (s) => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
-const TABS = [["produits", "Produits"], ["outils", "Outils et machines"], ["ouvriers", "Ouvriers"], ["autres", "Transport et autres"]];
+const TABS0 = [["produits", "Produits"], ["outils", "Outils et machines"], ["ouvriers", "Ouvriers"], ["autres", "Transport et autres"]];
+const tabsOf = (met) => { const lb = refOf(met)?.labels || {}; return TABS0.map(([k, n]) => [k, lb[k] ? lb[k][2] : n]); };
 const TAB_OF = { materiaux: "produits", consommables: "produits", equip_possede: "outils", equip_loue: "outils", outillage: "outils", acces: "outils", securite: "outils", main_oeuvre: "ouvriers", transport: "autres", installation: "autres", sous_traitance: "autres", frais: "autres" };
 const FREE_CAT = { produits: "materiaux", outils: "outillage", ouvriers: "main_oeuvre", autres: "transport" };
 const FREE_UNITS = { produits: ["sac", "seau", "litre", "kg", "mètre", "pièce", "m²"], outils: ["jour", "forfait"], ouvriers: ["jour", "heure", "m²", "forfait"], autres: ["forfait", "trajet", "jour"] };
@@ -161,7 +162,7 @@ function stepClient(q, ev, dis) {
 
 // ---------- Parcours Technicien : 3 écrans, mots simples ----------
 function stepClientS(q, ev, dis) {
-  const c = S.state.db.clients, cur = q.current, rf = refOf(metierOf(q)), elec = !!rf;
+  const c = S.state.db.clients, cur = q.current, rf = refOf(metierOf(q)), elec = !!rf && !rf.calc;
   return `<h2>Pour qui est le devis ?</h2><div class="card">
     ${c.length ? `${L("Client déjà enregistré (facultatif)")}<select data-on="pickClient" ${dis ? "disabled" : ""}><option value="">— Nouveau client —</option>${c.map((x) => `<option value="${x.id}" ${cur.client.id === x.id ? "selected" : ""}>${esc(x.name)}</option>`).join("")}</select>` : ""}
     ${L("Nom du client")}${I("q", "current.client.name", cur.client.name, { ph: "Ex. : M. Mballa", dis })}
@@ -173,7 +174,7 @@ function stepClientS(q, ev, dis) {
     ${elec ? "" : `<details><summary>Je veux calculer la surface (murs moins portes et fenêtres)</summary>
       <div class="row"><div>${L("Surface des murs (m²)")}${I("q", "current.site.surfaceBrute", cur.site.surfaceBrute, { type: "number", n: "n", dis })}</div><div>${L("Portes et fenêtres (m²)")}${I("q", "current.site.ouvertures", cur.site.ouvertures, { type: "number", n: "n", dis })}</div></div>
       <p class="hint">Si tu remplis « surface des murs », l'application enlève elle-même les portes et fenêtres.</p></details>`}
-    ${L("Description courte du chantier (facultatif)")}${I("q", "current.site.name", cur.site.name, { ph: elec ? "Ex. : " + (rf.met === "plomberie" ? "Plomberie sanitaire d'une villa R+1" : "Installation électrique d'une villa R+1") : "Ex. : Peinture d'un appartement", dis })}</div>${elec ? ficheMetier(cur, dis, rf) : ""}`;
+    ${L("Description courte du chantier (facultatif)")}${I("q", "current.site.name", cur.site.name, { ph: rf ? "Ex. : " + rf.ph.desc : "Ex. : Peinture d'un appartement", dis })}</div>${rf ? ficheMetier(cur, dis, rf) : ""}`;
 }
 // Fiche « avant de chiffrer » (électricité : section 22 du référentiel ; plomberie : section 40) : réponses imprimées sous l'objet du chantier.
 function ficheMetier(cur, dis, rf) {
@@ -190,13 +191,14 @@ function ficheMetier(cur, dis, rf) {
 function guideCard(met) {
   const g = refOf(met)?.guide; if (!g) return "";
   const ul = (a) => `<ul class="guide">${a.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>`;
+  const sections = g.sections || [[`Vérifier le devis (${g.verifs.length} points)`, g.verifs], ["Ce que le devis doit distinguer", g.distinguer]];
   return `<div class="card"><b>Avant d'envoyer : l'aide du métier</b><p class="hint">Rappels tirés de ton référentiel. Ils ne bloquent rien.</p>
-    <details><summary>Vérifier le devis (${g.verifs.length} points)</summary>${ul(g.verifs)}</details>
-    <details><summary>Ce que le devis doit distinguer</summary>${ul(g.distinguer)}</details>
+    ${sections.map(([t, a]) => `<details><summary>${esc(t)}</summary>${ul(a)}</details>`).join("")}
     <details><summary>Les ${g.erreurs.length} erreurs qui faussent le plus souvent un devis</summary><ul class="guide">${g.erreurs.map(([t, d]) => `<li><b>${esc(t)}</b><br>${esc(d)}</li>`).join("")}</ul></details></div>`;
 }
 // ---------- Écran 2 du technicien : un tableau, comme sur un devis papier ----------
-const SEC = [["produits", "Produits et matériaux", "Ajouter un produit"], ["ouvriers", "Main-d'œuvre", "Ajouter la main-d'œuvre"], ["outils", "Outils et machines", "Ajouter un outil"], ["autres", "Transport et divers", "Ajouter un transport ou autre"]];
+const SEC0 = [["produits", "Produits et matériaux", "Ajouter un produit"], ["ouvriers", "Main-d'œuvre", "Ajouter la main-d'œuvre"], ["outils", "Outils et machines", "Ajouter un outil"], ["autres", "Transport et divers", "Ajouter un transport ou autre"]];
+const secOf = (met) => { const lb = refOf(met)?.labels || {}; return SEC0.map(([k, t, ad]) => (lb[k] ? [k, lb[k][0], lb[k][1]] : [k, t, ad])); };
 const COND = ["1 L", "5 kg", "10 kg", "22 L", "25 kg", "30 kg"]; // conditionnements relevés sur tes devis
 const UNITS_ROW = { produits: ["Pot", "Sac", "Litre", "Kg", "Pièce", "Rouleau", "Mètre", "m²"], ouvriers: ["forfait", "jour", "heure", "m²"], outils: ["forfait", "jour"], autres: ["forfait", "trajet", "jour"] };
 const composeLabel = (t) => `${(t.label || "").trim()}${(t.brand || "").trim() ? " " + t.brand.trim() : ""}${(t.cond || "").trim() ? " (" + t.cond.trim() + ")" : ""}`.trim();
@@ -224,17 +226,17 @@ function sheetForm(t, prod, rf) {
   const ref = rf ? rf.find(t.label) : null;
   const base = rf ? [...unitsOf(ref?.unit), ...(t.tab === "produits" ? [] : UNITS_ROW[t.tab] || []), ...rf.units] : UNITS_ROW[t.tab] || [];
   const opts = [["", "—"], ...[...new Set([...base, t.unit].filter(Boolean))].map((u) => [u, u])];
-  const specHint = ref && ref.spec ? `<p class="hint" style="margin:2px 0 8px">${t.tab === "autres" ? "Contenu" : "À préciser"} : ${esc(ref.spec)}</p>` : "";
+  const specHint = ref && ref.spec ? `<p class="hint" style="margin:2px 0 8px">${t.tab === "autres" ? "Contenu" : rf.specLabel} : ${esc(ref.spec)}</p>` : "";
   const normHint = ref && ref.norm ? `<p class="hint" style="margin:2px 0 8px">Norme de référence : ${esc(ref.norm)}</p>` : "";
   return `<div class="sheet">
-    ${prod ? `${L(elec ? "Marque ou référence fabricant (facultatif)" : "Référence ou marque (facultatif)")}${I("tmp", "row.brand", t.brand, { ph: elec ? "Ex. : Legrand, Schneider" : "Ex. : National" })}` : ""}
+    ${prod ? `${L(elec ? "Marque ou référence fabricant (facultatif)" : "Référence ou marque (facultatif)")}${I("tmp", "row.brand", t.brand, { ph: rf ? rf.ph.brand : "Ex. : National" })}` : ""}
     ${L(prod ? "Nom du produit" : "Désignation")}${I("tmp", "row.label", t.label)}
-    ${prod && elec ? `${L("Caractéristiques (écrites sur le devis)")}${I("tmp", "row.cond", t.cond, { ph: ref && ref.spec ? "Ex. : " + ref.spec.split(",").slice(0, 2).join(",") : "Ex. : calibre, section, indice IP" })}` : ""}
+    ${prod && elec ? `${L("Caractéristiques (écrites sur le devis)")}${I("tmp", "row.cond", t.cond, { ph: rf.met === "maconnerie" ? "Ex. : classe, dimensions, épaisseur" : ref && ref.spec ? "Ex. : " + ref.spec.split(",").slice(0, 2).join(",") : "Ex. : calibre, section, indice IP" })}` : ""}
     ${ref ? specHint + normHint : ""}
     ${prod && !elec ? `${L("Contenance")}<div class="chips">${COND.map((c) => `<button type="button" class="chip ${nz(t.cond) === nz(c) ? "on" : ""}" data-act="rowCond" data-c="${esc(c)}">${esc(c)}</button>`).join("")}</div>` : ""}
     <div class="row"><div>${L("Quantité")}${I("tmp", "row.qty", t.qty, { type: "number", n: "n" })}</div><div>${L("Unité")}${Sel("tmp", "row.unit", t.unit, opts)}</div></div>
     <div class="row"><div>${L("Prix unitaire (FCFA)")}${I("tmp", "row.price", t.price, { type: "number", n: "n" })}</div><div>${L("Montant")}<div class="rowtot"><b>${tot === null ? "—" : fmt(tot)}</b></div></div></div>
-    <details><summary>Écrire à quoi ça sert (facultatif)</summary>${I("tmp", "row.role", t.role, { ph: !rf ? "Ex. : lissage des murs avant la peinture" : rf.met === "plomberie" ? "Ex. : alimentation de la salle de bains" : "Ex. : éclairage du salon" })}</details>
+    <details><summary>Écrire à quoi ça sert (facultatif)</summary>${I("tmp", "row.role", t.role, { ph: !rf ? "Ex. : lissage des murs avant la peinture" : rf.ph.role })}</details>
     <div class="row" style="margin-top:8px"><button class="sec" data-act="rowClose">▲ Fermer</button>${t.lineId ? `<button class="sec danger" data-act="rowRemove">Retirer du devis</button>` : `<p class="hint" style="margin:0;align-self:center">Remplis la quantité et le prix : la ligne entre dans le devis.</p>`}</div></div>`;
 }
 // Électricité, plomberie : le matériel est rangé en sous-ensembles, puis en familles repliables (avec les points de vigilance du référentiel).
@@ -249,11 +251,12 @@ function refBrowser(q, k, rows, oneRow, dis, rf) {
     head = `<div class="elecbar"><p class="hint" style="margin:0 0 6px"><b>Quel type de matériel ?</b> Touche un sous-ensemble, puis une famille.</p>
       <div class="chips">${rf.domaines.map(([id, lab]) => `<button type="button" class="chip ${!searching && e.dom === id ? "on" : ""}" data-act="elecDom" data-d="${id}">${esc(lab)}</button>`).join("")}</div>
       ${d && !searching ? `<p class="hint" style="margin:6px 0">${esc(d[2])}</p>` : ""}
-      ${L("Ou cherche un matériel dans tout le référentiel")}<input type="search" data-r="tmp" data-p="elec.q" value="${esc(e.q)}" placeholder="${rf.met === "plomberie" ? "Ex. : tube PER, siphon, vanne" : "Ex. : disjoncteur, câble, parafoudre"}" autocomplete="off">
+      ${L("Ou cherche un matériel dans tout le référentiel")}<input type="search" data-r="tmp" data-p="elec.q" value="${esc(e.q)}" placeholder="${rf.ph.search}" autocomplete="off">
       ${searching ? `<p class="hint" style="margin:6px 0">${Object.values(grp).flat().length ? "Résultats (40 au plus). Affine ta recherche si besoin." : "Aucun matériel trouvé. Tu peux l'ajouter à la main plus bas."}</p>` : ""}
       ${Chk("q", "current.showNorms", q.current.showNorms, "Écrire la norme de référence sous chaque matériel du devis", { dis })}
       <p class="hint" style="margin:0 0 6px">Une norme citée est un repère. Elle ne prouve pas que le produit est conforme, ni qu'elle est obligatoire au Cameroun : vérifie-la avant de l'engager dans un contrat.</p>
-      ${rf.guide ? `<details><summary>Comment compter (unités de métré)</summary><ul class="guide">${rf.guide.metre.map(([fam, u, r]) => `<li><b>${esc(fam)}</b> : ${esc(u)}. ${esc(r)}</li>`).join("")}</ul></details>` : ""}</div>`;
+      ${rf.guide ? `<details><summary>Comment compter (unités de métré)</summary><ul class="guide">${rf.guide.metre.map(([fam, u, r]) => `<li><b>${esc(fam)}</b> : ${esc(u)}${r ? ". " + esc(r) : ""}</li>`).join("")}</ul></details>` : ""}
+      ${rf.guide && rf.guide.formules ? `<details><summary>Formules de métré du document</summary><ul class="guide">${rf.guide.formules.map((x) => `<li>${esc(x)}</li>`).join("")}</ul><p class="hint">Les dimensions viennent des plans. Ces formules ne remplacent ni une étude ni un dimensionnement.</p></details>` : ""}</div>`;
   }
   const groups = Object.keys(grp).map((f) => {
     const open = searching || e.open[f] || grp[f].some((r) => ui.tmp.row.open === r.key && ui.tmp.row.tab === k);
@@ -265,7 +268,7 @@ function refBrowser(q, k, rows, oneRow, dis, rf) {
 function stepTravauxS(q, ev, dis) {
   const t = ui.tmp.row, sec = ui.tmp.sec || (ui.tmp.sec = {}), met = metierOf(q);
   const auto = ev.result.lines.filter((l) => !q.current.manual.some((m) => m.id === l.id));
-  const body = SEC.map(([k, title, add]) => {
+  const body = secOf(met).map(([k, title, add]) => {
     const rows = sheetRows(q, ev, k), filled = rows.filter((r) => r.line), sum = filled.reduce((s, r) => s + (r.line.total ?? 0), 0);
     const isOpen = sec[k] ?? (k === "produits" || filled.length > 0);
     const rf = refOf(met);
@@ -364,11 +367,13 @@ function stepPrest(q, ev, dis, simple) {
 }
 
 const tabOf = (l) => TAB_OF[l.cat] || "autres";
+// Maçonnerie : les lignes de l'onglet « Ouvrages » sont marquées, le devis les détaille (qté, unité, prix) au lieu d'un total de main-d'œuvre.
+const ouvrageTags = (tab, met) => (tab === "ouvriers" && refOf(met)?.labels?.ouvriers ? ["ouvrage"] : []);
 function freeSection(q, ev, dis) {
   const t = ui.tmp.free, db = S.state.db, lines = ev.result.lines;
   const cm = q.current.pricing.method === "cout_plus_marge";
   const sub = (tab) => { const ls = lines.filter((l) => tabOf(l) === tab && !l.option); const miss = ls.filter((l) => l.total === null).length; return { n: ls.length, sum: ls.reduce((a, l) => a + (l.total ?? 0), 0), miss }; };
-  const tabs = `<div class="seg tabs4">${TABS.map(([k, n]) => { const c = sub(k); return `<button class="${t.tab === k ? "on" : ""}" data-act="freeTab" data-k="${k}">${ic(k, 22)}<span>${n}${c.n ? ` (${c.n})` : ""}</span></button>`; }).join("")}</div>`;
+  const tabs = `<div class="seg tabs4">${tabsOf(metierOf(q)).map(([k, n]) => { const c = sub(k); return `<button class="${t.tab === k ? "on" : ""}" data-act="freeTab" data-k="${k}">${ic(k, 22)}<span>${n}${c.n ? ` (${c.n})` : ""}</span></button>`; }).join("")}</div>`;
   const cur = sub(t.tab), shown = lines.filter((l) => tabOf(l) === t.tab);
   const match = db.catalogue.find((i) => !i.archived && nz(i.label) === nz(t.label));
   const field = cm ? "cost" : "price", prev = match ? match[field] : null;
@@ -382,7 +387,7 @@ function freeSection(q, ev, dis) {
   const savedOwn = db.catalogue.filter((i) => !i.archived && TAB_OF[i.cat] === t.tab && String(i.id).startsWith("TER-") && (!i.pack || i.pack === met)).map((i) => i.label);
   const names = elecPick ? uniq([...savedOwn.filter((n) => !rfm.find(n)), ...(t.tab === "produits" ? [] : LISTES[met]?.[t.tab] || []), ...rfm.rows(t.tab, e.dom, e.q).slice(0, 80).map((r) => r.name)]) : [...new Set([...saved, ...(LISTES[met]?.[t.tab] || [])])];
   const elecHead = elecPick && t.tab === "produits" ? `<div class="chips">${rfm.domaines.map(([id, lab]) => `<button type="button" class="chip ${!eq && e.dom === id ? "on" : ""}" data-act="elecDom" data-d="${id}">${esc(lab)}</button>`).join("")}</div>
-    ${L("Ou cherche un matériel")}<input type="search" data-r="tmp" data-p="elec.q" value="${esc(e.q)}" placeholder="${rfm.met === "plomberie" ? "Ex. : tube PER, siphon, vanne" : "Ex. : disjoncteur, câble, parafoudre"}" autocomplete="off">` : "";
+    ${L("Ou cherche un matériel")}<input type="search" data-r="tmp" data-p="elec.q" value="${esc(e.q)}" placeholder="${rfm.ph.search}" autocomplete="off">` : "";
   const picker = `${met ? "" : chooser("")}${elecHead}
     ${names.length ? `<div class="chips names">${names.map((n) => `<button type="button" class="chip nm ${nz(t.label) === nz(n) ? "on" : ""}" data-act="pickName" data-n="${esc(n)}">${esc(n)}</button>`).join("")}</div><p class="hint">Touche un nom, ou écris-le plus bas. Ce sont des noms seulement : aucun prix ni quantité.</p>` : `<p class="hint">Choisis ton métier pour voir la liste, ou écris le nom plus bas.</p>`}`;
   const form = dis ? "" : `<div class="card"><b>+ Ajouter</b>
@@ -394,11 +399,11 @@ function freeSection(q, ev, dis) {
     <div class="row"><div>${L("Quantité")}${I("tmp", "free.qty", t.qty, { type: "number", n: "n" })}</div><div>${L(cm ? "Prix d'achat par unité (FCFA)" : "Prix par unité (FCFA)")}${I("tmp", "free.price", t.price, { type: "number", n: "n" })}</div></div>
     <p class="hint">${t.price > 0 ? "Tu écris : <b>" + fmt(t.price) + "</b> par unité. " : ""}Prix pas connu ? Laisse vide : tu le mettras plus tard. Rien n'est compté à zéro.</p>
     ${Chk("tmp", "free.save", t.save, "Garder ce produit et ce prix pour la prochaine fois")}
-    ${t.ask ? `<div class="banner warn"><b>Dernier prix enregistré : ${fmt(t.ask.prev)}. Tu écris ${fmt(t.price)}.</b><div class="row"><button data-act="askYes">Oui, c'est bon</button><button class="sec" data-act="askNo">Non, je corrige</button></div></div>` : `<button class="gold" data-act="addFree" style="margin-top:10px">Ajouter à ${esc(TABS.find((x) => x[0] === t.tab)[1])}</button>`}</div>`;
+    ${t.ask ? `<div class="banner warn"><b>Dernier prix enregistré : ${fmt(t.ask.prev)}. Tu écris ${fmt(t.price)}.</b><div class="row"><button data-act="askYes">Oui, c'est bon</button><button class="sec" data-act="askNo">Non, je corrige</button></div></div>` : `<button class="gold" data-act="addFree" style="margin-top:10px">Ajouter à ${esc(tabsOf(metierOf(q)).find((x) => x[0] === t.tab)[1])}</button>`}</div>`;
   const miss = cur.miss ? `Total pas fini : ${cur.miss} prix manquant${cur.miss > 1 ? "s" : ""}` : "";
   const normsChk = refOf(met) && !dis ? `<div class="card">${Chk("q", "current.showNorms", q.current.showNorms, "Écrire la norme de référence sous chaque matériel du devis")}<p class="hint" style="margin:0">Une norme citée est un repère : elle ne prouve pas la conformité du produit ni son caractère obligatoire au Cameroun.</p></div>` : "";
   return `${tabs}${form}${normsChk}
-    <div class="total"><div><span>${esc(TABS.find((x) => x[0] === t.tab)[1])}</span><span class="big">${fmt(cur.sum)}</span></div>${miss ? `<div class="opt"><span>${miss}</span></div>` : ""}</div>
+    <div class="total"><div><span>${esc(tabsOf(metierOf(q)).find((x) => x[0] === t.tab)[1])}</span><span class="big">${fmt(cur.sum)}</span></div>${miss ? `<div class="opt"><span>${miss}</span></div>` : ""}</div>
     ${shown.map((l) => lineCard(l, q, dis)).join("") || `<p class="hint">Rien ici pour l'instant.</p>`}`;
 }
 
@@ -760,7 +765,7 @@ function commitRow() {
   if (!nom || !unit || !(t.qty > 0) || (has && !(t.price > 0))) { return false; }
   const label = composeLabel(t);
   let it = db.catalogue.find((i) => !i.archived && nz(i.label) === nz(label) && nz(i.unit) === nz(unit));
-  if (!it) { const id = S.newItemId("TER"); it = { id, ref: id, label, cat: FREE_CAT[t.tab], unit, pricing: "unitaire", price: null, cost: null, priceDate: null, supplier: t.brand || "", brand: t.brand || "", yield: null, yieldUnit: "m²", tags: [], pack: metierOf(q) || "", archived: false, fieldPrice: true }; }
+  if (!it) { const id = S.newItemId("TER"); it = { id, ref: id, label, cat: FREE_CAT[t.tab], unit, pricing: "unitaire", price: null, cost: null, priceDate: null, supplier: t.brand || "", brand: t.brand || "", yield: null, yieldUnit: "m²", tags: ouvrageTags(t.tab, metierOf(q)), pack: metierOf(q) || "", archived: false, fieldPrice: true }; }
   const isNew = !db.catalogue.some((i) => i.id === it.id), priceChanged = has && it.price !== t.price;
   if (has) { it.price = t.price; it.priceDate = S.today(); it.fieldPrice = true; }
   Object.assign(it, { nom, cond: (t.cond || "").trim(), brand: (t.brand || "").trim() });
@@ -883,7 +888,7 @@ const actions = {
     if (!(t.qty > 0)) throw new Error("Écris la quantité (plus grande que zéro).");
     const has = t.price !== null && t.price !== undefined && t.price !== ""; if (has && !(t.price > 0)) throw new Error("Le prix doit être plus grand que zéro. Si tu ne le connais pas, laisse vide.");
     if (it && has && it[field] != null && it[field] !== t.price && !t.ok) { t.ask = { prev: it[field] }; return; }
-    if (!it) { const id = S.newItemId("TER"); it = { id, ref: id, label, cat: FREE_CAT[t.tab], unit, pricing: "unitaire", price: null, cost: null, priceDate: null, supplier: "", brand: "", yield: null, yieldUnit: "m²", tags: [], pack: "", archived: false, fieldPrice: false }; created = true; }
+    if (!it) { const id = S.newItemId("TER"); it = { id, ref: id, label, cat: FREE_CAT[t.tab], unit, pricing: "unitaire", price: null, cost: null, priceDate: null, supplier: "", brand: "", yield: null, yieldUnit: "m²", tags: ouvrageTags(t.tab, metierOf(q)), pack: "", archived: false, fieldPrice: false }; created = true; }
     if (has && t.save && (it[field] === null || it[field] === undefined)) { it[field] = t.price; it.priceDate = S.today(); it.fieldPrice = true; }
     if (created || (has && t.save && it.fieldPrice)) S.saveItem(it, "saisi sur place");
     const m = { id: "m" + S.uid(), itemId: it.id, group: CATS[it.cat], mode: "fixed", qty: t.qty, option: false, ...((t.role || "").trim() ? { role: t.role.trim() } : {}), ...(t.norm ? { norm: t.norm } : {}) }; q.current.manual.push(m);
@@ -978,7 +983,7 @@ document.addEventListener("click", (e) => {
 window.addEventListener("hashchange", () => { ui.file = null; render(); window.scrollTo(0, 0); });
 window.addEventListener("beforeprint", () => document.body.classList.add("printing"));
 window.addEventListener("afterprint", () => document.body.classList.remove("printing"));
-export const BUILD = "26";
+export const BUILD = "27";
 // Mise à jour automatique : quand une nouvelle version est publiée, l'application la prend toute seule
 // (au retour sur l'application, ou dès que la personne n'est plus en train de taper). Les données ne sont jamais touchées.
 if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
