@@ -102,6 +102,18 @@ details{margin-top:10px}summary{color:var(--teal-d);font-weight:700;min-height:4
 .scroll{overflow-x:auto}
 .params{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}
 @media(max-width:420px){.row3{grid-template-columns:1fr 1fr}.params{grid-template-columns:1fr}.row{grid-template-columns:1fr 1fr}}
+/* Accueil guidé (idée reprise du commit a00b909, adaptée au design : texte ≥ 14 px, couleurs par variables) */
+.welcome{position:relative;overflow:hidden;background:var(--hd);color:var(--on-hd);border-radius:20px;padding:22px 18px 18px;margin-bottom:16px;box-shadow:var(--sh)}
+.welcome::after{content:"";position:absolute;width:170px;height:170px;border:1px solid rgba(255,255,255,.18);border-radius:50%;right:-80px;top:-80px;pointer-events:none}
+.welcome-kicker{font-size:14px;font-weight:800;letter-spacing:.1em;color:#ffe19a}
+.welcome h2{font-size:26px;color:var(--on-hd);margin:10px 0 8px}
+.welcome p{font-size:16px;margin:0 0 14px;max-width:460px;opacity:.95}
+.welcome-steps{display:grid;gap:8px;margin:14px 0 18px}
+.welcome-steps span{display:flex;align-items:center;gap:10px;font-size:16px}
+.welcome-steps b{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:9px;background:rgba(255,255,255,.16);color:var(--gold);font-size:15px;flex:none}
+.welcome .row{position:relative;z-index:1}
+.welcome button{background:var(--gold);border-color:var(--gold);color:#14262b}
+.welcome button.sec{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.65);color:var(--on-hd)}
 /* document client — modèles : classique, sobre, compact (seule la mise en forme change, jamais un montant) */
 #doc{--dc:#0b7a8c;--line:#d9e1e3;--mut:#4a5d63;--ink:#14262b;background:#fff;color:#14262b;border:1px solid #d9e1e3;border-radius:12px;padding:20px;font-size:15px;line-height:1.5;box-shadow:var(--sh)}
 #doc h1{margin:14px 0 4px;color:var(--dc);font-size:26px;letter-spacing:.04em;font-weight:800}

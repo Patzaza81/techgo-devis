@@ -70,9 +70,15 @@ function viewDevis() {
     return (!f.q || txt.includes(f.q.toLowerCase())) && (!f.status || S.effectiveStatus(q) === f.status);
   });
   const counts = Object.keys(S.STATUS).map((k) => [k, db.quotes.filter((q) => S.effectiveStatus(q) === k).length]).filter((x) => x[1]);
-  return `<h2>Devis</h2>
-    <div class="row"><button data-act="newQuote">+ Nouveau devis</button><button class="sec" data-act="demoQuote">Devis de référence (démo)</button></div>
-    <div class="card"><div class="row"><div>${L("Recherche")}${I("ui", "f.q", f.q, { ph: "Référence, client, chantier" })}</div>
+  return `<section class="welcome">
+      <span class="welcome-kicker">VOTRE ATELIER DE CHIFFRAGE</span>
+      <h2>Des devis clairs. Des coûts maîtrisés.</h2>
+      <p>Prépare un devis étape par étape, vérifie les oublis, puis exporte-le en PDF ou Word.</p>
+      <div class="welcome-steps"><span><b>1</b> Client et chantier</span><span><b>2</b> Travaux, produits et prix</span><span><b>3</b> Vérifier et envoyer</span></div>
+      <div class="row"><button data-act="newQuote">＋ Créer un devis</button><button class="sec" data-act="demoQuote">Voir un exemple</button></div>
+    </section>
+    <div class="card"><div class="qhead"><b>Tes devis</b><span class="note">${list.length} dossier${list.length > 1 ? "s" : ""}</span></div>
+    <div class="row"><div>${L("Rechercher un devis")}${I("ui", "f.q", f.q, { ph: "Nom, référence…" })}</div>
     <div>${L("Statut")}${Sel("ui", "f.status", f.status, [["", "Tous"], ...Object.entries(S.STATUS)])}</div></div>
     ${counts.length ? `<div class="chips">${counts.map(([k, n]) => `<span class="st st-${k}">${S.STATUS[k]} ${n}</span>`).join("")}</div>` : ""}</div>
     <p class="hint">Tes devis sont gardés dans ce téléphone seulement. Fais une sauvegarde de temps en temps (Réglages). Sur iPhone : bouton Partager, puis « Sur l'écran d'accueil ».</p>
