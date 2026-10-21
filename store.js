@@ -159,6 +159,17 @@ export function duplicateQuote(id) {
   const src = state.db.quotes.find((q) => q.id === id); const q = createQuote();
   q.current = { ...clone(src.current), ref: q.ref, date: today() }; audit("devis_duplique", "devis", q.id, "depuis " + src.ref); commit(); return q;
 }
+// Suppression : uniquement les brouillons jamais envoyés (aucune version figée, aucune commande).
+export const deletable = (q) => ["brouillon", "a_verifier", "pret"].includes(q.status) && q.versions.length === 0 && !(state.db.orders || []).some((o) => o.quoteId === q.id);
+export function deleteQuote(id) {
+  const db = state.db; const q = db.quotes.find((x) => x.id === id);
+  if (!q || !deletable(q)) return false;
+  db.quotes = db.quotes.filter((x) => x.id !== id); audit("devis_supprime", "devis", id, q.ref);
+  if (!db.quotes.length) Object.keys(db.seq).forEach((k) => { if (!k.startsWith("CMD")) delete db.seq[k]; });
+  return commit();
+}
+export const deletableQuotes = () => state.db.quotes.filter(deletable);
+export function deleteAllDrafts() { const ids = deletableQuotes().map((q) => q.id); ids.forEach((id) => deleteQuote(id)); return ids.length; }
 export const getQuote = (id) => state.db.quotes.find((q) => q.id === id);
 export const editable = (q) => EDITABLE.includes(q.status);
 

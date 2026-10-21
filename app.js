@@ -329,6 +329,7 @@ function stepVersions(q, ev) {
   if (["envoye", "refuse", "expire"].includes(q.status)) actions.push(`<button data-act="startNeg">Préparer V${q.versions.length + 1}${q.status === "expire" ? " (renouveler)" : ""}</button>`);
   if (q.status === "negociation") actions.push(`<button class="sec" data-act="discardNeg">Abandonner le brouillon de V${q.versions.length + 1}</button>`);
   actions.push(`<button class="sec" data-act="dup">Dupliquer ce devis</button>`);
+  if (S.deletable(q)) actions.push(`<button class="sec" data-act="delQuote">Supprimer ce brouillon</button>`);
   const hasOpt = last && last.result.lines.some((l) => l.option);
   const decide = ["envoye", "negociation"].includes(q.status) ? `<div class="card"><b>Décision du client (sur V${last.n})</b>
     ${L("Nom de la personne qui accepte")}${I("tmp", "accept.by", t.accept.by)}${L("Preuve d'accord (référence du message, du bon signé…)")}${I("tmp", "accept.note", t.accept.note)}
@@ -458,6 +459,8 @@ function viewReglages() {
       <button data-act="export">Exporter une sauvegarde complète (.json)</button> <button class="sec" data-act="quotesCsv">Exporter la liste des devis (CSV)</button>
       ${L("Restaurer depuis un fichier (testé avant d'être appliqué)")}<input type="file" accept=".json,application/json" data-on="backupFile">
       ${b ? `<div class="banner ${b.ok ? "info" : "bad"}">${b.ok ? `Sauvegarde valide : ${b.summary.devis} devis, ${b.summary.clients} clients, ${b.summary.articles} articles, ${b.summary.commandes} commandes. Toutes les versions de devis passent le contrôle d'intégrité.` : b.errors.map(esc).join("<br>")}</div>${b.ok ? `<button class="gold" data-act="restore">Restaurer comme nouvelle entreprise</button><p class="hint">La restauration crée un nouvel espace : tes données actuelles ne sont pas écrasées.</p>` : ""}` : ""}</div>
+    <div class="card"><b>Repartir de zéro</b><p class="hint">Supprime les devis commencés mais jamais envoyés. Les devis envoyés ou acceptés ne sont jamais supprimés. Fais d'abord une sauvegarde ci-dessus si tu hésites.</p>
+      <button class="sec" data-act="delDrafts" ${S.deletableQuotes().length ? "" : "disabled"}>Supprimer mes brouillons (${S.deletableQuotes().length})</button></div>
     <div class="card"><b>Journal d'audit</b><p class="hint">Les 40 dernières actions (création, envoi, statut, prix, paiements).</p>${db.audit.slice(-40).reverse().map((a) => `<div class="chk"><div style="flex:1"><b>${esc(a.action)}</b><div class="note">${esc(a.detail)}</div></div><span class="note">${frDate(a.at)}</span></div>`).join("") || `<p class="hint">Vide.</p>`}</div>
     <div class="card"><b>À propos</b><p class="hint">Les documents commerciaux sont des devis. Les factures sont des pièces de gestion : les mentions légales et fiscales officielles ne sont pas générées. Aucune règle locale (fiscalité, marchés publics) n'est supposée : à valider avant usage.</p></div>`;
 }
@@ -614,6 +617,8 @@ const actions = {
   copy(b) { const t = b.dataset.t; const ok = () => { ui.flash = { type: "ok", text: "Message copié." }; rerender(); }; if (navigator.clipboard) navigator.clipboard.writeText(t).then(ok).catch(() => { ui.flash = { type: "err", text: "Copie impossible : sélectionne le texte manuellement." }; rerender(); }); else ok(); return "skip"; },
   startNeg() { const q = S.getQuote(ui.qid); S.startNegotiation(q); ui.ver = "draft"; ui.flash = { type: "ok", text: `Brouillon de V${q.versions.length + 1} prêt : modifie puis envoie.` }; go(`#/devis/${q.id}/0`); },
   discardNeg() { S.discardNegotiationDraft(S.getQuote(ui.qid)); },
+  delQuote() { const q = S.getQuote(ui.qid); if (!q || !confirm(`Supprimer le brouillon ${q.ref} ? Tu ne pourras pas le récupérer.`)) return; if (S.deleteQuote(q.id)) go("#/devis"); },
+  delDrafts() { const n = S.deletableQuotes().length; if (!n || !confirm(`Supprimer ${n} brouillon(s) jamais envoyé(s) ? Les devis envoyés ne sont pas touchés. Tu ne pourras pas les récupérer.`)) return; S.deleteAllDrafts(); ui.flash = { type: "ok", text: `${n} brouillon(s) supprimé(s).` }; },
   dup() { const q = S.duplicateQuote(ui.qid); go(`#/devis/${q.id}/0`); },
   accept() { const q = S.getQuote(ui.qid); const o = S.accept(q, { ...ui.tmp.accept }); ui.tmp.accept = { by: "", note: "", option: false }; ui.flash = { type: "ok", text: `Commande ${o.ref} créée.` }; },
   reject() { S.reject(S.getQuote(ui.qid), ui.tmp.reason); ui.tmp.reason = ""; },

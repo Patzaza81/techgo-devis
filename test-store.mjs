@@ -183,5 +183,16 @@ eq("suppression d'un espace", S.listWorkspaces().length, 2);
   saveItems([it, { id: "IMP-1", ref: "IMP-1", label: "Importé", cat: "materiaux", unit: "u", pricing: "unitaire", price: 100, cost: null, priceDate: null, supplier: "", brand: "", yield: null, yieldUnit: "m²", tags: [], pack: "", archived: false }]);
   eq("import groupé : historique du prix et nouvel article daté", [db().priceHistory.some((h) => h.itemId === "END-P60" && h.old === 19500 && h.new === 21000 && h.source === "import CSV"), db().catalogue.find((i) => i.ref === "IMP-1").priceDate === S.today()], [true, true]);
 }
+{
+  const a = S.createQuote(), b = S.state.db.quotes.find((x) => x.versions.length), c = S.createQuote();
+  eq("brouillon supprimable", S.deletable(a), true);
+  eq("suppression d'un brouillon", S.deleteQuote(a.id) && !S.getQuote(a.id), true);
+  
+  eq("devis envoyé non supprimable", S.deletable(b), false);
+  eq("suppression d'un devis envoyé refusée", S.deleteQuote(b.id) || !!S.getQuote(b.id), true);
+  eq("id inconnu refusé", S.deleteQuote("nope"), false);
+  eq("tout supprimer ne touche que les brouillons", S.deleteAllDrafts() >= 1 && !!S.getQuote(b.id) && !S.getQuote(c.id), true);
+  eq("audit de suppression", db().audit.some((x) => x.action === "devis_supprime"), true);
+}
 console.log(`\n${pass} réussis, ${fail} échoués`);
 process.exit(fail ? 1 : 0);
