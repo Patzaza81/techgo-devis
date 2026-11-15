@@ -17,3 +17,5 @@ jobs:
       - run: node test-store.mjs
       - run: node test-csv.mjs
       - run: node test-docx.mjs /tmp/ref.docx
+      - run: node test-licence.mjs
+      - run: node test-sw.mjs

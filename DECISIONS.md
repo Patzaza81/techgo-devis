@@ -47,3 +47,11 @@ Format : quoi · pourquoi · date.
 - metiers/vocab.js : libellés, exemples, unités et formats propres à chaque métier (surface, support, finition, marque, à quoi ça sert, unités des produits). Plus aucun mot de peinture (pot, contenance en litres, « lissage des murs », marque « National ») hors de la peinture.
 - Plomberie et électricité : pas de calcul « murs − ouvertures » (surface du local facultative). Maçonnerie et carrelage : calcul conservé.
 - Articles saisis par l'utilisateur (TER-) : rattachés à leur métier ; les anciens articles sans métier sont traités comme de la peinture. Ils n'apparaissent plus dans les listes ni dans l'autocomplétion des autres métiers.
+
+## Licence et vente (nov. 2026)
+- **Essai gratuit : 3 devis sortis** (PDF, Word, impression, envoi), puis code de licence valable 365 jours. Valeurs proposées, à confirmer par le propriétaire (`licence.js` : `ESSAI_DEVIS`, `DUREE_JOURS`).
+- **La saisie, les calculs, le catalogue et les sauvegardes ne sont jamais bloqués** ; un devis déjà sorti reste sortable · personne ne perd ses données.
+- **Vérification dans le téléphone, sans serveur** : l'application reconnaît un code par son empreinte (`licence-codes.js`). Les codes en clair ne sont jamais dans le dépôt (il est public).
+- **Limites assumées** : un code peut être saisi sur plusieurs appareils ; la date vient de l'horloge du téléphone. Une vérification par serveur les lèvera (phase 4).
+- **Vente** : le client demande son code sur WhatsApp (bouton dans Réglages), paie, reçoit un code du lot. Prix : décision du propriétaire, non écrit dans l'application.
+- Nouveaux codes : `node outils/gen-codes.mjs <nombre> <fichier hors dépôt>`.

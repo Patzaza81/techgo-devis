@@ -1,6 +1,7 @@
 import * as S from "./store.js";
 import { PLAN_TECH, CATS, PRICING, DECISION_TAGS, PACKS, scaffoldLines, referenceDraft, effSurface, surfaceSource } from "./packs.js";
 import { buildDocx, DOCX_MIME } from "./docx.js";
+import * as Lic from "./licence.js";
 import { analyseCsv, exportCatalogueCsv, templateCsv, exportRowsCsv } from "./csv.js";
 const NEUTRAL_LOGO = "data:image/svg+xml;utf8," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><rect width="40" height="40" rx="9" fill="#e7ebed"/><path d="M12 9h12l6 6v16H12z" fill="none" stroke="#69787e" stroke-width="2.2" stroke-linejoin="round"/><path d="M16 21h10M16 26h10" stroke="#69787e" stroke-width="2.2" stroke-linecap="round"/></svg>');
 import { LISTES, METIERS, visibleIn, metierLabel } from "./metiers/listes.js";
@@ -43,7 +44,7 @@ const FREE_UNITS = { produits: ["sac", "seau", "litre", "kg", "mètre", "pièce"
 const EQUIP_CATS = ["equip_loue", "equip_possede"];
 
 const ui = {
-  qid: null, step: 0, view: "client", file: null, busy: "", ver: null, flash: null, itemDraft: null, clientDraft: null, backup: null, invoice: null, wsNew: "", wsCopy: false, csv: null,
+  qid: null, step: 0, view: "client", file: null, busy: "", ver: null, flash: null, itemDraft: null, clientDraft: null, backup: null, invoice: null, wsNew: "", wsCopy: false, csv: null, licCode: "",
   f: { q: "", status: "", cat: "", pack: "", cl: "" },
   tmp: { addPrest: "", line: { itemId: "", qty: 1, option: false }, equip: { itemId: "", days: null, basis: "jour", trips: 1, bill: "inclus", markupPct: null },
     scaf: { itemId: "", longueur: null, hauteur: null, jours: null, basis: "jour", trips: 1, bill: "inclus", markupPct: null },
@@ -93,7 +94,9 @@ function viewDevis() {
     <button type="button" class="bigopt" data-act="setProfil" data-k="entreprise"><b>Je suis une entreprise, ou c'est un marché public</b><span>Devis complet en 5 écrans : paiement en tranches, frais, vérifications.</span></button>
     <p class="metierbar"><button type="button" class="linkbtn" data-act="clearMetier">← Changer de métier (${esc(metierLabel(am))})</button></p></section>`;
   const tech = pf === "technicien";
-  return `<section class="welcome"><h2>Mes devis</h2>
+  const lic = Lic.etat();
+  const rappel = lic.mode === "licence" ? "" : `<div class="banner ${lic.mode === "termine" ? "bad" : "info"}">${lic.mode === "essai" ? `Essai gratuit : encore ${lic.restants} devis à sortir.` : "Essai gratuit terminé : tes devis sont conservés."} <a href="#/reglages">Activer ma licence</a></div>`;
+  return `${rappel}<section class="welcome"><h2>Mes devis</h2>
       <button class="bigcta" data-act="newQuote">＋ Faire un devis</button>
       <p class="hint" style="text-align:center">${tech ? "3 écrans : le client → le travail et le matériel → le prix et l'envoi" : "5 écrans : client, travaux, produits, prix et paiement, vérification"}</p>
       <p class="metierbar">${esc(metierLabel(am))} · ${tech ? "Technicien" : "Entreprise"} <button type="button" class="linkbtn" data-act="clearMetier">Changer</button></p>
@@ -622,7 +625,7 @@ function viewSuivi(a) {
 function viewReglages() {
   const db = S.state.db, s = db.settings, c = db.company, ws = S.listWorkspaces(), act = S.state.ws, b = ui.backup;
   const ci = (p, lab) => `<div>${L(lab)}${I("db", "company." + p, c[p])}</div>`;
-  return `<h2>Réglages</h2>
+  return `<h2>Réglages</h2>${carteLicence()}
     <div class="card"><b>Entreprise</b><div class="row">${ci("name", "Nom")}${ci("tagline", "Activité")}</div><div class="row">${ci("address", "Adresse")}${ci("phone", "Téléphone")}</div><div class="row">${ci("whatsapp", "WhatsApp")}${ci("web", "Site web")}</div><div class="row">${ci("responsible", "Responsable chantier")}${ci("responsiblePhone", "Tél. responsable")}</div><div class="row">${ci("rccm", "RCCM (facultatif)")}${ci("niu", "N° contribuable NIU (facultatif)")}</div><p class="hint">RCCM et NIU s'affichent en bas du devis seulement si tu les remplis. Je ne les invente jamais.</p></div>
     <div class="card"><b>Règles de l'entreprise</b><p class="hint">Aucune de ces valeurs n'est supposée : renseigne celles qui viennent de tes chantiers.</p>
       <div class="row"><div>${L("Hauteur à partir de laquelle un accès est exigé (m)")}${I("db", "settings.accessThresholdM", s.accessThresholdM, { type: "number", n: "n" })}</div><div>${L("Marge de sécurité produits par défaut (%)")}${I("db", "settings.lossPct", s.lossPct, { type: "number", n: "n" })}</div></div>
@@ -833,7 +836,29 @@ document.addEventListener("change", (e) => {
   } catch (err) { ui.flash = { type: "err", text: err.message }; rerender(); }
 });
 
+// Licence : toute sortie d'un devis (PDF, Word, impression, envoi) passe par ici.
+// La saisie et les calculs ne sont jamais bloqués.
+function sortieAutorisee(q) {
+  if (!Lic.peutSortir(q.id)) throw new Error(`Essai gratuit terminé (${Lic.ESSAI_DEVIS} devis). Ton devis est conservé. Active ta licence dans Réglages pour le sortir.`);
+}
+// Une sortie n'est comptée dans l'essai qu'une fois réussie (un export en échec ne coûte rien).
+const sortieFaite = (q) => Lic.noterSortie(q.id);
+function carteLicence() {
+  const e = Lic.etat(), nom = S.state.db.company.name;
+  const titre = e.mode === "licence" ? `Licence active jusqu'au ${frDate(e.expire)}` : e.mode === "essai" ? `Essai gratuit : encore ${e.restants} devis à sortir` : e.expiree ? "Licence expirée" : "Essai gratuit terminé";
+  return `<div class="card" id="licence"><b>Licence</b><div class="banner ${e.mode === "termine" ? "bad" : "info"}">${titre}</div>
+    <p class="hint">${e.mode === "licence" ? `Un nouveau code prolonge ta licence de ${Lic.DUREE_JOURS} jours.` : `Créer, calculer et enregistrer tes devis reste toujours possible. La licence sert à les sortir : PDF, Word, impression, envoi.`}</p>
+    ${L("Code de licence")}${I("ui", "licCode", ui.licCode, { ph: "TGD-XXXX-XXXX-XXXX" })}
+    <div class="row"><button data-act="activerLicence">Activer</button><a class="btn sec" href="${Lic.lienWhatsApp(nom)}" target="_blank" rel="noopener">Obtenir un code sur WhatsApp</a></div></div>`;
+}
 const actions = {
+  activerLicence() {
+    Lic.activer(ui.licCode).then((r) => {
+      ui.flash = r.ok ? { type: "ok", text: `Licence activée jusqu'au ${frDate(r.expire)}.` + (r.enregistre ? "" : " Attention : ce navigateur n'a pas pu l'enregistrer (navigation privée ?).") } : { type: "err", text: r.erreur };
+      if (r.ok) ui.licCode = ""; rerender();
+    }).catch(() => { ui.flash = { type: "err", text: "Vérification impossible sur ce navigateur." }; rerender(); });
+    return "skip";
+  },
   reload() { S.reloadAfterConflict(); },
   secToggle(b) { const k = b.dataset.tab, s = ui.tmp.sec || (ui.tmp.sec = {}); const q = S.getQuote(ui.qid); const cur = s[k] ?? (k === "produits" || sheetRows(q, S.evaluate(q), k).some((r) => r.line)); s[k] = !cur; },
   rowToggle(b) {
@@ -910,8 +935,8 @@ const actions = {
   },
   mark(b) { const q = S.getQuote(ui.qid); S.setStatus(q, b.dataset.to); ui.flash = { type: "ok", text: "Statut : " + S.STATUS[q.status] }; },
   view(b) { ui.view = b.dataset.v; },
-  print() { window.print(); },
-  send() { const q = S.getQuote(ui.qid); const v = S.freezeVersion(q); ui.ver = String(v.n); ui.view = "client"; ui.flash = { type: "ok", text: `V${v.n} figée et envoyée. Empreinte ${v.hash}.` }; },
+  print() { const q = S.getQuote(ui.qid); sortieAutorisee(q); window.print(); sortieFaite(q); },
+  send() { const q = S.getQuote(ui.qid); sortieAutorisee(q); const v = S.freezeVersion(q); sortieFaite(q); ui.ver = String(v.n); ui.view = "client"; ui.flash = { type: "ok", text: `V${v.n} figée et envoyée. Empreinte ${v.hash}.` }; },
   seeVer(b) { ui.file = null; ui.ver = b.dataset.n; ui.view = "client"; },
   copy(b) { const t = b.dataset.t; const ok = () => { ui.flash = { type: "ok", text: "Message copié." }; rerender(); }; if (navigator.clipboard) navigator.clipboard.writeText(t).then(ok).catch(() => { ui.flash = { type: "err", text: "Copie impossible : sélectionne le texte manuellement." }; rerender(); }); else ok(); return "skip"; },
   startNeg() { const q = S.getQuote(ui.qid); S.startNegotiation(q); ui.ver = "draft"; ui.flash = { type: "ok", text: `Brouillon de V${q.versions.length + 1} prêt : modifie puis envoie.` }; go(`#/devis/${q.id}/0`); },
@@ -937,13 +962,15 @@ const actions = {
   pay(b) { S.markPaid(b.dataset.o, Number(b.dataset.i)); },
   openInv(b) { ui.invoice = b.dataset.id; },
   word(b) {
-    const q = S.getQuote(ui.qid);
+    const q = S.getQuote(ui.qid); sortieAutorisee(q);
     const { snap } = snapFor(q, S.evaluate(q)); const v = b.dataset.n === "draft" ? snap : q.versions.find((x) => String(x.n) === b.dataset.n); if (!v) throw new Error("Version introuvable.");
-    const { bytes } = buildDocx(v, q.ref); const name = `${q.ref}${v.n ? "-V" + v.n : "-brouillon"}.docx`;
+    const { bytes } = buildDocx(v, q.ref); sortieFaite(q); const name = `${q.ref}${v.n ? "-V" + v.n : "-brouillon"}.docx`;
     ui.file = { name, mime: DOCX_MIME, data: bytes }; return saveFile();
   },
   async pdf() {
-    const q = S.getQuote(ui.qid); const el = document.getElementById("doc"); if (!el) throw new Error("Aperçu introuvable.");
+    const q = S.getQuote(ui.qid);
+    try { sortieAutorisee(q); } catch (err) { ui.flash = { type: "err", text: err.message }; rerender(); return; }
+    const el = document.getElementById("doc"); if (!el) throw new Error("Aperçu introuvable.");
     ui.busy = "pdf"; rerender();
     try {
       const { makePdf } = await import("./pdf.js");
@@ -951,6 +978,7 @@ const actions = {
       const data = await makePdf(document.getElementById("doc"), "TGDQ1:" + encPayload(S.quotePayload(q, snapNow.quote)));
       const v = (snapFor(q, S.evaluate(q)).snap || {}).n;
       ui.file = { name: `${q.ref}${v ? "-V" + v : "-brouillon"}.pdf`, mime: "application/pdf", data: new Uint8Array(data) };
+      sortieFaite(q);
       ui.flash = { type: "ok", text: "PDF créé. Touche « Enregistrer / envoyer le fichier »." };
     } catch (err) { ui.flash = { type: "err", text: "PDF impossible : " + err.message + ". Utilise « Imprimer »." }; }
     ui.busy = ""; rerender();
@@ -985,7 +1013,7 @@ document.addEventListener("click", (e) => {
 window.addEventListener("hashchange", () => { ui.file = null; render(); window.scrollTo(0, 0); });
 window.addEventListener("beforeprint", () => document.body.classList.add("printing"));
 window.addEventListener("afterprint", () => document.body.classList.remove("printing"));
-export const BUILD = "29";
+export const BUILD = "30";
 // Mise à jour automatique : quand une nouvelle version est publiée, l'application la prend toute seule
 // (au retour sur l'application, ou dès que la personne n'est plus en train de taper). Les données ne sont jamais touchées.
 if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
