@@ -56,4 +56,11 @@ const s2 = snapOf(r2, pres); eq("avec TVA de test + remise : montants Word = PDF
 }
 { const d = buildDocx({ ...snap, n: null, hash: undefined, at: null }, "REF-X"); eq("Word d'un brouillon : marqué brouillon, sans empreinte", d.text.includes("brouillon") && !d.text.includes("Empreinte de contrôle"), true); }
 fs.writeFileSync(process.argv[2] || "/tmp/test.docx", w.bytes);
+// En-tête imprimé : seulement ce qui est renseigné, aucun tiret orphelin
+const vide = { ...company, tagline: "", address: "", phone: "", whatsapp: "", web: "" };
+const hv = renderDoc({ ...snap, company: vide }, { ref: ref.ref });
+const entete = hv.slice(hv.indexOf('class="dochead"'), hv.indexOf("</div></div></div>", hv.indexOf('class="dochead"')));
+eq("en-tête sans coordonnées : pas de « Tél. » imprimé", /Tél\./.test(entete), false);
+eq("en-tête sans coordonnées : pas de tiret orphelin", / — /.test(entete), false);
+eq("en-tête complet : tél et WhatsApp imprimés", /Tél\. 600/.test(html) && /WhatsApp 600/.test(html), true);
 console.log(`\n${pass} réussis, ${fail} échoués`); process.exit(fail ? 1 : 0);

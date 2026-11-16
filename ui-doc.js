@@ -64,10 +64,14 @@ const head = (c, pres, draft) => {
   const ph = (t) => draft ? `<span class="hph noprint">${t}</span>` : "";
   const v = (x, t) => x ? esc(x) : ph(t);
   const logo = pres && pres.logo ? `<img class="dlogo" src="${pres.logo}" alt="">` : draft ? `<label class="logoslot noprint">+ Logo<input type="file" accept="image/png,image/jpeg" data-on="logoFile" hidden></label>` : "";
-  const tel = c.phone ? " — Tél. " + esc(c.phone) : (draft ? ` — ${ph("Tél.")}` : "");
-  const wa = c.whatsapp ? "WhatsApp " + esc(c.whatsapp) : ph("WhatsApp");
-  const web = c.web ? " — " + esc(c.web) : "";
-  return `<div class="dochead"><div class="dl">${logo}<div><b class="co">${v(c.name, "Nom de ton entreprise")}</b><div class="note">${v(c.tagline, "Activité / slogan")}<br>${v(c.address, "Adresse")}${tel}<br>${wa}${web}</div></div></div></div>`;
+  // Chaque ligne n'imprime que ce qui est renseigné : plus de tiret orphelin (« — Tél. … ») ni de ligne vide.
+  const ligne = (parts) => {
+    const mis = parts.filter(([x]) => x).map(([x, , pre]) => (pre || "") + esc(x)).join(" — ");
+    const manque = draft ? parts.filter(([x]) => !x).map(([, t]) => t).join(" — ") : "";
+    if (!mis && !manque) return "";
+    return `<div${mis ? "" : ' class="noprint"'}>${mis}${manque ? `<span class="hph noprint">${mis ? " — " : ""}${manque}</span>` : ""}</div>`;
+  };
+  return `<div class="dochead"><div class="dl">${logo}<div><b class="co">${v(c.name, "Nom de ton entreprise")}</b><div class="note">${ligne([[c.tagline, "Activité / slogan"]])}${ligne([[c.address, "Adresse"], [c.phone, "Tél.", "Tél. "]])}${ligne([[c.whatsapp, "WhatsApp", "WhatsApp "], [c.web, ""]].filter(([x, t]) => x || t))}</div></div></div></div>`;
 };
 
 
@@ -140,7 +144,7 @@ function techChantier(snap, { draft = false } = {}) {
   return `<div id="doc" class="tpl-${x.tpl} tf tf-chantier" style="--dc:${x.acc}">
     ${head(c, x.pres, draft)}
     <h1>DEVIS N° ${esc(x.ref)}${snap.n ? " — V" + snap.n : ""}${draft ? ' <span class="draftmark">PROJET — non figé</span>' : ""}</h1>
-    <p class="note">${esc(c.address ? c.address.split(",").pop().trim() : "")}, le ${frDate(snap.at ? snap.at : q.date)}</p>
+    <p class="note">${c.address ? esc(c.address.split(",").pop().trim()) + ", le " : "Le "}${frDate(snap.at ? snap.at : q.date)}</p>
     <div class="meta"><div><span class="note">CLIENT</span><b>${esc(q.client.name) || "........................"}</b>${q.client.contact ? `<div class="note">${esc(q.client.contact)}</div>` : ""}</div>
       <div><span class="note">OBJET DU DEVIS</span><b>${esc(q.site.name) || "Travaux"}</b><div class="note">${esc(q.site.address)}${x.sNet ? ` — ${fmtD(x.sNet)} m²` : ""}</div>${installLine(q)}</div></div>
     <h3>1. Détail des fournitures${hasOuv(x.mat) ? ", matériaux et ouvrages" : " et matériaux"}</h3>

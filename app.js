@@ -1,6 +1,7 @@
 import * as S from "./store.js";
 import { PLAN_TECH, CATS, PRICING, DECISION_TAGS, PACKS, scaffoldLines, referenceDraft, effSurface, surfaceSource } from "./packs.js";
 import { buildDocx, DOCX_MIME } from "./docx.js";
+import { manqueLigne, aDesDonnees, AIDE_QTE, quantiteCouverture, oublis } from "./metiers/aide.js";
 import { analyseCsv, exportCatalogueCsv, templateCsv, exportRowsCsv } from "./csv.js";
 const NEUTRAL_LOGO = "data:image/svg+xml;utf8," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><rect width="40" height="40" rx="9" fill="#e7ebed"/><path d="M12 9h12l6 6v16H12z" fill="none" stroke="#69787e" stroke-width="2.2" stroke-linejoin="round"/><path d="M16 21h10M16 26h10" stroke="#69787e" stroke-width="2.2" stroke-linecap="round"/></svg>');
 import { LISTES, METIERS, visibleIn, metierLabel } from "./metiers/listes.js";
@@ -45,7 +46,7 @@ const EQUIP_CATS = ["equip_loue", "equip_possede"];
 const ui = {
   qid: null, step: 0, view: "client", file: null, busy: "", ver: null, flash: null, itemDraft: null, clientDraft: null, backup: null, invoice: null, wsNew: "", wsCopy: false, csv: null,
   f: { q: "", status: "", cat: "", pack: "", cl: "" },
-  tmp: { addPrest: "", line: { itemId: "", qty: 1, option: false }, equip: { itemId: "", days: null, basis: "jour", trips: 1, bill: "inclus", markupPct: null },
+  tmp: { calc: { open: false, surface: null, couches: 1, couv: null, perte: null }, addPrest: "", line: { itemId: "", qty: 1, option: false }, equip: { itemId: "", days: null, basis: "jour", trips: 1, bill: "inclus", markupPct: null },
     scaf: { itemId: "", longueur: null, hauteur: null, jours: null, basis: "jour", trips: 1, bill: "inclus", markupPct: null },
     accept: { by: "", note: "", option: false }, reason: "",
     row: { open: null, tab: "produits", label: "", brand: "", cond: "", unit: "", qty: null, price: null, role: "", norm: "", spec: "" },
@@ -220,8 +221,24 @@ function sheetRows(q, ev, tab) {
   }
   return rows.sort((x, y) => (y.line ? 1 : 0) - (x.line ? 1 : 0));
 }
+// Aide « calculer la quantité à partir de la surface » (peinture, carrelage). La couverture par unité est
+// toujours saisie par l'utilisateur ; la formule est affichée en clair.
+function aideQuantite(t, met) {
+  const cfg = AIDE_QTE[met]; if (!cfg) return "";
+  const c = ui.tmp.calc, q = S.getQuote(ui.qid), site = q ? effSurface(q.current.site) : null;
+  if (!c.open) return `<button type="button" class="linkbtn" data-act="calcToggle" style="margin:2px 0 8px">Calculer la quantité à partir de la surface</button>`;
+  const surface = c.surface ?? site, couches = cfg.couches ? (c.couches ?? 1) : 1;
+  const r = quantiteCouverture({ surface, couches, couverture: c.couv, pertePct: c.perte ?? 0 });
+  return `<div class="calc"><b>Calculer la quantité</b>
+    <div class="row"><div>${L("Surface (m²)")}${I("tmp", "calc.surface", surface, { type: "number", n: "n" })}</div>${cfg.couches ? `<div>${L("Nombre de couches")}${I("tmp", "calc.couches", couches, { type: "number", n: "n" })}</div>` : ""}</div>
+    ${L(cfg.couverture)}${I("tmp", "calc.couv", c.couv, { type: "number", n: "n" })}<p class="hint" style="margin:2px 0 8px">${cfg.ou}</p>
+    ${L("Pertes et coupes (%) — laisse vide si tu n'en comptes pas")}${I("tmp", "calc.perte", c.perte, { type: "number", n: "n" })}
+    ${r.ok ? `<div class="banner info"><b>Quantité : ${fmtN(r.qty)}</b><div class="hint" style="margin:4px 0 0">${esc(r.detail)}</div></div><div class="row"><button type="button" data-act="calcUse" data-q="${r.qty}">Utiliser ${fmtN(r.qty)}</button><button type="button" class="sec" data-act="calcToggle">Fermer le calcul</button></div>`
+      : `<p class="hint">Il manque : ${r.manque.join(", ")}.</p><button type="button" class="sec" data-act="calcToggle">Fermer le calcul</button>`}</div>`;
+}
 function sheetForm(t, prod, rf, met) {
   const elec = !!rf, v = vocab(met);
+  const manq = manqueLigne(t), incomplet = !t.lineId && aDesDonnees(t) && manq.length > 0;
   const tot = t.qty > 0 && t.price > 0 ? t.qty * t.price : null;
   const ref = rf ? rf.find(t.label) : null;
   const base = rf ? [...unitsOf(ref?.unit), ...(t.tab === "produits" ? [] : UNITS_ROW[t.tab] || []), ...rf.units] : t.tab === "produits" ? v.unitsP : UNITS_ROW[t.tab] || [];
@@ -234,10 +251,12 @@ function sheetForm(t, prod, rf, met) {
     ${prod && !v.cond ? `${L(v.condLabel)}${I("tmp", "row.cond", t.cond, { ph: rf && rf.met !== "maconnerie" && ref && ref.spec ? "Ex. : " + ref.spec.split(",").slice(0, 2).join(",") : v.condPh })}` : ""}
     ${ref ? specHint + normHint : ""}
     ${prod && v.cond ? `${L(v.condLabel)}<div class="chips">${v.cond.map((c) => `<button type="button" class="chip ${nz(t.cond) === nz(c) ? "on" : ""}" data-act="rowCond" data-c="${esc(c)}">${esc(c)}</button>`).join("")}</div>` : ""}
+    ${prod ? aideQuantite(t, met) : ""}
     <div class="row"><div>${L("Quantité")}${I("tmp", "row.qty", t.qty, { type: "number", n: "n" })}</div><div>${L("Unité")}${Sel("tmp", "row.unit", t.unit, opts)}</div></div>
     <div class="row"><div>${L("Prix unitaire (FCFA)")}${I("tmp", "row.price", t.price, { type: "number", n: "n" })}</div><div>${L("Montant")}<div class="rowtot"><b>${tot === null ? "—" : fmt(tot)}</b></div></div></div>
+    ${incomplet ? `<div class="banner warn" id="lignemanque"><b>Cette ligne n'est pas encore dans le devis.</b> Il manque : ${manq.join(", ")}.</div>` : ""}
     <details><summary>Écrire à quoi ça sert (facultatif)</summary>${I("tmp", "row.role", t.role, { ph: "Ex. : " + v.role })}</details>
-    <div class="row" style="margin-top:8px"><button class="sec" data-act="rowClose">▲ Fermer</button>${t.lineId ? `<button class="sec danger" data-act="rowRemove">Retirer du devis</button>` : `<p class="hint" style="margin:0;align-self:center">Remplis la quantité et le prix : la ligne entre dans le devis.</p>`}</div></div>`;
+    <div class="row" style="margin-top:8px"><button class="sec" data-act="rowClose">▲ Fermer</button>${t.lineId ? `<button class="sec danger" data-act="rowRemove">Retirer du devis</button>` : `<p class="hint" style="margin:0;align-self:center">Remplis la quantité, l'unité et le prix : la ligne entre dans le devis.</p>`}</div></div>`;
 }
 // Électricité, plomberie : le matériel est rangé en sous-ensembles, puis en familles repliables (avec les points de vigilance du référentiel).
 function refBrowser(q, k, rows, oneRow, dis, rf) {
@@ -292,11 +311,33 @@ function stepTravauxS(q, ev, dis) {
     <details class="more"><summary>Calcul automatique à partir de la surface (facultatif)</summary>${stepPrest(q, ev, dis, true)}</details>
     ${stepBesoins(q, ev, dis, true, true)}`;
 }
+// Rappels « as-tu pensé à… » : jamais bloquants, écartables d'un toucher.
+function carteOublis(q, ev, dis) {
+  const met = metierOf(q), dec = q.current.decisions || {};
+  const ignores = Object.keys(dec).filter((k) => k.startsWith("oubli_") && dec[k] === "na").map((k) => k.slice(6));
+  const lignes = ev.result.lines.filter((l) => !l.option).map((l) => ({ nom: l.label, tab: tabOf(l) }));
+  const liste = oublis(met, lignes, ignores);
+  if (!liste.length && !ignores.length) return "";
+  return `<div class="card" id="oublis"><b>${liste.length ? `As-tu pensé à tout ? ${liste.length} rappel${liste.length > 1 ? "s" : ""}` : "Rappels : rien à signaler"}</b>
+    ${liste.length ? `<p class="hint">Ce sont des rappels, pas des erreurs : tu peux envoyer ton devis tel quel.</p>` : ""}
+    ${liste.map((o) => `<div class="chk"><div class="dot d-verifier">!</div><div style="flex:1"><b>${esc(o.texte)}</b><div class="hint">${esc(o.aide)}</div>
+      ${dis ? "" : `<div class="row" style="margin-top:6px"><a class="btn sec" href="#/devis/${q.id}/1">Ajouter</a><button type="button" class="sec" data-act="oubliNa" data-id="${o.id}">Pas besoin</button></div>`}</div></div>`).join("")}
+    ${ignores.length && !dis ? `<button type="button" class="linkbtn" data-act="oubliReset">Réafficher les ${ignores.length} rappel${ignores.length > 1 ? "s" : ""} écarté${ignores.length > 1 ? "s" : ""}</button>` : ""}</div>`;
+}
+// Identité de l'entreprise : demandée ici tant qu'elle manque, car elle s'imprime en haut de chaque devis.
+function carteIdentite(dis) {
+  const c = S.state.db.company, sansNom = !String(c.name || "").trim() || c.name === "Mon entreprise", sansTel = !String(c.phone || "").trim();
+  if (dis || (!sansNom && !sansTel)) return "";
+  return `<div class="card" id="identite"><b>Ton entreprise</b><p class="hint">Écrit en haut de tous tes devis. Tu le remplis une seule fois.</p>
+    ${L("Nom de ton entreprise ou ton nom")}${I("db", "company.name", c.name === "Mon entreprise" ? "" : c.name, { ph: "Ex. : Ets Kamga Carrelage" })}
+    <div class="row"><div>${L("Téléphone")}${I("db", "company.phone", c.phone, { type: "tel" })}</div><div>${L("Ville ou quartier")}${I("db", "company.address", c.address)}</div></div></div>`;
+}
 function stepEnvoiS(q, ev, dis) {
   const cur = q.current, r = ev.result, miss = missingPrices(ev);
   return `<h2>Le prix</h2>
     <div class="total"><div><span>Total du devis</span><span class="big">${fmt(r.totals.base)}</span></div>${miss ? `<div class="opt"><span>Total pas fini : ${miss} prix manquant${miss > 1 ? "s" : ""}</span></div>` : ""}${r.totals.vatBase !== null ? `<div><span>Avec TVA</span><span>${fmt(r.totals.ttcBase)}</span></div>` : ""}</div>
     ${miss ? `<div class="banner warn">Il manque ${miss} prix. <a href="#/devis/${q.id}/1">Retourne au travail et au matériel</a> pour les remplir.</div>` : ""}
+    ${carteOublis(q, ev, dis)}${carteIdentite(dis)}
     <div class="card"><b>Conditions</b>
     <div class="row"><div>${L("TVA (%) — laisse vide si pas de TVA")}${I("q", "current.terms.vatPct", cur.terms.vatPct, { type: "number", n: "n", dis })}</div><div>${L("Le devis reste valable (jours)")}${I("q", "current.validityDays", cur.validityDays, { type: "number", n: "n", dis })}</div></div>
     <div class="row"><div>${L("Remise en % (facultatif)")}${I("q", "current.discount.pct", cur.discount.pct, { type: "number", n: "n", dis })}</div><div>${L("ou remise en FCFA")}${I("q", "current.discount.amount", cur.discount.amount, { type: "number", n: "n", dis })}</div></div>
@@ -828,6 +869,8 @@ document.addEventListener("change", (e) => {
     if (!el.dataset.p) return;
     const root = el.dataset.r || "q", o = roots()[root]; if (!o) return;
     setPath(o, el.dataset.p, parseValue(el));
+    // Le premier nom d'entreprise saisi remplace aussi « Mon entreprise » dans le bandeau de l'application.
+    if (root === "db" && el.dataset.p === "company.name" && String(el.value).trim()) { const w = S.listWorkspaces().find((x) => x.id === S.state.ws); if (w && w.name === "Mon entreprise") S.renameWorkspace(w.id, String(el.value).trim()); }
     if (root === "tmp" && /^row\./.test(el.dataset.p)) { if (!commitRow()) dropIfEmpty(); }
     later(() => { if (root === "q") touchQuote(o); else if (root === "db") { S.commit(); rerender(); } else rerender(); }, () => { if (root === "q") touchQuote(o, true); else if (root === "db") S.commit(); else refreshTotals(); });
   } catch (err) { ui.flash = { type: "err", text: err.message }; rerender(); }
@@ -853,7 +896,16 @@ const actions = {
   ficheToggle(b) { const q = S.getQuote(ui.qid), k = b.dataset.k, v = b.dataset.v; if (!q.current.fiche && q.current.elec) q.current.fiche = { ...q.current.elec }; const f = (q.current.fiche = q.current.fiche || {}); const a = Array.isArray(f[k]) ? f[k] : []; f[k] = a.includes(v) ? a.filter((x) => x !== v) : [...a, v]; touchQuote(q); },
   elecDom(b) { const e = ui.tmp.elec; e.dom = b.dataset.d; e.q = ""; e.open = {}; },
   elecFam(b) { const e = ui.tmp.elec, f = b.dataset.f; e.open[f] = !e.open[f]; },
-  rowClose() { ui.tmp.row = { ...ui.tmp.row, open: null }; },
+  rowClose() {
+    const t = ui.tmp.row, manq = manqueLigne(t);
+    // Une ligne commencée mais incomplète n'est pas perdue en silence : on dit ce qui manque, une fois.
+    if (!t.lineId && aDesDonnees(t) && manq.length && !t.averti) { ui.tmp.row = { ...t, averti: true }; throw new Error(`Ligne non enregistrée : il manque ${manq.join(", ")}. Complète-la, ou touche encore « Fermer » pour l'abandonner.`); }
+    ui.tmp.row = { ...t, open: null, averti: false }; ui.tmp.calc = { ...ui.tmp.calc, open: false, surface: null, couv: null, perte: null, couches: 1 };
+  },
+  calcToggle() { ui.tmp.calc = { ...ui.tmp.calc, open: !ui.tmp.calc.open }; },
+  calcUse(b) { const n = Number(b.dataset.q); if (!(n > 0)) return; ui.tmp.row = { ...ui.tmp.row, qty: n }; ui.tmp.calc = { ...ui.tmp.calc, open: false }; commitRow(); },
+  oubliNa(b) { const q = S.getQuote(ui.qid); q.current.decisions = q.current.decisions || {}; q.current.decisions["oubli_" + b.dataset.id] = "na"; touchQuote(q); },
+  oubliReset() { const q = S.getQuote(ui.qid); for (const k of Object.keys(q.current.decisions || {})) if (k.startsWith("oubli_")) delete q.current.decisions[k]; touchQuote(q); },
   rowCond(b) { const t = ui.tmp.row; t.cond = t.cond === b.dataset.c ? "" : b.dataset.c; commitRow(); },
   rowRemove() { const q = S.getQuote(ui.qid), t = ui.tmp.row; if (t.lineId) { q.current.manual = q.current.manual.filter((m) => m.id !== t.lineId); delete q.current.adjust[t.lineId]; } ui.tmp.row = { ...t, open: null, lineId: null }; touchQuote(q); },
   newQuote() { const q = S.createQuote(); go(`#/devis/${q.id}/0`); },
@@ -985,7 +1037,7 @@ document.addEventListener("click", (e) => {
 window.addEventListener("hashchange", () => { ui.file = null; render(); window.scrollTo(0, 0); });
 window.addEventListener("beforeprint", () => document.body.classList.add("printing"));
 window.addEventListener("afterprint", () => document.body.classList.remove("printing"));
-export const BUILD = "29";
+export const BUILD = "31";
 // Mise à jour automatique : quand une nouvelle version est publiée, l'application la prend toute seule
 // (au retour sur l'application, ou dès que la personne n'est plus en train de taper). Les données ne sont jamais touchées.
 if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {

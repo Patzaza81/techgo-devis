@@ -143,6 +143,9 @@ em.tick{font-style:normal;flex:none;width:28px;height:28px;border-radius:50%;bac
 #doc .sign>div{border:1.5px dashed #9fb3b8;border-radius:10px;padding:12px;min-height:130px}
 #doc .docfoot{margin-top:22px;border-top:2px solid var(--dc);padding-top:8px;word-break:break-word;text-align:center}
 #doc ul.note{padding-left:20px}
+/* Téléphone : l'aperçu du devis tient dans la largeur de l'écran (le PDF, lui, est toujours mis en page en A4). */
+@media (max-width:520px){#doc{padding:14px;overflow-x:auto}#doc table{font-size:13px}#doc th{font-size:10.5px;letter-spacing:0;padding:8px 4px}#doc td{padding:8px 4px}#doc .gt .gb{font-size:24px}}
+.calc{border:1px solid var(--line);border-radius:12px;padding:12px;margin:4px 0 12px;background:#f7fafb}
 #doc.tpl-sobre .dochead{border-bottom:1px solid #999}#doc.tpl-sobre .dochead::after{display:none}
 #doc.tpl-sobre th{background:#fff;color:#111;border-bottom:2px solid var(--dc)}
 #doc.tpl-sobre .gt{background:#fff;color:#111;border:2px solid var(--dc)}#doc.tpl-sobre .gt .gold{color:#8a6100}
