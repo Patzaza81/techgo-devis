@@ -63,4 +63,20 @@ const entete = hv.slice(hv.indexOf('class="dochead"'), hv.indexOf("</div></div><
 eq("en-tête sans coordonnées : pas de « Tél. » imprimé", /Tél\./.test(entete), false);
 eq("en-tête sans coordonnées : pas de tiret orphelin", / — /.test(entete), false);
 eq("en-tête complet : tél et WhatsApp imprimés", /Tél\. 600/.test(html) && /WhatsApp 600/.test(html), true);
+// Détail du métré : imprimé dans le PDF et dans Word, sans changer aucun montant
+const metre = { zones: [{ id: "z1", nom: "Salon", ouvrages: [{ id: "o1", type: "p_piece", v: { longueur: 4, largeur: 3, hauteur: 2.8, prod: [{ nom: "Peinture", couches: 2, couv: 40 }] } }] }] };
+const refM = referenceDraft({}); refM.metre = metre; const snapM = snapOf(refM, pres);
+for (const f of ["express", "detaille", "chantier", ""]) {
+  const sm = snapOf({ ...refM, profil: f ? "technicien" : refM.profil, form: f }, pres), hm = renderDoc(sm, { ref: refM.ref });
+  eq(`métré imprimé (forme ${f || "entreprise"}) : zone et formule`, /Détail du métré/.test(hm) && hm.includes("Salon") && hm.includes("2 × (4 + 3) × 2,8 = 39,2 m²"), true);
+}
+eq("métré imprimé : les montants ne changent pas", nums(renderDoc(snapM, { ref: refM.ref }).replace(/<h3 class="metreh">[\s\S]*?<\/table>/, "")), nums(html));
+const wm = buildDocx(snapM, refM.ref);
+eq("Word : détail du métré présent", wm.text.includes("Détail du métré") || wm.text.includes("DÉTAIL DU MÉTRÉ"), true);
+eq("Word : formule du métré présente", wm.text.includes("2 × (4 + 3) × 2,8 = 39,2 m²"), true);
+eq("métré non imprimé si décoché", /Détail du métré/.test(renderDoc(snapOf({ ...refM, metre: { ...metre, imprimer: false } }, pres), { ref: refM.ref })), false);
+eq("devis sans métré : aucun bloc ajouté", /Détail du métré/.test(html), false);
+// Quantités décimales : 0,32 m³ ne s'imprime plus « 0 »
+import("./ui-doc.js").then((U) => { eq("quantité 0,32 imprimée 0,32 (pas 0)", [U.fmtQ(0.32), U.fmtQ(366), U.fmtQ(47.87), U.fmtQ(1234)], ["0,32", "366", "47,87", U.fmtN(1234)]); });
+await new Promise((r) => setTimeout(r, 20));
 console.log(`\n${pass} réussis, ${fail} échoués`); process.exit(fail ? 1 : 0);

@@ -1,6 +1,7 @@
+import { annexe } from "./metiers/metre.js";
 // Export Word (.docx) d'un devis FIGÉ. Aucun calcul ici : tous les montants viennent de snap.result (le même objet que le PDF).
 // Le fichier est produit sans dépendance : un zip « stocké » écrit à la main, au contenu déterministe (mêmes données → mêmes octets).
-import { fmt, fmtN, fmtD, frDate, toWordsFr, exclusions, legalLine } from "./ui-doc.js";
+import { fmt, fmtN, fmtQ, fmtD, frDate, toWordsFr, exclusions, legalLine } from "./ui-doc.js";
 import { effSurface, surfaceSource } from "./packs.js";
 
 export const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
@@ -54,7 +55,7 @@ function groupRows(lines, acc) {
     out.push(row([cell(para(run(g, { b: 1, sz: 18 })), WIDTHS.reduce((a, b) => a + b, 0), { fill: "F3F3F3", span: 4 })]));
     for (const l of ls) out.push(lineRow([
       para(run(l.label, { b: 1, sz: 18 }), { before: 20, after: 0 }) + (l.role ? para(run(l.role, { sz: 15, color: "666666" }), { before: 0, after: 20 }) : ""),
-      para(run(`${fmtN(l.qty)} ${l.unit}`, { sz: 18 }), { jc: "right" }), para(run(fmtN(l.price), { sz: 18 }), { jc: "right" }), para(run(fmtN(l.total), { sz: 18 }), { jc: "right" })]));
+      para(run(`${fmtQ(l.qty)} ${l.unit}`, { sz: 18 }), { jc: "right" }), para(run(fmtN(l.price), { sz: 18 }), { jc: "right" }), para(run(fmtN(l.total), { sz: 18 }), { jc: "right" })]));
     out.push(subRow(`Sous-total — ${g}`, fmtN(ls.reduce((a, l) => a + (l.total ?? 0), 0)), acc));
   }
   return out;
@@ -127,6 +128,15 @@ export function buildDocx(snap, ref = "") {
     prow(["Total", fmtN(sc.base.combined.reduce((a, b) => a + b, 0)), ...(hasOpt ? [fmtN(sc.option.combined.reduce((a, b) => a + b, 0))] : []), ...(vat === null ? [] : [fmtN(sc.base.ttc.reduce((a, b) => a + b, 0))]), ""], { b: 1, fill: "EEEEEE" })], W2));
   body.push(txt(`Fournitures : ${(q.terms.payment.materials || []).join(" / ")} % · Main-d'œuvre et services : ${(q.terms.payment.services || []).join(" / ")} %.`, { sz: 17 }));
   if ((snap.conditions || []).length) { body.push(h3("Conditions de l'offre", acc)); snap.conditions.forEach((x) => body.push(txt("• " + x, { sz: 17 }))); }
+  if (q.metre && q.metre.imprimer !== false) {
+    const an = annexe(q.metre, q.metier || undefined);
+    if (an.length) {
+      body.push(h3("Détail du métré", acc)); const WM = [2900, 4838, 1900];
+      const rows = [row(["Zone et ouvrage", "Calcul", "Résultat"].map((l, i) => cell(para(run(l, { b: 1, color: "FFFFFF", sz: 18 }), { jc: i === 2 ? "right" : "left" }), WM[i], { fill: acc })))];
+      for (const z of an) { rows.push(row([cell(para(run(z.zone, { b: 1, sz: 18 })), WM[0] + WM[1] + WM[2], { fill: "EEEEEE", span: 3 })])); for (const l of z.lignes) rows.push(row([cell(para(run(l.ouvrage, { b: 1, sz: 17 })) + para(run(l.mesure, { sz: 15, color: "666666" })), WM[0]), cell(para(run(l.detail, { sz: 16 })), WM[1]), cell(para(run(`${fmtD(Math.round(l.val * 100) / 100)} ${l.unite}`, { sz: 17 }), { jc: "right" }), WM[2])])); }
+      body.push(table(rows, WM));
+    }
+  }
   body.push(h3("Choix du client et signatures", acc));
   body.push(txt(`☐ Offre de base seule — ${fmt(t.base)}`));
   if (hasOpt) body.push(txt(`☐ Offre de base + option — ${fmt(t.withOption)}`));

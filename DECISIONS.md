@@ -47,3 +47,23 @@ Format : quoi · pourquoi · date.
 - metiers/vocab.js : libellés, exemples, unités et formats propres à chaque métier (surface, support, finition, marque, à quoi ça sert, unités des produits). Plus aucun mot de peinture (pot, contenance en litres, « lissage des murs », marque « National ») hors de la peinture.
 - Plomberie et électricité : pas de calcul « murs − ouvertures » (surface du local facultative). Maçonnerie et carrelage : calcul conservé.
 - Articles saisis par l'utilisateur (TER-) : rattachés à leur métier ; les anciens articles sans métier sont traités comme de la peinture. Ils n'apparaissent plus dans les listes ni dans l'autocomplétion des autres métiers.
+
+## Licence et vente (nov. 2026)
+- **Essai gratuit : 3 devis sortis** (PDF, Word, impression, envoi), puis code de licence valable 365 jours. Valeurs proposées, à confirmer par le propriétaire (`licence.js` : `ESSAI_DEVIS`, `DUREE_JOURS`).
+- **La saisie, les calculs, le catalogue et les sauvegardes ne sont jamais bloqués** ; un devis déjà sorti reste sortable · personne ne perd ses données.
+- **Vérification dans le téléphone, sans serveur** : l'application reconnaît un code par son empreinte (`licence-codes.js`). Les codes en clair ne sont jamais dans le dépôt (il est public).
+- **Limites assumées** : un code peut être saisi sur plusieurs appareils ; la date vient de l'horloge du téléphone. Une vérification par serveur les lèvera (phase 4).
+- **Vente** : le client demande son code sur WhatsApp (bouton dans Réglages), paie, reçoit un code du lot. Prix : décision du propriétaire, non écrit dans l'application.
+- Nouveaux codes : `node outils/gen-codes.mjs <nombre> <fichier hors dépôt>`.
+
+## Métré par zones (v32, nov. 2026)
+- **Un devis peut contenir un métré** (`quote.metre`) : des zones (pièce, étage, bâtiment, lot), chacune avec des ouvrages mesurés. Le métré calcule les quantités et alimente les lignes du devis ; l'artisan ne saisit plus que les prix. Détail des formules et statut de chaque donnée : `METRE.md`.
+- **Aucune donnée fabriquée** : `metiers/metre.js` ne contient que de la géométrie et de l'arithmétique. Couverture d'un pot, consommation de colle, dosage, rendement de l'équipe, format des blocs, longueur des barres… sont saisis par l'entreprise, puis gardés (`settings.metreMemo`) et repris au prochain ouvrage du même type. Un test vérifie qu'aucun champ n'a de valeur par défaut.
+- **Ce qui relève d'une étude n'est jamais calculé** : section des câbles, calibre des protections, ferraillage, formulation du béton, diamètre des tuyaux. L'application le dit dans l'ouvrage et compte seulement ce que l'artisan a décidé.
+- **Arrondis** : ce qui s'achète entier → entier au-dessus, calculé sur le total du devis (pas zone par zone) ; journées → demi-journée au-dessus ; mesures → 2 décimales.
+- **Une donnée manquante ne produit pas de quantité** : le besoin n'entre pas dans le devis et ce qui manque est nommé.
+- **Une quantité changée à la main n'est jamais écrasée** par le métré : l'écart est signalé, avec un bouton pour reprendre la valeur calculée.
+- **Main-d'œuvre** : par ouvrage, à la tâche (m², ml, m³, point) ou à la journée (rendement et nombre d'ouvriers saisis). La durée d'équipe calculée est comparée à la durée annoncée sur le devis (signalement, jamais blocage).
+- **Le détail du métré s'imprime à la fin du devis** (PDF et Word), désactivable par devis. Il ne change aucun montant.
+- Les quantités décimales s'impriment avec leurs décimales (0,32 m³ s'imprimait « 0 »).
+- Devis existants : rien ne change tant qu'aucun métré n'est saisi (`quote.metre` absent). Le devis de référence reste exact au franc.

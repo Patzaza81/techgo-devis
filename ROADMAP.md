@@ -58,3 +58,7 @@ Facturation de gestion et suivi des commandes · 4 autres métiers (carrelage, m
 | Devis de test supplémentaires (villa, intérieur, remise, plusieurs bâtiments) | ❌ Demandent de vrais devis |
 | Test d'isolation entre entreprises | ✅ en local (`test-store.mjs`) ; ❌ côté serveur |
 | Test sur iPhone / Android réels | ❌ Jamais fait depuis cet environnement |
+
+## v32 — métré par zones (2026-11-16)
+Fait : métré par zones pour les 5 métiers (17 types d'ouvrage), quantités expliquées, main-d'œuvre à la tâche ou à la journée, mémoire des valeurs de l'entreprise, écarts métré/devis signalés, détail du métré imprimé (PDF, Word), licence v30 et maturité v31 réunies. Voir `METRE.md`.
+Reste : validation des formules et des rappels par un professionnel de chaque métier ; essai sur vrai téléphone et sur un chantier réel ; pièces non rectangulaires ; coffrage ; coupure de tableau entre deux pages du PDF.

@@ -2,12 +2,15 @@ import * as S from "./store.js";
 import { PLAN_TECH, CATS, PRICING, DECISION_TAGS, PACKS, scaffoldLines, referenceDraft, effSurface, surfaceSource } from "./packs.js";
 import { buildDocx, DOCX_MIME } from "./docx.js";
 import { manqueLigne, aDesDonnees, AIDE_QTE, quantiteCouverture, oublis } from "./metiers/aide.js";
+import * as Lic from "./licence.js";
+import * as Mt from "./metiers/metre.js";
+import * as UM from "./ui-metre.js";
 import { analyseCsv, exportCatalogueCsv, templateCsv, exportRowsCsv } from "./csv.js";
 const NEUTRAL_LOGO = "data:image/svg+xml;utf8," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><rect width="40" height="40" rx="9" fill="#e7ebed"/><path d="M12 9h12l6 6v16H12z" fill="none" stroke="#69787e" stroke-width="2.2" stroke-linejoin="round"/><path d="M16 21h10M16 26h10" stroke="#69787e" stroke-width="2.2" stroke-linecap="round"/></svg>');
 import { LISTES, METIERS, visibleIn, metierLabel } from "./metiers/listes.js";
 import { refOf, unitsOf } from "./metiers/ref.js";
 import { vocab } from "./metiers/vocab.js";
-import { esc, fmt, fmtN, fmtD, frDate, renderDoc, renderInvoice, summaryText } from "./ui-doc.js";
+import { esc, fmt, fmtN, fmtQ, fmtD, frDate, renderDoc, renderInvoice, summaryText } from "./ui-doc.js";
 
 const $ = (s) => document.querySelector(s);
 const ICONS = {
@@ -44,14 +47,15 @@ const FREE_UNITS = { produits: ["sac", "seau", "litre", "kg", "mètre", "pièce"
 const EQUIP_CATS = ["equip_loue", "equip_possede"];
 
 const ui = {
-  qid: null, step: 0, view: "client", file: null, busy: "", ver: null, flash: null, itemDraft: null, clientDraft: null, backup: null, invoice: null, wsNew: "", wsCopy: false, csv: null,
+  qid: null, step: 0, view: "client", file: null, busy: "", ver: null, flash: null, itemDraft: null, clientDraft: null, backup: null, invoice: null, wsNew: "", wsCopy: false, csv: null, licCode: "",
   f: { q: "", status: "", cat: "", pack: "", cl: "" },
   tmp: { calc: { open: false, surface: null, couches: 1, couv: null, perte: null }, addPrest: "", line: { itemId: "", qty: 1, option: false }, equip: { itemId: "", days: null, basis: "jour", trips: 1, bill: "inclus", markupPct: null },
     scaf: { itemId: "", longueur: null, hauteur: null, jours: null, basis: "jour", trips: 1, bill: "inclus", markupPct: null },
     accept: { by: "", note: "", option: false }, reason: "",
     row: { open: null, tab: "produits", label: "", brand: "", cond: "", unit: "", qty: null, price: null, role: "", norm: "", spec: "" },
     elec: { dom: "bat", q: "", open: {} },
-    free: { tab: "produits", metier: "", role: "", label: "", unit: "", qty: null, price: null, save: true, ask: null, ok: false } },
+    free: { tab: "produits", metier: "", role: "", label: "", unit: "", qty: null, price: null, save: true, ask: null, ok: false },
+    metre: { z: null, o: null, add: null, del: null, lignes: false } },
 };
 
 // ---------- Utilitaires de formulaire ----------
@@ -61,6 +65,7 @@ const Sel = (r, p, v, opts, o = {}) => `<select data-r="${r}" data-p="${p}" ${at
 const Chk = (r, p, v, label, o = {}) => `<label class="chkl"><input type="checkbox" data-r="${r}" data-p="${p}" ${v ? "checked" : ""} ${attr(o)}> ${label}</label>`;
 const Txt = (r, p, v, o = {}) => `<textarea data-r="${r}" data-p="${p}" ${o.list ? `data-list="${o.list}"` : ""} rows="${o.rows || 3}" ${attr(o)}>${esc(v ?? "")}</textarea>`;
 const L = (t) => `<label>${t}</label>`;
+UM.init({ I, Sel, Chk, L, ui, metierOf, sugg: (met) => LISTES[met]?.produits || [] });
 const badge = (state, text) => `<span class="badge b-${state}">${esc(text)}</span>`;
 const stBadge = (s) => `<span class="st st-${s}">${esc(S.STATUS[s])}</span>`;
 const num = (v, z) => (v === "" || v === null || v === undefined ? (z ? 0 : null) : Number(String(v).replace(",", ".")));
@@ -94,7 +99,9 @@ function viewDevis() {
     <button type="button" class="bigopt" data-act="setProfil" data-k="entreprise"><b>Je suis une entreprise, ou c'est un marché public</b><span>Devis complet en 5 écrans : paiement en tranches, frais, vérifications.</span></button>
     <p class="metierbar"><button type="button" class="linkbtn" data-act="clearMetier">← Changer de métier (${esc(metierLabel(am))})</button></p></section>`;
   const tech = pf === "technicien";
-  return `<section class="welcome"><h2>Mes devis</h2>
+  const lic = Lic.etat();
+  const rappel = lic.mode === "licence" ? "" : `<div class="banner ${lic.mode === "termine" ? "bad" : "info"}">${lic.mode === "essai" ? `Essai gratuit : encore ${lic.restants} devis à sortir.` : "Essai gratuit terminé : tes devis sont conservés."} <a href="#/reglages">Activer ma licence</a></div>`;
+  return `${rappel}<section class="welcome"><h2>Mes devis</h2>
       <button class="bigcta" data-act="newQuote">＋ Faire un devis</button>
       <p class="hint" style="text-align:center">${tech ? "3 écrans : le client → le travail et le matériel → le prix et l'envoi" : "5 écrans : client, travaux, produits, prix et paiement, vérification"}</p>
       <p class="metierbar">${esc(metierLabel(am))} · ${tech ? "Technicien" : "Entreprise"} <button type="button" class="linkbtn" data-act="clearMetier">Changer</button></p>
@@ -236,6 +243,37 @@ function aideQuantite(t, met) {
     ${r.ok ? `<div class="banner info"><b>Quantité : ${fmtN(r.qty)}</b><div class="hint" style="margin:4px 0 0">${esc(r.detail)}</div></div><div class="row"><button type="button" data-act="calcUse" data-q="${r.qty}">Utiliser ${fmtN(r.qty)}</button><button type="button" class="sec" data-act="calcToggle">Fermer le calcul</button></div>`
       : `<p class="hint">Il manque : ${r.manque.join(", ")}.</p><button type="button" class="sec" data-act="calcToggle">Fermer le calcul</button>`}</div>`;
 }
+// ---------- Métré : lien entre le chantier décrit et les lignes du devis ----------
+const ligneMetre = (t) => { const q = S.getQuote(ui.qid); return (t && t.lineId && q && q.current.manual.find((m) => m.id === t.lineId && m.metre)) || null; };
+function explMetre(t) {
+  const m = ligneMetre(t); if (!m) return "";
+  const change = typeof m.metreQty === "number" && t.qty !== m.metreQty;
+  return `<div class="banner ${change ? "warn" : "info"}" id="explmetre"><b>${change ? `Le métré donne ${fmtD(m.metreQty)} : tu as écrit ${fmtD(t.qty)}.` : "Quantité calculée par le métré"}</b><div class="hint" style="margin:4px 0 0;white-space:pre-line">${esc(m.detail || "")}</div>${change ? `<button type="button" class="linkbtn" data-act="metreReprendre" data-id="${m.id}">Reprendre ${fmtD(m.metreQty)}</button>` : ""}</div>`;
+}
+const metreManuel = (q) => q.current.manual.map((m) => ({ id: m.id, metre: m.metre, metreQty: m.metreQty, qty: m.qty, nom: m.nom ?? m.label, detail: m.detail }));
+// État du devis par rapport au métré (sans rien modifier) : sert à afficher les écarts.
+function etatMetre(q) { return q.current.metre ? Mt.planSync(metreManuel(q), Mt.calculer(q.current.metre, metierOf(q)).lignes) : null; }
+// Applique le métré au devis : met à jour, ajoute et retire les lignes calculées. Une quantité changée à la main n'est jamais écrasée.
+function syncMetre(q) {
+  const plan = etatMetre(q); if (!plan) return; const db = S.state.db, met = metierOf(q), cur = q.current;
+  for (const u of plan.maj) { const m = cur.manual.find((x) => x.id === u.id); m.qty = u.qty; m.metreQty = u.qty; m.detail = u.detail; }
+  if (plan.retirer.length) { cur.manual = cur.manual.filter((m) => !plan.retirer.includes(m.id)); plan.retirer.forEach((id) => delete cur.adjust[id]); }
+  for (const l of plan.ajouter) {
+    const unitOf = (m) => (db.catalogue.find((i) => i.id === m.itemId) || {}).unit;
+    const deja = cur.manual.find((m) => !m.metre && m.mode === "fixed" && nz(m.nom ?? m.label) === nz(l.nom) && nz(unitOf(m)) === nz(l.unite));
+    if (deja) { Object.assign(deja, { metre: l.cle, metreQty: l.qty, detail: l.detail }); continue; } // déjà saisie à la main : rattachée, quantité gardée et écart signalé
+    let it = db.catalogue.find((i) => !i.archived && nz(i.label) === nz(l.nom) && nz(i.unit) === nz(l.unite));
+    if (!it) { const id = S.newItemId("TER"); it = { id, ref: id, label: l.nom, nom: l.nom, cat: FREE_CAT[l.tab], unit: l.unite, pricing: "unitaire", price: null, cost: null, priceDate: null, supplier: "", brand: "", yield: null, yieldUnit: "m²", tags: ouvrageTags(l.tab, met), pack: met || "", archived: false, fieldPrice: true }; S.saveItem(it, "métré"); }
+    cur.manual.push({ id: "m" + S.uid(), group: CATS[it.cat], mode: "fixed", option: false, itemId: it.id, label: l.nom, nom: l.nom, brand: "", cond: "", qty: l.qty, role: "", norm: "", metre: l.cle, metreQty: l.qty, detail: l.detail });
+  }
+}
+const cheminMetre = (q, base) => base.split(".").reduce((o, k) => (o == null ? o : o[k]), q);
+// Après toute saisie dans le métré : mémoriser les valeurs de l'entreprise (ses rendements, dosages, formats), puis mettre le devis à jour.
+function apresMetre(q, chemin) {
+  const m = /^current\.metre\.zones\.(\d+)\.ouvrages\.(\d+)\.v\./.exec(chemin || "");
+  if (m) { const o = q.current.metre.zones[m[1]]?.ouvrages[m[2]], type = o && Mt.typeDe(o.type); if (type) { const st = S.state.db.settings; st.metreMemo = st.metreMemo || {}; st.metreMemo[type.id] = { ...(st.metreMemo[type.id] || {}), ...Mt.memoDe(type, o.v) }; } }
+  syncMetre(q);
+}
 function sheetForm(t, prod, rf, met) {
   const elec = !!rf, v = vocab(met);
   const manq = manqueLigne(t), incomplet = !t.lineId && aDesDonnees(t) && manq.length > 0;
@@ -251,12 +289,12 @@ function sheetForm(t, prod, rf, met) {
     ${prod && !v.cond ? `${L(v.condLabel)}${I("tmp", "row.cond", t.cond, { ph: rf && rf.met !== "maconnerie" && ref && ref.spec ? "Ex. : " + ref.spec.split(",").slice(0, 2).join(",") : v.condPh })}` : ""}
     ${ref ? specHint + normHint : ""}
     ${prod && v.cond ? `${L(v.condLabel)}<div class="chips">${v.cond.map((c) => `<button type="button" class="chip ${nz(t.cond) === nz(c) ? "on" : ""}" data-act="rowCond" data-c="${esc(c)}">${esc(c)}</button>`).join("")}</div>` : ""}
-    ${prod ? aideQuantite(t, met) : ""}
+    ${explMetre(t)}${prod && !ligneMetre(t) ? aideQuantite(t, met) : ""}
     <div class="row"><div>${L("Quantité")}${I("tmp", "row.qty", t.qty, { type: "number", n: "n" })}</div><div>${L("Unité")}${Sel("tmp", "row.unit", t.unit, opts)}</div></div>
     <div class="row"><div>${L("Prix unitaire (FCFA)")}${I("tmp", "row.price", t.price, { type: "number", n: "n" })}</div><div>${L("Montant")}<div class="rowtot"><b>${tot === null ? "—" : fmt(tot)}</b></div></div></div>
     ${incomplet ? `<div class="banner warn" id="lignemanque"><b>Cette ligne n'est pas encore dans le devis.</b> Il manque : ${manq.join(", ")}.</div>` : ""}
     <details><summary>Écrire à quoi ça sert (facultatif)</summary>${I("tmp", "row.role", t.role, { ph: "Ex. : " + v.role })}</details>
-    <div class="row" style="margin-top:8px"><button class="sec" data-act="rowClose">▲ Fermer</button>${t.lineId ? `<button class="sec danger" data-act="rowRemove">Retirer du devis</button>` : `<p class="hint" style="margin:0;align-self:center">Remplis la quantité, l'unité et le prix : la ligne entre dans le devis.</p>`}</div></div>`;
+    <div class="row" style="margin-top:8px"><button class="sec" data-act="rowClose">▲ Fermer</button>${ligneMetre(t) ? `<p class="hint" style="margin:0;align-self:center">Ligne du métré : pour la retirer, modifie le métré.</p>` : t.lineId ? `<button class="sec danger" data-act="rowRemove">Retirer du devis</button>` : `<p class="hint" style="margin:0;align-self:center">Remplis la quantité, l'unité et le prix : la ligne entre dans le devis.</p>`}</div></div>`;
 }
 // Électricité, plomberie : le matériel est rangé en sous-ensembles, puis en familles repliables (avec les points de vigilance du référentiel).
 function refBrowser(q, k, rows, oneRow, dis, rf) {
@@ -294,7 +332,7 @@ function stepTravauxS(q, ev, dis) {
     const oneRow = (r) => {
       const open = t.open === r.key && t.tab === k, l = r.line, unk = l && (l.price === null || l.qty === null);
       const head = `<button type="button" class="rowc ${l ? "ok" : "empty"} ${unk ? "warn" : ""} ${open ? "open" : ""}" data-act="rowToggle" data-key="${esc(r.key)}" data-tab="${k}" ${dis || (r.man && r.man.mode === "equip") ? "disabled" : ""}>
-        ${l ? `<em class="tick ${unk ? "w" : ""}">${unk ? "!" : "✓"}</em>` : ""}<span class="rn"><b>${esc(r.name)}</b><small>${l ? `${l.qty === null ? "quantité ?" : fmtN(l.qty) + " " + esc(l.unit)} × ${l.price === null ? "prix ?" : fmtN(l.price)}` : "Toucher pour remplir"}</small></span>
+        ${l ? `<em class="tick ${unk ? "w" : ""}">${unk ? "!" : "✓"}</em>` : ""}<span class="rn"><b>${esc(r.name)}</b><small>${l ? `${l.qty === null ? "quantité ?" : fmtQ(l.qty) + " " + esc(l.unit)} × ${l.price === null ? "prix ?" : fmtN(l.price)}` : "Toucher pour remplir"}</small></span>
         <span class="rt">${l ? (l.total === null ? "prix manquant" : fmtN(l.total)) : ""}<i>${open ? "▲" : "▼"}</i></span></button>`;
       return head + (open ? sheetForm(t, k === "produits", rf, met) : "");
     };
@@ -306,6 +344,7 @@ function stepTravauxS(q, ev, dis) {
   return `<h2>Le travail et le matériel</h2>
     <p class="hint">Touche un produit, remplis la quantité et le prix : le montant se calcule tout seul. Seules les lignes remplies entrent dans le devis.</p>
     <div class="total"><div><span>Total du devis</span><span class="big">${fmt(ev.result.totals.base)}</span></div></div>
+    ${UM.carte(q, dis, etatMetre(q))}
     ${body}
     ${auto.length ? `<p class="hint">${auto.length} ligne${auto.length > 1 ? "s" : ""} calculée${auto.length > 1 ? "s" : ""} automatiquement (voir « Calcul automatique » plus bas) sont aussi comptées.</p>` : ""}
     <details class="more"><summary>Calcul automatique à partir de la surface (facultatif)</summary>${stepPrest(q, ev, dis, true)}</details>
@@ -337,7 +376,7 @@ function stepEnvoiS(q, ev, dis) {
   return `<h2>Le prix</h2>
     <div class="total"><div><span>Total du devis</span><span class="big">${fmt(r.totals.base)}</span></div>${miss ? `<div class="opt"><span>Total pas fini : ${miss} prix manquant${miss > 1 ? "s" : ""}</span></div>` : ""}${r.totals.vatBase !== null ? `<div><span>Avec TVA</span><span>${fmt(r.totals.ttcBase)}</span></div>` : ""}</div>
     ${miss ? `<div class="banner warn">Il manque ${miss} prix. <a href="#/devis/${q.id}/1">Retourne au travail et au matériel</a> pour les remplir.</div>` : ""}
-    ${carteOublis(q, ev, dis)}${carteIdentite(dis)}
+    ${UM.controle(q, dis, etatMetre(q))}${carteOublis(q, ev, dis)}${carteIdentite(dis)}
     <div class="card"><b>Conditions</b>
     <div class="row"><div>${L("TVA (%) — laisse vide si pas de TVA")}${I("q", "current.terms.vatPct", cur.terms.vatPct, { type: "number", n: "n", dis })}</div><div>${L("Le devis reste valable (jours)")}${I("q", "current.validityDays", cur.validityDays, { type: "number", n: "n", dis })}</div></div>
     <div class="row"><div>${L("Remise en % (facultatif)")}${I("q", "current.discount.pct", cur.discount.pct, { type: "number", n: "n", dis })}</div><div>${L("ou remise en FCFA")}${I("q", "current.discount.amount", cur.discount.amount, { type: "number", n: "n", dis })}</div></div>
@@ -369,7 +408,7 @@ function lineCard(l, q, dis) {
   const mf = (f, label, val, o = {}) => `<div>${L(label)}<input data-on="mf" data-id="${esc(l.id)}" data-f="${f}" type="number" inputmode="decimal" step="any" value="${esc(val ?? "")}" ${dis ? "disabled" : ""}></div>`;
   return `<div class="lcard ${l.flags.length ? "warn" : ""}"><div class="lt"><b>${esc(l.label)}</b>${l.option ? '<span class="tag">option</span>' : ""}${l.overridden ? '<span class="tag t2">corrigé</span>' : ""}</div>
     ${l.role ? `<div class="note">${esc(l.role)}</div>` : ""}<div class="lcalc">${esc(l.calc)}</div>
-    <div class="lnums"><span>${l.qty === null ? "quantité inconnue" : fmtN(l.qty) + " " + esc(l.unit)}</span><span>× ${l.mode === "equip" ? (l.total === 0 ? "non facturé" : "forfait") : l.price === null ? "prix inconnu" : fmtN(l.price)}</span><b>${l.total === null ? "—" : fmt(l.total)}</b></div>
+    <div class="lnums"><span>${l.qty === null ? "quantité inconnue" : fmtQ(l.qty) + " " + esc(l.unit)}</span><span>× ${l.mode === "equip" ? (l.total === 0 ? "non facturé" : "forfait") : l.price === null ? "prix inconnu" : fmtN(l.price)}</span><b>${l.total === null ? "—" : fmt(l.total)}</b></div>
     ${!dis && l.flags.includes("prix_inconnu") && l.mode !== "equip" ? (q.current.pricing.method === "cout_plus_marge"
       ? `<div class="miss">${ic("warn", 18)} <b>Il manque le prix d'achat de ${esc(l.label)}.</b>${L("Prix d'achat par " + esc(l.unit) + " (FCFA)")}<input data-on="adj" data-id="${esc(l.id)}" data-f="cost" type="number" inputmode="decimal" step="any" value="${esc(adj.costOverride ?? "")}"></div>`
       : `<div class="miss">${ic("warn", 18)} <b>Il manque le prix de ${esc(l.label)}.</b>${L("Prix par " + esc(l.unit) + " (FCFA)")}<input data-on="adj" data-id="${esc(l.id)}" data-f="price" type="number" inputmode="decimal" step="any" value="${esc(adj.priceOverride ?? "")}"></div>`) : ""}
@@ -400,7 +439,7 @@ function stepPrest(q, ev, dis, simple) {
       <h3>Ce que l'application a compté</h3>${lines.map((l) => lineCard(l, q, dis)).join("") || `<p class="hint">Aucune ligne.</p>`}</div>`;
   }).join("");
   const sk = skipped(q);
-  return `${simple ? "" : "<h2>Travaux à faire</h2>"}<p class="hint">${simple ? "Choisis le travail, réponds aux questions : les quantités de produit se calculent toutes seules." : "Les quantités se calculent seules à partir de la surface. Si tu corriges une quantité, l'application garde le calcul d'origine et te demande pourquoi."}</p>
+  return `${simple ? "" : "<h2>Travaux à faire</h2>" + UM.carte(q, dis, etatMetre(q))}<p class="hint">${simple ? "Choisis le travail, réponds aux questions : les quantités de produit se calculent toutes seules." : "Les quantités se calculent seules à partir de la surface. Si tu corriges une quantité, l'application garde le calcul d'origine et te demande pourquoi."}</p>
     ${blocks || `<div class="empty">Aucun travail pour l'instant. Choisis-en un ci-dessous.</div>`}
     ${sk.length && !dis ? `<div class="card"><b>Lignes retirées</b>${sk.map(([id, lab]) => `<div class="chk"><div style="flex:1">${esc(lab)}</div><button class="sec" data-act="restoreLine" data-id="${esc(id)}">Rétablir</button></div>`).join("")}</div>` : ""}
     ${dis ? "" : !mt ? `<div class="card"><b>Quel est ton métier ?</b>${chooser("")}</div>` : `<div class="card"><b>Ajouter un travail (${esc(metierLabel(mt))})</b>${L("Choisis dans la liste")}${Sel("tmp", "addPrest", ui.tmp.addPrest, opts)}<button class="gold" data-act="addPrest" style="margin-top:10px">Ajouter</button>
@@ -480,7 +519,7 @@ function stepBesoins(q, ev, dis, simple, nofree) {
 
 function stepPrix(q, ev, dis) {
   const cur = q.current, r = ev.result, m = r.margin;
-  return `<h2>Prix et conditions</h2>
+  return `<h2>Prix et conditions</h2>${UM.controle(q, dis, etatMetre(q))}
     <div class="card"><b>Comment calculer le prix de vente</b>${L("Prix de vente")}${Sel("q", "current.pricing.method", cur.pricing.method, [["catalogue", "Prix de vente du catalogue"], ["cout_plus_marge", "Prix d'achat + ma marge"]], { dis })}
     ${cur.pricing.method === "cout_plus_marge" ? `${L("Majoration sur coût d'achat (%)")}${I("q", "current.pricing.markupPct", cur.pricing.markupPct, { type: "number", n: "n", dis })}<p class="hint">Chaque article doit avoir un coût d'achat dans le Catalogue, sinon son prix reste inconnu.</p>` : ""}</div>
     <div class="card"><b>Remise</b><div class="row"><div>${L("Remise (%)")}${I("q", "current.discount.pct", cur.discount.pct, { type: "number", n: "n", dis })}</div><div>${L("ou montant (FCFA)")}${I("q", "current.discount.amount", cur.discount.amount, { type: "number", n: "n", dis })}</div></div>
@@ -545,7 +584,7 @@ function internal(snap, q) {
   const r = snap.result, m = r.margin;
   return `<div class="card"><b>Récapitulatif interne</b><p class="hint">Ne pas envoyer au client.</p>
     ${m ? `<table><tr><th>Offre de base</th><th class="n">Montant</th></tr><tr><td>Prix de vente HT</td><td class="n">${fmt(r.totals.base)}</td></tr><tr><td>Coût de revient (frais généraux inclus)</td><td class="n">${fmt(m.base.cost)}</td></tr><tr class="sub"><td>Bénéfice</td><td class="n">${fmt(m.base.profit)}</td></tr><tr><td>Marge sur coût</td><td class="n">${m.base.markupPct?.toFixed(1)} %</td></tr><tr><td>Taux de marque</td><td class="n">${m.base.marginRatePct?.toFixed(1)} %</td></tr></table>` : `<p class="hint">Marge non calculable : coûts d'achat incomplets.</p>`}</div>
-    <div class="card"><b>Détail des calculs</b><div class="scroll"><table><tr><th>Ligne</th><th class="n">Calculé</th><th class="n">Retenu</th><th class="n">Coût</th><th class="n">Total</th></tr>${r.lines.map((l) => `<tr><td>${esc(l.label)}${l.option ? " <span class='note'>(option)</span>" : ""}<div class="note">${esc(l.calc)}${l.overridden ? ` — corrigé : ${esc(l.overrideReason)}` : ""}</div></td><td class="n">${fmtN(l.qtyCalc)}</td><td class="n">${fmtN(l.qty)}</td><td class="n">${fmtN(l.cost)}</td><td class="n">${fmtN(l.total)}</td></tr>`).join("")}</table></div></div>
+    <div class="card"><b>Détail des calculs</b><div class="scroll"><table><tr><th>Ligne</th><th class="n">Calculé</th><th class="n">Retenu</th><th class="n">Coût</th><th class="n">Total</th></tr>${r.lines.map((l) => `<tr><td>${esc(l.label)}${l.option ? " <span class='note'>(option)</span>" : ""}<div class="note">${esc(l.calc)}${l.overridden ? ` — corrigé : ${esc(l.overrideReason)}` : ""}</div></td><td class="n">${fmtN(l.qtyCalc)}</td><td class="n">${fmtQ(l.qty)}</td><td class="n">${fmtN(l.cost)}</td><td class="n">${fmtN(l.total)}</td></tr>`).join("")}</table></div></div>
     ${r.warnings.length ? `<div class="card"><b>Alertes</b>${r.warnings.map((w) => `<div class="hint">• ${esc(w)}</div>`).join("")}</div>` : ""}
     <div class="card"><b>Règles de calcul appliquées</b><ul class="note"><li>Quantité de produit : surface × (1 + marge de sécurité) ÷ rendement, arrondie à l'unité supérieure.</li><li>Montants de ligne : FCFA entiers, 0,5 arrondi vers le haut.</li><li>Remise, frais généraux, TVA : calculés une seule fois sur le total, 0,5 vers le haut.</li><li>Échéancier : chaque part arrondie, la dernière reçoit le reste : la somme est exacte.</li><li>Moteur ${esc(r.engineVersion)}.</li></ul></div>`;
 }
@@ -663,7 +702,7 @@ function viewSuivi(a) {
 function viewReglages() {
   const db = S.state.db, s = db.settings, c = db.company, ws = S.listWorkspaces(), act = S.state.ws, b = ui.backup;
   const ci = (p, lab) => `<div>${L(lab)}${I("db", "company." + p, c[p])}</div>`;
-  return `<h2>Réglages</h2>
+  return `<h2>Réglages</h2>${carteLicence()}
     <div class="card"><b>Entreprise</b><div class="row">${ci("name", "Nom")}${ci("tagline", "Activité")}</div><div class="row">${ci("address", "Adresse")}${ci("phone", "Téléphone")}</div><div class="row">${ci("whatsapp", "WhatsApp")}${ci("web", "Site web")}</div><div class="row">${ci("responsible", "Responsable chantier")}${ci("responsiblePhone", "Tél. responsable")}</div><div class="row">${ci("rccm", "RCCM (facultatif)")}${ci("niu", "N° contribuable NIU (facultatif)")}</div><p class="hint">RCCM et NIU s'affichent en bas du devis seulement si tu les remplis. Je ne les invente jamais.</p></div>
     <div class="card"><b>Règles de l'entreprise</b><p class="hint">Aucune de ces valeurs n'est supposée : renseigne celles qui viennent de tes chantiers.</p>
       <div class="row"><div>${L("Hauteur à partir de laquelle un accès est exigé (m)")}${I("db", "settings.accessThresholdM", s.accessThresholdM, { type: "number", n: "n" })}</div><div>${L("Marge de sécurité produits par défaut (%)")}${I("db", "settings.lossPct", s.lossPct, { type: "number", n: "n" })}</div></div>
@@ -872,11 +911,54 @@ document.addEventListener("change", (e) => {
     // Le premier nom d'entreprise saisi remplace aussi « Mon entreprise » dans le bandeau de l'application.
     if (root === "db" && el.dataset.p === "company.name" && String(el.value).trim()) { const w = S.listWorkspaces().find((x) => x.id === S.state.ws); if (w && w.name === "Mon entreprise") S.renameWorkspace(w.id, String(el.value).trim()); }
     if (root === "tmp" && /^row\./.test(el.dataset.p)) { if (!commitRow()) dropIfEmpty(); }
-    later(() => { if (root === "q") touchQuote(o); else if (root === "db") { S.commit(); rerender(); } else rerender(); }, () => { if (root === "q") touchQuote(o, true); else if (root === "db") S.commit(); else refreshTotals(); });
+    if (root === "q" && /^current\.metre\./.test(el.dataset.p)) {
+      apresMetre(o, el.dataset.p);
+      // case à cocher ou liste : d'autres champs peuvent apparaître, on redessine tout de suite
+      if (el.type === "checkbox" || el.tagName === "SELECT") { touchQuote(o); return; }
+    }
+    later(() => { if (root === "q") touchQuote(o); else if (root === "db") { S.commit(); rerender(); } else rerender(); }, () => { if (root === "q") { touchQuote(o, true); if (/^current\.metre\./.test(el.dataset.p)) { UM.majResultat(o); refreshTotals(); } } else if (root === "db") S.commit(); else refreshTotals(); });
   } catch (err) { ui.flash = { type: "err", text: err.message }; rerender(); }
 });
 
+// Licence : toute sortie d'un devis (PDF, Word, impression, envoi) passe par ici.
+// La saisie et les calculs ne sont jamais bloqués.
+function sortieAutorisee(q) {
+  if (!Lic.peutSortir(q.id)) throw new Error(`Essai gratuit terminé (${Lic.ESSAI_DEVIS} devis). Ton devis est conservé. Active ta licence dans Réglages pour le sortir.`);
+}
+// Une sortie n'est comptée dans l'essai qu'une fois réussie (un export en échec ne coûte rien).
+const sortieFaite = (q) => Lic.noterSortie(q.id);
+function carteLicence() {
+  const e = Lic.etat(), nom = S.state.db.company.name;
+  const titre = e.mode === "licence" ? `Licence active jusqu'au ${frDate(e.expire)}` : e.mode === "essai" ? `Essai gratuit : encore ${e.restants} devis à sortir` : e.expiree ? "Licence expirée" : "Essai gratuit terminé";
+  return `<div class="card" id="licence"><b>Licence</b><div class="banner ${e.mode === "termine" ? "bad" : "info"}">${titre}</div>
+    <p class="hint">${e.mode === "licence" ? `Un nouveau code prolonge ta licence de ${Lic.DUREE_JOURS} jours.` : `Créer, calculer et enregistrer tes devis reste toujours possible. La licence sert à les sortir : PDF, Word, impression, envoi.`}</p>
+    ${L("Code de licence")}${I("ui", "licCode", ui.licCode, { ph: "TGD-XXXX-XXXX-XXXX" })}
+    <div class="row"><button data-act="activerLicence">Activer</button><a class="btn sec" href="${Lic.lienWhatsApp(nom)}" target="_blank" rel="noopener">Obtenir un code sur WhatsApp</a></div></div>`;
+}
+const metreDe = (q) => { const m = (q.current.metre = q.current.metre || {}); m.zones = m.zones || []; return m; };
+const finMetre = (q) => { syncMetre(q); touchQuote(q, true); };
 const actions = {
+  metreZoneAdd() { const q = S.getQuote(ui.qid), mt = metreDe(q), z = { id: "z" + S.uid(), nom: "", ouvrages: [] }; mt.zones.push(z); Object.assign(ui.tmp.metre, { z: z.id, o: null, add: z.id, del: null }); finMetre(q); },
+  metreZone(b) { const s = ui.tmp.metre; s.z = s.z === b.dataset.z ? null : b.dataset.z; s.o = null; s.add = null; s.del = null; },
+  metreZoneCopie(b) { const q = S.getQuote(ui.qid), mt = metreDe(q), z = S.clone(mt.zones[Number(b.dataset.z)]); z.id = "z" + S.uid(); z.nom = (z.nom || "Zone") + " (copie)"; z.ouvrages.forEach((o) => { o.id = "o" + S.uid(); }); mt.zones.push(z); Object.assign(ui.tmp.metre, { z: z.id, o: null, add: null, del: null }); finMetre(q); },
+  metreZoneDel(b) { const q = S.getQuote(ui.qid); metreDe(q).zones.splice(Number(b.dataset.z), 1); ui.tmp.metre.del = null; finMetre(q); },
+  metreAsk(b) { ui.tmp.metre.del = b.dataset.id; },
+  metreChoix(b) { ui.tmp.metre.add = b.dataset.z; },
+  metreOuvAdd(b) { const q = S.getQuote(ui.qid), z = metreDe(q).zones[Number(b.dataset.z)], type = Mt.typeDe(b.dataset.t); if (!z || !type) return; const o = Mt.nouvelOuvrage(type, S.clone((S.state.db.settings.metreMemo || {})[type.id] || {}), "o" + S.uid()); z.ouvrages.push(o); Object.assign(ui.tmp.metre, { o: o.id, add: null, del: null }); finMetre(q); },
+  metreOuv(b) { const s = ui.tmp.metre; s.o = s.o === b.dataset.o ? null : b.dataset.o; s.del = null; },
+  metreOuvDel(b) { const q = S.getQuote(ui.qid); metreDe(q).zones[Number(b.dataset.z)].ouvrages.splice(Number(b.dataset.i), 1); Object.assign(ui.tmp.metre, { o: null, del: null }); finMetre(q); },
+  metreAdd(b) { const q = S.getQuote(ui.qid), o = cheminMetre(q, b.dataset.base); if (!o) return; o.v = o.v || {}; const a = Array.isArray(o.v[b.dataset.k]) ? o.v[b.dataset.k] : (o.v[b.dataset.k] = []); a.push(b.dataset.nom ? { nom: b.dataset.nom, n: null } : {}); finMetre(q); },
+  metreDel(b) { const q = S.getQuote(ui.qid), o = cheminMetre(q, b.dataset.base); if (!o || !Array.isArray(o.v[b.dataset.k])) return; o.v[b.dataset.k].splice(Number(b.dataset.i), 1); finMetre(q); },
+  metreLignes() { ui.tmp.metre.lignes = !ui.tmp.metre.lignes; },
+  metreReprendre(b) { const q = S.getQuote(ui.qid), m = q.current.manual.find((x) => x.id === b.dataset.id); if (!m) return; const l = Mt.calculer(q.current.metre, metierOf(q)).lignes.find((x) => x.cle === m.metre); if (l) { m.qty = l.qty; m.metreQty = l.qty; m.detail = l.detail; if (ui.tmp.row.lineId === m.id) ui.tmp.row = { ...ui.tmp.row, qty: l.qty }; } else { q.current.manual = q.current.manual.filter((x) => x.id !== m.id); delete q.current.adjust[m.id]; if (ui.tmp.row.lineId === m.id) ui.tmp.row = { ...ui.tmp.row, open: null, lineId: null }; } finMetre(q); },
+  metreDuree(b) { const q = S.getQuote(ui.qid), j = Number(b.dataset.j); if (!(j > 0)) return; q.current.terms.delayMin = j; q.current.terms.delayMax = j; touchQuote(q, true); },
+  activerLicence() {
+    Lic.activer(ui.licCode).then((r) => {
+      ui.flash = r.ok ? { type: "ok", text: `Licence activée jusqu'au ${frDate(r.expire)}.` + (r.enregistre ? "" : " Attention : ce navigateur n'a pas pu l'enregistrer (navigation privée ?).") } : { type: "err", text: r.erreur };
+      if (r.ok) ui.licCode = ""; rerender();
+    }).catch(() => { ui.flash = { type: "err", text: "Vérification impossible sur ce navigateur." }; rerender(); });
+    return "skip";
+  },
   reload() { S.reloadAfterConflict(); },
   secToggle(b) { const k = b.dataset.tab, s = ui.tmp.sec || (ui.tmp.sec = {}); const q = S.getQuote(ui.qid); const cur = s[k] ?? (k === "produits" || sheetRows(q, S.evaluate(q), k).some((r) => r.line)); s[k] = !cur; },
   rowToggle(b) {
@@ -962,8 +1044,8 @@ const actions = {
   },
   mark(b) { const q = S.getQuote(ui.qid); S.setStatus(q, b.dataset.to); ui.flash = { type: "ok", text: "Statut : " + S.STATUS[q.status] }; },
   view(b) { ui.view = b.dataset.v; },
-  print() { window.print(); },
-  send() { const q = S.getQuote(ui.qid); const v = S.freezeVersion(q); ui.ver = String(v.n); ui.view = "client"; ui.flash = { type: "ok", text: `V${v.n} figée et envoyée. Empreinte ${v.hash}.` }; },
+  print() { const q = S.getQuote(ui.qid); sortieAutorisee(q); window.print(); sortieFaite(q); },
+  send() { const q = S.getQuote(ui.qid); sortieAutorisee(q); const v = S.freezeVersion(q); sortieFaite(q); ui.ver = String(v.n); ui.view = "client"; ui.flash = { type: "ok", text: `V${v.n} figée et envoyée. Empreinte ${v.hash}.` }; },
   seeVer(b) { ui.file = null; ui.ver = b.dataset.n; ui.view = "client"; },
   copy(b) { const t = b.dataset.t; const ok = () => { ui.flash = { type: "ok", text: "Message copié." }; rerender(); }; if (navigator.clipboard) navigator.clipboard.writeText(t).then(ok).catch(() => { ui.flash = { type: "err", text: "Copie impossible : sélectionne le texte manuellement." }; rerender(); }); else ok(); return "skip"; },
   startNeg() { const q = S.getQuote(ui.qid); S.startNegotiation(q); ui.ver = "draft"; ui.flash = { type: "ok", text: `Brouillon de V${q.versions.length + 1} prêt : modifie puis envoie.` }; go(`#/devis/${q.id}/0`); },
@@ -989,13 +1071,15 @@ const actions = {
   pay(b) { S.markPaid(b.dataset.o, Number(b.dataset.i)); },
   openInv(b) { ui.invoice = b.dataset.id; },
   word(b) {
-    const q = S.getQuote(ui.qid);
+    const q = S.getQuote(ui.qid); sortieAutorisee(q);
     const { snap } = snapFor(q, S.evaluate(q)); const v = b.dataset.n === "draft" ? snap : q.versions.find((x) => String(x.n) === b.dataset.n); if (!v) throw new Error("Version introuvable.");
-    const { bytes } = buildDocx(v, q.ref); const name = `${q.ref}${v.n ? "-V" + v.n : "-brouillon"}.docx`;
+    const { bytes } = buildDocx(v, q.ref); sortieFaite(q); const name = `${q.ref}${v.n ? "-V" + v.n : "-brouillon"}.docx`;
     ui.file = { name, mime: DOCX_MIME, data: bytes }; return saveFile();
   },
   async pdf() {
-    const q = S.getQuote(ui.qid); const el = document.getElementById("doc"); if (!el) throw new Error("Aperçu introuvable.");
+    const q = S.getQuote(ui.qid);
+    try { sortieAutorisee(q); } catch (err) { ui.flash = { type: "err", text: err.message }; rerender(); return; }
+    const el = document.getElementById("doc"); if (!el) throw new Error("Aperçu introuvable.");
     ui.busy = "pdf"; rerender();
     try {
       const { makePdf } = await import("./pdf.js");
@@ -1003,6 +1087,7 @@ const actions = {
       const data = await makePdf(document.getElementById("doc"), "TGDQ1:" + encPayload(S.quotePayload(q, snapNow.quote)));
       const v = (snapFor(q, S.evaluate(q)).snap || {}).n;
       ui.file = { name: `${q.ref}${v ? "-V" + v : "-brouillon"}.pdf`, mime: "application/pdf", data: new Uint8Array(data) };
+      sortieFaite(q);
       ui.flash = { type: "ok", text: "PDF créé. Touche « Enregistrer / envoyer le fichier »." };
     } catch (err) { ui.flash = { type: "err", text: "PDF impossible : " + err.message + ". Utilise « Imprimer »." }; }
     ui.busy = ""; rerender();
@@ -1037,7 +1122,7 @@ document.addEventListener("click", (e) => {
 window.addEventListener("hashchange", () => { ui.file = null; render(); window.scrollTo(0, 0); });
 window.addEventListener("beforeprint", () => document.body.classList.add("printing"));
 window.addEventListener("afterprint", () => document.body.classList.remove("printing"));
-export const BUILD = "31";
+export const BUILD = "32";
 // Mise à jour automatique : quand une nouvelle version est publiée, l'application la prend toute seule
 // (au retour sur l'application, ou dès que la personne n'est plus en train de taper). Les données ne sont jamais touchées.
 if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
