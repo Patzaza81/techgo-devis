@@ -252,7 +252,14 @@ function explMetre(t) {
 }
 const metreManuel = (q) => q.current.manual.map((m) => ({ id: m.id, metre: m.metre, metreQty: m.metreQty, qty: m.qty, nom: m.nom ?? m.label, detail: m.detail }));
 // État du devis par rapport au métré (sans rien modifier) : sert à afficher les écarts.
-function etatMetre(q) { return q.current.metre ? Mt.planSync(metreManuel(q), Mt.calculer(q.current.metre, metierOf(q)).lignes) : null; }
+function etatMetre(q) {
+  if (!q.current.metre) return null;
+  const lignes = Mt.calculer(q.current.metre, metierOf(q)).lignes, plan = Mt.planSync(metreManuel(q), lignes);
+  // Main-d'œuvre saisie à la main alors que le métré en calcule déjà : signalée (jamais supprimée).
+  const catDe = (m) => (S.state.db.catalogue.find((i) => i.id === m.itemId) || {}).cat;
+  plan.doubleMO = lignes.some((l) => l.tab === "ouvriers") ? q.current.manual.filter((m) => !m.metre && m.mode === "fixed" && catDe(m) === FREE_CAT.ouvriers).map((m) => m.nom ?? m.label) : [];
+  return plan;
+}
 // Applique le métré au devis : met à jour, ajoute et retire les lignes calculées. Une quantité changée à la main n'est jamais écrasée.
 function syncMetre(q) {
   const plan = etatMetre(q); if (!plan) return; const db = S.state.db, met = metierOf(q), cur = q.current;
@@ -269,10 +276,36 @@ function syncMetre(q) {
 }
 const cheminMetre = (q, base) => base.split(".").reduce((o, k) => (o == null ? o : o[k]), q);
 // Après toute saisie dans le métré : mémoriser les valeurs de l'entreprise (ses rendements, dosages, formats), puis mettre le devis à jour.
+// Après toute saisie dans le métré :
+//  - corriger une valeur reprise la confirme ;
+//  - changer le nom d'un produit retire les valeurs de l'ancien et pose celles du nouveau s'il est connu ;
+//  - les valeurs de pratique et les fiches produit de l'entreprise sont gardées ;
+//  - le devis est mis à jour.
+// Renvoie true si l'écran doit être redessiné (des champs ont été remplis ou vidés).
+function fichesMetre(cle) { const st = S.state.db.settings; st.metreProduits = st.metreProduits || {}; return (st.metreProduits[cle] = st.metreProduits[cle] || {}); }
 function apresMetre(q, chemin) {
-  const m = /^current\.metre\.zones\.(\d+)\.ouvrages\.(\d+)\.v\./.exec(chemin || "");
-  if (m) { const o = q.current.metre.zones[m[1]]?.ouvrages[m[2]], type = o && Mt.typeDe(o.type); if (type) { const st = S.state.db.settings; st.metreMemo = st.metreMemo || {}; st.metreMemo[type.id] = { ...(st.metreMemo[type.id] || {}), ...Mt.memoDe(type, o.v) }; } }
+  let redessiner = false;
+  const m = /^current\.metre\.zones\.(\d+)\.ouvrages\.(\d+)\.v\.([^.]+)(?:\.(\d+)\.([^.]+))?$/.exec(chemin || "");
+  if (m) {
+    const o = q.current.metre.zones[m[1]]?.ouvrages[m[2]], type = o && Mt.typeDe(o.type), k = m[3];
+    if (type) {
+      if (o.repris) { o.repris = o.repris.filter((x) => x !== k); if (!o.repris.length) delete o.repris; }
+      const champ = type.champs.find((c) => c.k === k);
+      for (const lien of Mt.liensDe(type)) {
+        const fiches = fichesMetre(lien.nom);
+        if (k === lien.nom) { Mt.changerProduit(type, lien, o.v, fiches); redessiner = true; }
+        else if (lien.champs.includes(k) && String(o.v[lien.nom] || "").trim()) fiches[Mt.clePlate(o.v[lien.nom])] = Mt.ficheProduit(type, lien, o.v);
+      }
+      if (champ && champ.t === "prod" && m[4] !== undefined) { // produits de peinture : couverture et unité attachées au nom du produit
+        const it = o.v[k][m[4]], fiches = fichesMetre("prod");
+        if (m[5] === "nom") { const f = fiches[Mt.clePlate(it.nom)]; if (f) Object.assign(it, f); else { delete it.couv; } redessiner = true; }
+        else if ((m[5] === "couv" || m[5] === "u") && String(it.nom || "").trim()) fiches[Mt.clePlate(it.nom)] = { ...(it.couv ? { couv: it.couv } : {}), u: it.u || "Pot" };
+      }
+      if (!(o.repris || []).length) { const st = S.state.db.settings; st.metreMemo = st.metreMemo || {}; st.metreMemo[type.id] = { ...(st.metreMemo[type.id] || {}), ...Mt.memoDe(type, o.v) }; }
+    }
+  }
   syncMetre(q);
+  return redessiner;
 }
 function sheetForm(t, prod, rf, met) {
   const elec = !!rf, v = vocab(met);
@@ -291,7 +324,7 @@ function sheetForm(t, prod, rf, met) {
     ${prod && v.cond ? `${L(v.condLabel)}<div class="chips">${v.cond.map((c) => `<button type="button" class="chip ${nz(t.cond) === nz(c) ? "on" : ""}" data-act="rowCond" data-c="${esc(c)}">${esc(c)}</button>`).join("")}</div>` : ""}
     ${explMetre(t)}${prod && !ligneMetre(t) ? aideQuantite(t, met) : ""}
     <div class="row"><div>${L("Quantité")}${I("tmp", "row.qty", t.qty, { type: "number", n: "n" })}</div><div>${L("Unité")}${Sel("tmp", "row.unit", t.unit, opts)}</div></div>
-    <div class="row"><div>${L("Prix unitaire (FCFA)")}${I("tmp", "row.price", t.price, { type: "number", n: "n" })}</div><div>${L("Montant")}<div class="rowtot"><b>${tot === null ? "—" : fmt(tot)}</b></div></div></div>
+    <div class="row"><div>${L(ligneMetre(t) ? `Prix pour 1 ${esc(String(t.unit || "unité").toLowerCase())} (FCFA)` : "Prix unitaire (FCFA)")}${I("tmp", "row.price", t.price, { type: "number", n: "n" })}</div><div>${L("Montant")}<div class="rowtot"><b>${tot === null ? "—" : fmt(tot)}</b></div></div></div>
     ${incomplet ? `<div class="banner warn" id="lignemanque"><b>Cette ligne n'est pas encore dans le devis.</b> Il manque : ${manq.join(", ")}.</div>` : ""}
     <details><summary>Écrire à quoi ça sert (facultatif)</summary>${I("tmp", "row.role", t.role, { ph: "Ex. : " + v.role })}</details>
     <div class="row" style="margin-top:8px"><button class="sec" data-act="rowClose">▲ Fermer</button>${ligneMetre(t) ? `<p class="hint" style="margin:0;align-self:center">Ligne du métré : pour la retirer, modifie le métré.</p>` : t.lineId ? `<button class="sec danger" data-act="rowRemove">Retirer du devis</button>` : `<p class="hint" style="margin:0;align-self:center">Remplis la quantité, l'unité et le prix : la ligne entre dans le devis.</p>`}</div></div>`;
@@ -912,9 +945,9 @@ document.addEventListener("change", (e) => {
     if (root === "db" && el.dataset.p === "company.name" && String(el.value).trim()) { const w = S.listWorkspaces().find((x) => x.id === S.state.ws); if (w && w.name === "Mon entreprise") S.renameWorkspace(w.id, String(el.value).trim()); }
     if (root === "tmp" && /^row\./.test(el.dataset.p)) { if (!commitRow()) dropIfEmpty(); }
     if (root === "q" && /^current\.metre\./.test(el.dataset.p)) {
-      apresMetre(o, el.dataset.p);
-      // case à cocher ou liste : d'autres champs peuvent apparaître, on redessine tout de suite
-      if (el.type === "checkbox" || el.tagName === "SELECT") { touchQuote(o); return; }
+      const redessiner = apresMetre(o, el.dataset.p);
+      // case à cocher, liste ou nom de produit : d'autres champs peuvent apparaître ou se remplir, on redessine tout de suite
+      if (redessiner || el.type === "checkbox" || el.tagName === "SELECT") { touchQuote(o); return; }
     }
     later(() => { if (root === "q") touchQuote(o); else if (root === "db") { S.commit(); rerender(); } else rerender(); }, () => { if (root === "q") { touchQuote(o, true); if (/^current\.metre\./.test(el.dataset.p)) { UM.majResultat(o); refreshTotals(); } } else if (root === "db") S.commit(); else refreshTotals(); });
   } catch (err) { ui.flash = { type: "err", text: err.message }; rerender(); }
@@ -947,7 +980,9 @@ const actions = {
   metreOuvAdd(b) { const q = S.getQuote(ui.qid), z = metreDe(q).zones[Number(b.dataset.z)], type = Mt.typeDe(b.dataset.t); if (!z || !type) return; const o = Mt.nouvelOuvrage(type, S.clone((S.state.db.settings.metreMemo || {})[type.id] || {}), "o" + S.uid()); z.ouvrages.push(o); Object.assign(ui.tmp.metre, { o: o.id, add: null, del: null }); finMetre(q); },
   metreOuv(b) { const s = ui.tmp.metre; s.o = s.o === b.dataset.o ? null : b.dataset.o; s.del = null; },
   metreOuvDel(b) { const q = S.getQuote(ui.qid); metreDe(q).zones[Number(b.dataset.z)].ouvrages.splice(Number(b.dataset.i), 1); Object.assign(ui.tmp.metre, { o: null, del: null }); finMetre(q); },
-  metreAdd(b) { const q = S.getQuote(ui.qid), o = cheminMetre(q, b.dataset.base); if (!o) return; o.v = o.v || {}; const a = Array.isArray(o.v[b.dataset.k]) ? o.v[b.dataset.k] : (o.v[b.dataset.k] = []); a.push(b.dataset.nom ? { nom: b.dataset.nom, n: null } : {}); finMetre(q); },
+  metreAdd(b) { const q = S.getQuote(ui.qid), o = cheminMetre(q, b.dataset.base); if (!o) return; o.v = o.v || {}; const a = Array.isArray(o.v[b.dataset.k]) ? o.v[b.dataset.k] : (o.v[b.dataset.k] = []); const type = Mt.typeDe(o.type), prod = type && (type.champs.find((c) => c.k === b.dataset.k) || {}).t === "prod"; a.push(b.dataset.nom ? (prod ? { nom: b.dataset.nom, ...(fichesMetre("prod")[Mt.clePlate(b.dataset.nom)] || {}) } : { nom: b.dataset.nom, n: null }) : {}); finMetre(q); },
+  metreConfirmer() { const q = S.getQuote(ui.qid), el = document.getElementById("mresult"), o = el && cheminMetre(q, el.dataset.base); if (!o) return; delete o.repris; finMetre(q); },
+  metreVider() { const q = S.getQuote(ui.qid), el = document.getElementById("mresult"), o = el && cheminMetre(q, el.dataset.base); if (!o) return; for (const k of o.repris || []) delete o.v[k]; delete o.repris; finMetre(q); },
   metreDel(b) { const q = S.getQuote(ui.qid), o = cheminMetre(q, b.dataset.base); if (!o || !Array.isArray(o.v[b.dataset.k])) return; o.v[b.dataset.k].splice(Number(b.dataset.i), 1); finMetre(q); },
   metreLignes() { ui.tmp.metre.lignes = !ui.tmp.metre.lignes; },
   metreReprendre(b) { const q = S.getQuote(ui.qid), m = q.current.manual.find((x) => x.id === b.dataset.id); if (!m) return; const l = Mt.calculer(q.current.metre, metierOf(q)).lignes.find((x) => x.cle === m.metre); if (l) { m.qty = l.qty; m.metreQty = l.qty; m.detail = l.detail; if (ui.tmp.row.lineId === m.id) ui.tmp.row = { ...ui.tmp.row, qty: l.qty }; } else { q.current.manual = q.current.manual.filter((x) => x.id !== m.id); delete q.current.adjust[m.id]; if (ui.tmp.row.lineId === m.id) ui.tmp.row = { ...ui.tmp.row, open: null, lineId: null }; } finMetre(q); },
@@ -1122,7 +1157,7 @@ document.addEventListener("click", (e) => {
 window.addEventListener("hashchange", () => { ui.file = null; render(); window.scrollTo(0, 0); });
 window.addEventListener("beforeprint", () => document.body.classList.add("printing"));
 window.addEventListener("afterprint", () => document.body.classList.remove("printing"));
-export const BUILD = "32";
+export const BUILD = "33";
 // Mise à jour automatique : quand une nouvelle version est publiée, l'application la prend toute seule
 // (au retour sur l'application, ou dès que la personne n'est plus en train de taper). Les données ne sont jamais touchées.
 if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {

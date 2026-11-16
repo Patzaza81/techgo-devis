@@ -26,12 +26,12 @@ const qteLigne = async (p, nom) => txt(p, `button.rowc[data-act="rowToggle"]:has
 
 // Un chantier d'essai par métier : mêmes nombres que test-metre.mjs (calculs écrits là-bas).
 const CHANTIERS = {
-  peinture: { type: "p_piece", zone: "Salon", async saisir(p) { await V(p, "longueur", 4); await V(p, "largeur", 3); await V(p, "hauteur", 2.8); await plus(p, "ouv"); await V(p, "ouv.0.l", 0.9); await V(p, "ouv.0.h", 2.1); await plus(p, "ouv"); await V(p, "ouv.1.l", 1.2); await V(p, "ouv.1.h", 1.2); await coche(p, "plafond"); await plus(p, "prod", "Peinture acrylique"); await V(p, "prod.0.couches", 2); await V(p, "prod.0.couv", 40); await V(p, "perte", 5); await sel(p, "moMode", "jour"); await V(p, "moRend", 25); await V(p, "moOuv", 2); },
-    calcul: ["47,87", "2 × (4 + 3) × 2,8 = 39,2 m²", "÷ 40 m² par pot = 2,51"], lignes: [["Peinture acrylique", "3 Pot", 25000], ["Travaux de peinture (à la journée)", "4 jour", 8000]], total: 107000 },
-  carrelage: { type: "c_sol", zone: "Séjour", async saisir(p) { await V(p, "longueur", 5); await V(p, "largeur", 4); await V(p, "carreau", "Grès 60×60"); await V(p, "cA", 60); await V(p, "cB", 60); await V(p, "parCarton", 4); await V(p, "perte", 10); await V(p, "colle", 5); await V(p, "colleSac", 25); await V(p, "jointC", 0.5); await V(p, "jointSac", 5); await coche(p, "plinthes"); await V(p, "portes", 0.9); await V(p, "plinthe", 60); await sel(p, "moMode", "tache"); },
+  peinture: { type: "p_piece", zone: "Salon", async saisir(p) { await V(p, "longueur", 4); await V(p, "largeur", 3); await V(p, "hauteur", 2.8); await plus(p, "ouv"); await V(p, "ouv.0.l", 0.9); await V(p, "ouv.0.h", 2.1); await plus(p, "ouv"); await V(p, "ouv.1.l", 1.2); await V(p, "ouv.1.h", 1.2); await coche(p, "plafond"); await plus(p, "prod", "Peinture acrylique"); await V(p, "prod.0.couches", 2); await V(p, "prod.0.couv", 40); await V(p, "perte", 5); await sel(p, "moMode", "ouvrier"); await V(p, "moRend", 25); await V(p, "moOuv", 2); },
+    calcul: ["47,87", "2 × (4 + 3) × 2,8 = 39,2 m²", "÷ 40 m² par pot = 2,51"], lignes: [["Peinture acrylique", "3 Pot", 25000], ["Travaux de peinture — 2 ouvriers", "4 journée d'ouvrier", 8000]], total: 107000 },
+  carrelage: { type: "c_sol", zone: "Séjour", async saisir(p) { await V(p, "longueur", 5); await V(p, "largeur", 4); await V(p, "carreau", "Grès 60×60"); await V(p, "cA", 60); await V(p, "cB", 60); await V(p, "parCarton", 4); await V(p, "perte", 10); await V(p, "colle", 5); await V(p, "colleSac", 25); await V(p, "jointC", 0.5); await V(p, "jointSac", 5); await coche(p, "plinthes"); await V(p, "portes", 0.9); await V(p, "plinthe", 60); await V(p, "perteP", 10); await sel(p, "moMode", "tache"); },
     calcul: ["5 × 4 = 20 m²", "÷ 1,44 m² par carton", "= 15,28"], lignes: [["Grès 60×60", "16 Carton", 12000], ["Colle à carrelage", "4 Sac", 6000], ["Joint de carrelage", "2 Sac", 3500], ["Plinthes", "32 Pièce", 800], ["Pose de carrelage", "20 m²", 3000]], total: 308600 },
-  maconnerie: { type: "m_mur", zone: "Clôture", async saisir(p) { await V(p, "longueur", 10); await V(p, "hauteur", 3); await V(p, "blocNom", "Parpaing de 15"); await V(p, "blocL", 40); await V(p, "blocH", 20); await V(p, "blocE", 15); await V(p, "joint", 1); await V(p, "perte", 5); await V(p, "ciment", 350); await V(p, "sac", 50); await V(p, "sable", 1); await sel(p, "moMode", "jour"); await V(p, "moRend", 10); await V(p, "moOuv", 3); },
-    calcul: ["10 × 3 = 30 m²", "= 11,61 blocs par m²", "0,319 m³"], lignes: [["Parpaing de 15", "366 Pièce", 350], ["Ciment", "3 Sac", 5200], ["Sable", "0,32 m³", 15000], ["Élévation de mur (à la journée)", "9 jour", 6000]], total: 202500 },
+  maconnerie: { type: "m_mur", zone: "Clôture", async saisir(p) { await V(p, "longueur", 10); await V(p, "hauteur", 3); await V(p, "blocNom", "Parpaing de 15"); await V(p, "blocL", 40); await V(p, "blocH", 20); await V(p, "joint", 1); await V(p, "perte", 5); await coche(p, "mortier"); await V(p, "blocE", 15); await V(p, "ciment", 350); await V(p, "sac", 50); await V(p, "sable", 1); await sel(p, "moMode", "ouvrier"); await V(p, "moRend", 10); await V(p, "moOuv", 3); },
+    calcul: ["10 × 3 = 30 m²", "= 11,61 blocs par m²", "0,319 m³"], lignes: [["Parpaing de 15", "366 Pièce", 350], ["Ciment", "3 Sac", 5200], ["Sable", "0,32 m³", 15000], ["Élévation de mur — 3 ouvriers", "9 journée d'ouvrier", 6000]], total: 202500 },
   plomberie: { type: "pl_reseau", zone: "Salle de bain", async saisir(p) { await V(p, "tuyau", "Tube PVC Ø100"); await V(p, "longueur", 23); await V(p, "perte", 10); await V(p, "barre", 4); await plus(p, "art", "Coude"); await V(p, "art.0.n", 6); await V(p, "colEsp", 80); await sel(p, "moMode", "tache"); },
     calcul: ["23 ml mesurés + 10 % de pertes = 25,3 ml", "÷ 4 m par barre = 6,33"], lignes: [["Tube PVC Ø100", "7 Barre", 4500], ["Colliers pour Tube PVC Ø100", "30 Pièce", 300], ["Coude", "6 Pièce", 1200], ["Pose de tuyauterie", "23 ml", 1000]], total: 70700 },
   electricite: { type: "e_ligne", zone: "Rez-de-chaussée", async saisir(p) { await V(p, "cable", "Câble 3G2,5"); await V(p, "nombre", 2); await V(p, "longueur", 18); await V(p, "reserve", 0.3); await V(p, "racc", 6); await V(p, "perte", 10); await V(p, "rouleau", 100); await V(p, "conduit", "Gaine ICTA Ø20"); await V(p, "rouleauC", 25); await sel(p, "moMode", "tache"); },
@@ -65,6 +65,9 @@ const CHANTIERS = {
       const fiche = await txt(p, ".sheet.metre");
       for (const c of C.calcul) ok(T + `explication affichée : « ${c} »`, fiche.includes(c), fiche.slice(-400));
       ok(T + "ouvrage complet : plus rien ne manque", !res.includes("Il manque"), res);
+      ok(T + "formulaire regroupé par rubriques", (await p.locator(".sheet.metre .mg").count()) >= 2);
+      ok(T + "chaque quantité dit si elle est exacte ou estimée", (await p.locator("#mresult .mest").count()) >= 1);
+      if (met === "peinture" || met === "maconnerie") ok(T + "main-d'œuvre : jours de chantier × ouvriers, et prix attendu écrit", /jours? de chantier/.test(res) && res.includes("UN ouvrier pour UNE journée"), res.slice(-300));
       const dMetre = await deborde(p);
       if (met === "carrelage" || met === "maconnerie") await p.screenshot({ path: `/tmp/metre-${met}-${largeur}.png`, fullPage: true });
       await p.locator('.sheet.metre [data-act="metreOuv"]').click(); await pause(p, 300);
@@ -75,6 +78,7 @@ const CHANTIERS = {
       // 3. Explication dans la ligne et écart si on change la quantité à la main
       const [n0, q0] = C.lignes[0];
       await p.locator('button.rowc[data-act="rowToggle"]', { hasText: n0 }).first().click(); await pause(p, 300);
+      if (met === "peinture") { await p.locator('button.rowc[data-act="rowToggle"]', { hasText: "ouvriers" }).first().click(); await pause(p, 300); const f = await txt(p, ".sheet:not(.metre)"); ok(T + "ligne de main-d'œuvre : « Prix pour 1 journée d'ouvrier » et calcul des journées", f.includes("Prix pour 1 journée d'ouvrier") && f.includes("× 2 ouvriers = 4 journées d'ouvrier"), f.slice(0, 400)); await p.locator('[data-act="rowClose"]').click(); await pause(p, 250); await p.locator('button.rowc[data-act="rowToggle"]', { hasText: n0 }).first().click(); await pause(p, 300); }
       ok(T + "la ligne explique sa quantité (calcul du métré)", (await txt(p, "#explmetre")).includes("Quantité calculée par le métré") && (await txt(p, "#explmetre")).includes(C.zone));
       { const f = p.locator('[data-p="row.qty"]'); await f.fill("999"); await f.dispatchEvent("change"); await pause(p, 350); }
       ok(T + "quantité changée à la main : écart signalé, pas écrasé", (await txt(p, "#explmetre")).includes("tu as écrit 999") && (await txt(p, "#metre")).includes("tu as écrit 999"), await txt(p, "#explmetre"));
@@ -148,21 +152,49 @@ const CHANTIERS = {
       await ctx.close();
     }
   }
-  // 7. Mémoire de l'entreprise : au deuxième ouvrage, formats, dosages et rendements sont repris
-  { const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: "block", hasTouch: true, isMobile: true }); const p = await ctx.newPage(); const C = CHANTIERS.carrelage;
+  // 7. Mémoire de l'entreprise : jamais de valeur reprise sans confirmation, jamais le format d'un autre produit
+  { const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: "block", hasTouch: true, isMobile: true }); const p = await ctx.newPage(); const C = CHANTIERS.carrelage; const err = []; p.on("pageerror", (e) => err.push(String(e).slice(0, 200)));
     await p.goto(URL0 + "#/devis"); await p.locator('[data-act="setMetier"][data-k="carrelage"]').click(); await pause(p); await p.locator('[data-act="setProfil"][data-k="technicien"]').click(); await pause(p); await p.locator('[data-act="newQuote"]').click(); await pause(p, 300);
-    await p.goto(p.url().replace(/\/\d+$/, "") + "/1"); await pause(p, 300);
-    await p.locator('[data-act="metreZoneAdd"]').click(); await pause(p, 300); await p.locator('[data-act="metreOuvAdd"][data-t="c_sol"]').click(); await pause(p, 300); await C.saisir(p);
+    const base = p.url().replace(/\/\d+$/, ""); await p.goto(base + "/1"); await pause(p, 300);
+    await p.locator('[data-act="metreZoneAdd"]').click(); await pause(p, 300); await p.locator('[data-act="metreOuvAdd"][data-t="c_sol"]').click(); await pause(p, 300);
+    ok("mémoire · premier ouvrage : rien à confirmer", (await p.locator("#mconf").count()) === 0);
+    await C.saisir(p);
     await p.locator('.sheet.metre [data-act="metreOuv"]').click(); await pause(p, 250);
     await p.locator('[data-act="metreChoix"]').click(); await pause(p, 250); await p.locator('[data-act="metreOuvAdd"][data-t="c_sol"]').click(); await pause(p, 300);
-    const repris = await p.locator('.sheet.metre [data-p$=".v.parCarton"]').inputValue(), dim = await p.locator('.sheet.metre [data-p$=".v.longueur"]').inputValue();
-    ok("mémoire · deuxième pièce : format, carton, colle repris ; dimensions vides", repris === "4" && dim === "", `${repris} / ${dim}`);
-    // saisie au doigt : le calcul se met à jour sans fermer le clavier (pas de redessin entre deux champs)
+    const val = (k) => p.locator(`.sheet.metre [data-p$=".v.${k}"]`).inputValue();
+    ok("mémoire · deuxième pièce : dimensions, nom et format du carreau VIDES", (await val("longueur")) === "" && (await val("carreau")) === "" && (await val("cA")) === "" && (await val("parCarton")) === "", `${await val("cA")}/${await val("parCarton")}`);
+    ok("mémoire · deuxième pièce : pertes et colle proposées, bandeau « à confirmer »", (await val("perte")) === "10" && (await val("colle")) === "5" && (await p.locator("#mconf").count()) === 1 && (await p.locator(".mf.rep").count()) >= 4);
+    // saisie au doigt : le calcul se met à jour sans fermer le clavier
     await p.locator('.sheet.metre [data-p$=".v.longueur"]').tap(); await p.keyboard.type("3"); await p.locator('.sheet.metre [data-p$=".v.largeur"]').tap(); await p.keyboard.type("3");
-    const actif = await p.evaluate(() => document.activeElement && document.activeElement.dataset.p || "");
+    const actif = await p.evaluate(() => (document.activeElement && document.activeElement.dataset.p) || "");
     await p.locator('.sheet.metre [data-p$=".v.deduire"]').tap(); await pause(p, 600);
     ok("saisie au doigt · le champ suivant garde le focus", /largeur$/.test(actif), actif);
     ok("saisie au doigt · le calcul est à jour (3 × 3 = 9 m²)", (await txt(p, "#mresult")).includes("3 × 3 = 9 m²"), await txt(p, "#mresult"));
+    await V(p, "carreau", "Marbre 80×80");
+    ok("mémoire · autre carreau : le format du premier n'est PAS repris", (await val("cA")) === "" && (await val("parCarton")) === "");
+    await V(p, "carreau", "grès 60×60");
+    ok("mémoire · même carreau : son format est repris (60 × 60, 4 par carton)", (await val("cA")) === "60" && (await val("cB")) === "60" && (await val("parCarton")) === "4", `${await val("cA")}/${await val("parCarton")}`);
+    await V(p, "carreau", "Grès 60×60");
+    ok("mémoire · tant que ce n'est pas confirmé : le devis garde 16 cartons", (await qteLigne(p, "Grès 60×60")).includes("16 Carton"), await qteLigne(p, "Grès 60×60"));
+    await p.locator('[data-act="metreConfirmer"]').tap(); await pause(p, 400);
+    // 20 + 9 = 29 m² ; × 1,10 ÷ 1,44 = 22,15 → 23 cartons
+    ok("mémoire · après « Oui, je les garde » : 23 cartons (29 m²)", (await qteLigne(p, "Grès 60×60")).includes("23 Carton") && (await p.locator("#mconf").count()) === 0, await qteLigne(p, "Grès 60×60"));
+    // troisième ouvrage : « Non, tout vider »
+    await p.locator('.sheet.metre [data-act="metreOuv"]').click(); await pause(p, 250);
+    await p.locator('[data-act="metreChoix"]').click(); await pause(p, 250); await p.locator('[data-act="metreOuvAdd"][data-t="c_sol"]').click(); await pause(p, 300);
+    await p.locator('[data-act="metreVider"]').tap(); await pause(p, 400);
+    ok("mémoire · « Non, tout vider » : pertes et colle vidées, plus de bandeau", (await val("perte")) === "" && (await val("colle")) === "" && (await p.locator("#mconf").count()) === 0);
+    await p.locator('[data-act="metreAsk"]').first().click(); await pause(p, 250); await p.locator('[data-act="metreOuvDel"]').click(); await pause(p, 300);
+    // main-d'œuvre saisie à la main en plus de celle du métré → signalée
+    for (const s of await p.locator('[data-act="secToggle"]').all()) { if (!(await p.locator('[data-act="rowToggle"][data-key="new:ouvriers"]').count())) { await s.click(); await pause(p); } }
+    await p.locator('[data-act="rowToggle"][data-key="new:ouvriers"]').click(); await pause(p, 250);
+    { const l = p.locator('[data-p="row.label"]'); await l.fill("Carreleur"); await l.dispatchEvent("change"); await pause(p, 250); const q = p.locator('[data-p="row.qty"]'); await q.fill("3"); await q.dispatchEvent("change"); await pause(p, 250); await p.locator('[data-p="row.unit"]').selectOption({ index: 1 }); await pause(p, 250); const c = p.locator('[data-act="rowClose"]'); if (await c.count()) await c.click(); await pause(p, 250); }
+    await p.goto(base + "/2"); await pause(p, 400);
+    const ctl = await txt(p, "#metrecontrole");
+    ok("double comptage · main-d'œuvre saisie à la main en plus du métré : signalée", ctl.includes("comptée deux fois") && ctl.includes("Carreleur"), ctl.slice(0, 300));
+    ok("contrôle · les quantités estimées sont listées (colle, joint)", (await txt(p, "#metreest")).includes("Colle à carrelage"), await txt(p, "#metreest"));
+    ok("mémoire · aucune erreur JavaScript", err.length === 0, err.join(" | "));
+    await p.screenshot({ path: "/tmp/metre-controle-390.png", fullPage: false });
     await ctx.close(); }
   await b.close();
   const n = R.filter(Boolean).length; console.log(`\n${n}/${R.length} vérifications réussies`); process.exit(n === R.length ? 0 : 1);

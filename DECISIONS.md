@@ -67,3 +67,13 @@ Format : quoi · pourquoi · date.
 - **Le détail du métré s'imprime à la fin du devis** (PDF et Word), désactivable par devis. Il ne change aucun montant.
 - Les quantités décimales s'impriment avec leurs décimales (0,32 m³ s'imprimait « 0 »).
 - Devis existants : rien ne change tant qu'aucun métré n'est saisi (`quote.metre` absent). Le devis de référence reste exact au franc.
+
+## Métré : corrections après relecture (v33, nov. 2026)
+- **Main-d'œuvre** : trois modes exclusifs par ouvrage (à la tâche ; par jour et par ouvrier ; par jour pour toute l'équipe). Le rendement est toujours celui de toute l'équipe. Les jours de chantier sont arrondis d'abord, puis multipliés par l'effectif : chaque ouvrier est payé le même nombre de jours. Unités « journée d'ouvrier » et « journée d'équipe » ; le prix attendu est écrit dans la ligne. L'ancien mode « jour » de la v32 se lit comme « par ouvrier ».
+- **Armatures** : calcul par découpe de pièces entières dans chaque barre (la v32 divisait la longueur totale par la longueur de barre et pouvait donner une barre de moins que nécessaire).
+- **Nombres entiers** : « 0 porte » ne déduit plus une porte ; 0 élément, 1,5 couche, 2,5 ouvriers sont refusés.
+- **Exact ou estimation** : chaque quantité porte sa nature (voir `METRE.md`).
+- **Mémoire** : les valeurs d'un produit ne sont reprises que pour le même nom de produit ; les valeurs de pratique reprises doivent être confirmées avant d'entrer dans un devis.
+- **Mortier d'un mur** : calculé seulement si l'artisan le demande (case à cocher).
+- **Carrelage** : vente au carton ou au m² ; coupes de plinthes séparées de la casse des carreaux.
+- **Contrôle indépendant** : `validation/controle.py` et `VALIDATION.md`.

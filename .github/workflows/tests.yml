@@ -19,6 +19,7 @@ jobs:
       - run: node test-docx.mjs /tmp/ref.docx
       - run: node test-aide.mjs
       - run: node test-licence.mjs
+      - run: python3 validation/controle.py && git diff --exit-code validation VALIDATION.md
       - run: node test-metre.mjs
       - run: node test-sw.mjs
       - run: node test-listes.mjs
