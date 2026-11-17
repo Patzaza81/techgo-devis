@@ -21,6 +21,8 @@ main{max-width:640px;margin:0 auto;padding:20px}
 h2{font-size:26px;line-height:1.2;margin:4px 0 18px;color:var(--ink);font-weight:800;letter-spacing:-.01em;text-wrap:balance}
 h3{font-size:14px;margin:28px 0 10px;color:var(--mut);text-transform:uppercase;letter-spacing:.08em;font-weight:700}
 .card{background:var(--card);border-radius:18px;padding:18px;margin-bottom:16px;border:1px solid var(--line);box-shadow:var(--sh)}
+.fmsg{color:#b3261e;font-size:14px;margin:4px 0 0;line-height:1.35}button.rowc{scroll-margin-top:72px}
+input.bad{border-color:#b3261e;outline:0;box-shadow:0 0 0 2px rgba(179,38,30,.18)}
 label{display:block;font-size:15px;font-weight:600;color:var(--mut);margin:14px 0 6px}
 select{-webkit-appearance:none;appearance:none;padding-right:44px;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='%2369787e' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'><path d='M6 9l6 6 6-6'/></svg>");background-repeat:no-repeat;background-position:right 14px center}
 input,select,textarea{width:100%;font:inherit;padding:13px 14px;border:2px solid transparent;border-radius:14px;background-color:var(--field);color:var(--ink);min-height:52px}
@@ -150,8 +152,8 @@ em.tick{font-style:normal;flex:none;width:28px;height:28px;border-radius:50%;bac
 .mzone{border:1px solid var(--line);border-radius:12px;padding:4px 10px 10px;margin:10px 0}.mzone>.sech{width:100%}
 .sheet.metre{padding-top:10px}.mf{margin:0 0 10px}.ml{display:block;margin:10px 0 4px;font-size:15px}
 .mrow{display:grid;gap:8px;align-items:end;margin:0 0 8px}.mrow.m3{grid-template-columns:1fr 1fr 1fr 40px}.mrow.m2{grid-template-columns:2fr 1fr 40px}.mrow.m1{grid-template-columns:1fr 40px}
-.mrow label{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.mrow input,.mrow select{min-width:0;width:100%;padding-left:8px;padding-right:6px}
-.mfs{display:grid;grid-template-columns:1fr 1fr;gap:0 10px;align-items:end}.mfs>*{grid-column:1/-1;min-width:0}.mfs>.half{grid-column:auto}.mfs>.half label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mrow label{font-size:13px;line-height:1.2;white-space:normal;overflow-wrap:anywhere}.mrow input,.mrow select{min-width:0;width:100%;padding-left:8px;padding-right:6px}
+.mfs{display:grid;grid-template-columns:1fr 1fr;gap:0 10px;align-items:end}.mfs>*{grid-column:1/-1;min-width:0}.mfs>.half{grid-column:auto}.mfs>.half label{white-space:normal;line-height:1.2;overflow-wrap:anywhere}
 .mg{margin:16px 0 8px;padding:6px 10px;background:#e8f1f3;border-radius:8px}.mg b{display:block;font-size:15px}.mg span{display:block;font-size:13px;color:#51606a;margin-top:2px}
 .mf.rep input,.mf.rep select{border-color:#c98a00;background:#fff8e6}.hint.mrep{color:#8a5a00;margin:2px 0 6px}
 .mest{display:inline-block;font-size:11px;font-weight:600;padding:1px 7px;border-radius:9px;background:#fff1cc;color:#7a4f00;vertical-align:middle}.mest.ex{background:#e3f3ea;color:#17603a}

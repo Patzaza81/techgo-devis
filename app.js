@@ -5,6 +5,7 @@ import { manqueLigne, aDesDonnees, AIDE_QTE, quantiteCouverture, oublis } from "
 import * as Lic from "./licence.js";
 import * as Mt from "./metiers/metre.js";
 import * as UM from "./ui-metre.js";
+import { lireSaisie } from "./saisie.js";
 import { analyseCsv, exportCatalogueCsv, templateCsv, exportRowsCsv } from "./csv.js";
 const NEUTRAL_LOGO = "data:image/svg+xml;utf8," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><rect width="40" height="40" rx="9" fill="#e7ebed"/><path d="M12 9h12l6 6v16H12z" fill="none" stroke="#69787e" stroke-width="2.2" stroke-linejoin="round"/><path d="M16 21h10M16 26h10" stroke="#69787e" stroke-width="2.2" stroke-linecap="round"/></svg>');
 import { LISTES, METIERS, visibleIn, metierLabel } from "./metiers/listes.js";
@@ -60,7 +61,7 @@ const ui = {
 
 // ---------- Utilitaires de formulaire ----------
 const attr = (o) => `${o.dis ? "disabled" : ""} ${o.id ? `id="${o.id}"` : ""}`;
-const I = (r, p, v, o = {}) => `<input data-r="${r}" data-p="${p}" ${o.n ? `data-n="${o.n}"` : ""} ${o.list ? `data-list="${o.list}"` : ""} type="${o.type || "text"}" ${o.type === "number" ? 'inputmode="decimal" step="any"' : ""} value="${esc(v ?? "")}" placeholder="${esc(o.ph || "")}" ${attr(o)}>`;
+const I = (r, p, v, o = {}) => `<input data-r="${r}" data-p="${p}" ${o.n ? `data-n="${o.n}"` : ""} ${o.list ? `data-list="${o.list}"` : ""} type="${o.type === "number" ? "text" : o.type || "text"}" ${o.type === "number" ? 'inputmode="decimal" autocomplete="off" enterkeyhint="next"' : ""} value="${esc(v ?? "")}" placeholder="${esc(o.ph || "")}" ${attr(o)}>`;
 const Sel = (r, p, v, opts, o = {}) => `<select data-r="${r}" data-p="${p}" ${attr(o)}>${opts.map(([val, lab]) => `<option value="${esc(val)}" ${String(v ?? "") === String(val) ? "selected" : ""}>${esc(lab)}</option>`).join("")}</select>`;
 const Chk = (r, p, v, label, o = {}) => `<label class="chkl"><input type="checkbox" data-r="${r}" data-p="${p}" ${v ? "checked" : ""} ${attr(o)}> ${label}</label>`;
 const Txt = (r, p, v, o = {}) => `<textarea data-r="${r}" data-p="${p}" ${o.list ? `data-list="${o.list}"` : ""} rows="${o.rows || 3}" ${attr(o)}>${esc(v ?? "")}</textarea>`;
@@ -68,7 +69,9 @@ const L = (t) => `<label>${t}</label>`;
 UM.init({ I, Sel, Chk, L, ui, metierOf, sugg: (met) => LISTES[met]?.produits || [] });
 const badge = (state, text) => `<span class="badge b-${state}">${esc(text)}</span>`;
 const stBadge = (s) => `<span class="st st-${s}">${esc(S.STATUS[s])}</span>`;
-const num = (v, z) => (v === "" || v === null || v === undefined ? (z ? 0 : null) : Number(String(v).replace(",", ".")));
+// Nombre écrit par une personne : « 4,5 », « 4.5 », « 1 500 » (espaces ordinaires ou insécables). Tout autre texte (« 4m », « abc ») donne NaN :
+// on ne devine jamais une unité (60 cm lu comme 60 m serait une erreur silencieuse).
+const num = (v, z) => { const t = v === null || v === undefined ? "" : String(v).replace(/[\s\u00a0\u202f]/g, ""); if (t === "") return z ? 0 : null; return /^[+-]?(\d+([.,]\d*)?|[.,]\d+)$/.test(t) ? Number(t.replace(",", ".")) : NaN; };
 const pctList = (s) => String(s).split("/").map((x) => x.trim()).filter((x) => x !== "").map((x) => Number(x.replace(",", ".")));
 const roots = () => ({ q: S.getQuote(ui.qid), db: S.state.db, it: ui.itemDraft, cl: ui.clientDraft, tmp: ui.tmp, ui });
 function setPath(o, path, v) { const k = path.split("."); for (let i = 0; i < k.length - 1; i++) { if (o[k[i]] === undefined || o[k[i]] === null) o[k[i]] = {}; o = o[k[i]]; } o[k[k.length - 1]] = v; }
@@ -438,22 +441,22 @@ function skipped(q) {
 
 function lineCard(l, q, dis) {
   const adj = q.current.adjust[l.id] || {}; const man = q.current.manual.find((m) => m.id === l.id);
-  const mf = (f, label, val, o = {}) => `<div>${L(label)}<input data-on="mf" data-id="${esc(l.id)}" data-f="${f}" type="number" inputmode="decimal" step="any" value="${esc(val ?? "")}" ${dis ? "disabled" : ""}></div>`;
+  const mf = (f, label, val, o = {}) => `<div>${L(label)}<input data-on="mf" data-id="${esc(l.id)}" data-f="${f}" type="text" inputmode="decimal" autocomplete="off" enterkeyhint="next" value="${esc(val ?? "")}" ${dis ? "disabled" : ""}></div>`;
   return `<div class="lcard ${l.flags.length ? "warn" : ""}"><div class="lt"><b>${esc(l.label)}</b>${l.option ? '<span class="tag">option</span>' : ""}${l.overridden ? '<span class="tag t2">corrigé</span>' : ""}</div>
     ${l.role ? `<div class="note">${esc(l.role)}</div>` : ""}<div class="lcalc">${esc(l.calc)}</div>
     <div class="lnums"><span>${l.qty === null ? "quantité inconnue" : fmtQ(l.qty) + " " + esc(l.unit)}</span><span>× ${l.mode === "equip" ? (l.total === 0 ? "non facturé" : "forfait") : l.price === null ? "prix inconnu" : fmtN(l.price)}</span><b>${l.total === null ? "—" : fmt(l.total)}</b></div>
     ${!dis && l.flags.includes("prix_inconnu") && l.mode !== "equip" ? (q.current.pricing.method === "cout_plus_marge"
-      ? `<div class="miss">${ic("warn", 18)} <b>Il manque le prix d'achat de ${esc(l.label)}.</b>${L("Prix d'achat par " + esc(l.unit) + " (FCFA)")}<input data-on="adj" data-id="${esc(l.id)}" data-f="cost" type="number" inputmode="decimal" step="any" value="${esc(adj.costOverride ?? "")}"></div>`
-      : `<div class="miss">${ic("warn", 18)} <b>Il manque le prix de ${esc(l.label)}.</b>${L("Prix par " + esc(l.unit) + " (FCFA)")}<input data-on="adj" data-id="${esc(l.id)}" data-f="price" type="number" inputmode="decimal" step="any" value="${esc(adj.priceOverride ?? "")}"></div>`) : ""}
-    ${l.flags.includes("qte_inconnue") ? `<div class="miss">${ic("warn", 18)} <b>Il manque la quantité.</b> ${man && man.mode !== "equip" ? `<input data-on="mf" data-id="${esc(l.id)}" data-f="qty" type="number" inputmode="decimal" step="any" value="">` : man ? "Renseigne la durée ci-dessous." : "Renseigne les champs du bloc Travaux."}</div>` : ""}
+      ? `<div class="miss">${ic("warn", 18)} <b>Il manque le prix d'achat de ${esc(l.label)}.</b>${L("Prix d'achat par " + esc(l.unit) + " (FCFA)")}<input data-on="adj" data-id="${esc(l.id)}" data-f="cost" type="text" inputmode="decimal" autocomplete="off" enterkeyhint="next" value="${esc(adj.costOverride ?? "")}"></div>`
+      : `<div class="miss">${ic("warn", 18)} <b>Il manque le prix de ${esc(l.label)}.</b>${L("Prix par " + esc(l.unit) + " (FCFA)")}<input data-on="adj" data-id="${esc(l.id)}" data-f="price" type="text" inputmode="decimal" autocomplete="off" enterkeyhint="next" value="${esc(adj.priceOverride ?? "")}"></div>`) : ""}
+    ${l.flags.includes("qte_inconnue") ? `<div class="miss">${ic("warn", 18)} <b>Il manque la quantité.</b> ${man && man.mode !== "equip" ? `<input data-on="mf" data-id="${esc(l.id)}" data-f="qty" type="text" inputmode="decimal" autocomplete="off" enterkeyhint="next" value="">` : man ? "Renseigne la durée ci-dessous." : "Renseigne les champs du bloc Travaux."}</div>` : ""}
     ${man && man.mode === "equip" ? `<div class="row3">${mf("days", "Durée (jours)", man.days)}${mf("trips", "Trajets", man.trips)}${mf("areaQty", "Surface (m²)", man.areaQty)}</div>
       <div class="row"><div>${L("Tarif retenu")}<select data-on="mf" data-id="${esc(l.id)}" data-f="basis" ${dis ? "disabled" : ""}>${[["jour", "Journalier"], ["semaine", "Hebdomadaire"], ["mois", "Mensuel"]].map(([v, t]) => `<option value="${v}" ${man.basis === v ? "selected" : ""}>${t}</option>`).join("")}</select></div>
       <div>${L("Facturation au client")}<select data-on="mf" data-id="${esc(l.id)}" data-f="bill" ${dis ? "disabled" : ""}><option value="inclus" ${man.bill !== "refacture" ? "selected" : ""}>Non facturé séparément (absorbé)</option><option value="refacture" ${man.bill === "refacture" ? "selected" : ""}>Refacturé avec majoration</option></select></div></div>
-      ${man.bill === "refacture" ? `<div>${L("Majoration sur coût (%) — 0 = au prix coûtant")}<input data-on="mf" data-id="${esc(l.id)}" data-f="markupPct" type="number" inputmode="decimal" step="any" value="${esc(man.markupPct ?? "")}" ${dis ? "disabled" : ""}></div>` : ""}` : ""}
+      ${man.bill === "refacture" ? `<div>${L("Majoration sur coût (%) — 0 = au prix coûtant")}<input data-on="mf" data-id="${esc(l.id)}" data-f="markupPct" type="text" inputmode="decimal" autocomplete="off" enterkeyhint="next" value="${esc(man.markupPct ?? "")}" ${dis ? "disabled" : ""}></div>` : ""}` : ""}
     ${dis ? "" : `<details><summary>Corriger cette ligne</summary>
-      <div class="row"><div>${L(`Quantité retenue (calculée : ${l.qtyCalc === null ? "—" : fmtN(l.qtyCalc)})`)}<input data-on="adj" data-id="${esc(l.id)}" data-f="qty" type="number" inputmode="decimal" step="any" value="${esc(adj.override?.qty ?? "")}"></div>
+      <div class="row"><div>${L(`Quantité retenue (calculée : ${l.qtyCalc === null ? "—" : fmtN(l.qtyCalc)})`)}<input data-on="adj" data-id="${esc(l.id)}" data-f="qty" type="text" inputmode="decimal" autocomplete="off" enterkeyhint="next" value="${esc(adj.override?.qty ?? "")}"></div>
       <div>${L("Motif de la correction (obligatoire)")}<input data-on="adj" data-id="${esc(l.id)}" data-f="reason" value="${esc(adj.override?.reason ?? "")}"></div></div>
-      ${l.mode === "equip" ? "" : `${L("Prix unitaire pour ce devis (remplace le catalogue)")}<input data-on="adj" data-id="${esc(l.id)}" data-f="price" type="number" inputmode="decimal" step="any" value="${esc(adj.priceOverride ?? "")}">`}
+      ${l.mode === "equip" ? "" : `${L("Prix unitaire pour ce devis (remplace le catalogue)")}<input data-on="adj" data-id="${esc(l.id)}" data-f="price" type="text" inputmode="decimal" autocomplete="off" enterkeyhint="next" value="${esc(adj.priceOverride ?? "")}">`}
       <label class="chkl"><input type="checkbox" data-on="adj" data-id="${esc(l.id)}" data-f="option" ${l.option ? "checked" : ""}> Option (hors offre de base)</label>
       <button class="sec" data-act="skipLine" data-id="${esc(l.id)}">Retirer cette ligne</button>${man ? ` <button class="sec" data-act="delManual" data-id="${esc(l.id)}">Supprimer</button>` : ""}</details>`}</div>`;
 }
@@ -780,13 +783,23 @@ function render() {
   const banners = (S.state.conflict ? `<div class="banner bad noprint"><b>Conflit :</b> ces données ont été modifiées ailleurs (autre onglet). Rien n'a été écrasé. <button data-act="reload">Recharger la version la plus récente</button></div>` : "") +
     (!S.state.storageOk ? `<div class="banner bad noprint">Le stockage de l'appareil est plein ou bloqué : exporte une sauvegarde (Réglages).</div>` : "") +
     (ui.flash ? `<div class="banner ${ui.flash.type === "ok" ? "info" : "bad"} noprint">${esc(ui.flash.text)}</div>` : "");
-  $("#app").innerHTML = banners + html;
+  $("#app").innerHTML = banners + html; lierLibelles($("#app"));
   const tabs = [["devis", "Devis"], ["clients", "Clients"], ["catalogue", "Produits"], ["suivi", "Suivi"], ["reglages", "Réglages"]];
   $("#nav").innerHTML = tabs.map(([k, n]) => `<a class="${tab === k ? "on" : ""}" href="#/${k}">${ic(k, 26)}<span>${n}</span></a>`).join("");
   $("#hsub").textContent = ((S.listWorkspaces().find((w) => w.id === S.state.ws) || {}).name || "") + (activeMetier() ? " · " + metierLabel(activeMetier()) : "");
   $("#hname").textContent = "TechGo Devis"; $("#hlogo").src = S.state.db.settings.presentation.logo || NEUTRAL_LOGO;
 }
-function rerender(keepScroll = true) { const y = window.scrollY; render(); if (keepScroll) window.scrollTo(0, y); }
+// Les libellés sont écrits à côté de leur champ sans lien : on les relie (for/id) pour que toucher le libellé place le curseur dans le champ.
+let _idLib = 0;
+function lierLibelles(racine) {
+  racine.querySelectorAll("label:not([for])").forEach((l) => {
+    const c = l.nextElementSibling; if (!c || !/^(INPUT|SELECT|TEXTAREA)$/.test(c.tagName) || l.contains(c)) return;
+    if (!c.id) c.id = "c" + ++_idLib; l.htmlFor = c.id;
+  });
+}
+// Après « Ajouter un ouvrage », la nouvelle fiche s'ouvre ailleurs dans la page : on l'amène à l'écran, sinon la personne ne voit rien changer.
+function voirNouvelOuvrage() { const id = ui.versOuv; if (!id) return; ui.versOuv = null; const b = document.querySelector(`[data-act="metreOuv"][data-o="${id}"]`); if (b && b.scrollIntoView) b.scrollIntoView({ block: "start" }); }
+function rerender(keepScroll = true) { const y = window.scrollY; render(); if (keepScroll) window.scrollTo(0, y); voirNouvelOuvrage(); }
 
 // ---------- Événements ----------
 function parseValue(el) {
@@ -921,23 +934,40 @@ function keepFocus(f) {
   f();
   if (sel) { const n = document.querySelector(sel); if (n && n !== document.activeElement) { n.focus({ preventScroll: true }); if (pos !== null) { try { n.setSelectionRange(pos, pos); } catch {} } } }
 }
-const inField = () => { const e = document.activeElement; return !!(e && /^(INPUT|TEXTAREA)$/.test(e.tagName) && e.dataset && e.dataset.p); };
+const inField = () => { const e = document.activeElement; return !!(e && /^(INPUT|TEXTAREA|SELECT)$/.test(e.tagName) && !/^(checkbox|radio|button|submit|file)$/.test(e.type || "")); };
 // deferred = { full, quiet } : si la personne est passée dans un autre champ, on enregistre sans redessiner (le clavier reste ouvert)
 const flushDeferred = () => { tapping = false; const d = deferred; deferred = null; if (!d) return; if (inField()) { d.quiet(); liveTotals(); } else keepFocus(d.full); };
 document.addEventListener("pointerdown", () => { tapping = true; }, true);
 document.addEventListener("pointercancel", () => setTimeout(flushDeferred, 0), true);
 document.addEventListener("click", () => setTimeout(flushDeferred, 0), true);
 document.addEventListener("pointerup", () => setTimeout(() => { if (tapping) flushDeferred(); }, 400), true);
-const later = (full, quiet = () => {}) => { if (tapping) deferred = { full, quiet }; else keepFocus(full); };
+// Passage d'un champ à l'autre au clavier (Tab, « Suivant ») : le changement est signalé AVANT que le focus arrive dans le champ suivant.
+// On attend la fin de l'événement : si la personne est dans un autre champ, on enregistre sans redessiner (le clavier reste ouvert).
+let changed = null; // dernier champ modifié : si le curseur y est encore (Entrée, « OK »), on redessine normalement
+const later = (full, quiet = () => {}) => { if (tapping) deferred = { full, quiet }; else { const chg = changed; setTimeout(() => { if (inField() && document.activeElement !== chg) { quiet(); liveTotals(); } else keepFocus(full); }, 0); } };
 // Calcul automatique : le montant de la fiche se met à jour à chaque chiffre tapé
 document.addEventListener("input", (e) => {
   const el = e.target; if (!el.dataset || el.dataset.r !== "tmp" || !/^row\.(qty|price)$/.test(el.dataset.p || "")) return;
   const v = parseFloat(String(el.value).replace(",", ".")); ui.tmp.row[el.dataset.p.slice(4)] = isNaN(v) ? null : v; liveTotals();
 });
+// Message juste sous le champ (la personne voit ce qu'elle a tapé) ; rien n'est enregistré tant que ce n'est pas un nombre.
+function messageChamp(el, texte) {
+  let m = el.nextElementSibling && el.nextElementSibling.classList.contains("fmsg") ? el.nextElementSibling : null;
+  if (!texte) { if (m) m.remove(); el.classList.remove("bad"); el.removeAttribute("aria-invalid"); return; }
+  if (!m) { m = document.createElement("div"); m.className = "fmsg"; m.setAttribute("role", "alert"); el.insertAdjacentElement("afterend", m); }
+  m.textContent = texte; el.classList.add("bad"); el.setAttribute("aria-invalid", "true");
+}
 document.addEventListener("change", (e) => {
-  const el = e.target; if (!el.dataset) return; ui.flash = null;
+  const el = e.target; if (!el.dataset) return;
+  if (el.inputMode === "decimal" && el.tagName === "INPUT") {
+    const s = lireSaisie(el.value, el.labels && el.labels[0] ? el.labels[0].textContent : "");
+    if (s.etat === "invalide" || s.etat === "autre_unite") { messageChamp(el, s.message); return; }
+    if (s.etat === "unite_du_champ") el.value = String(s.valeur); // « 60 cm » dans un champ en cm : on garde le nombre
+    messageChamp(el, "");
+  }
+  ui.flash = null; changed = el;
   try {
-    if (el.dataset.on) { const h = onHandlers[el.dataset.on]; return later(() => { try { h(el); } catch (err) { ui.flash = { type: "err", text: err.message }; rerender(); } }); }
+    if (el.dataset.on) { const h = onHandlers[el.dataset.on]; return later(() => { try { h(el); } catch (err) { ui.flash = { type: "err", text: err.message }; rerender(); } }, () => { try { keepFocus(() => h(el)); } catch (err) { ui.flash = { type: "err", text: err.message }; rerender(); } }); }
     if (!el.dataset.p) return;
     const root = el.dataset.r || "q", o = roots()[root]; if (!o) return;
     setPath(o, el.dataset.p, parseValue(el));
@@ -947,7 +977,7 @@ document.addEventListener("change", (e) => {
     if (root === "q" && /^current\.metre\./.test(el.dataset.p)) {
       const redessiner = apresMetre(o, el.dataset.p);
       // case à cocher, liste ou nom de produit : d'autres champs peuvent apparaître ou se remplir, on redessine tout de suite
-      if (redessiner || el.type === "checkbox" || el.tagName === "SELECT") { touchQuote(o); return; }
+      if (redessiner || el.type === "checkbox" || el.tagName === "SELECT") { if (el.tagName === "INPUT" && el.type !== "checkbox") later(() => touchQuote(o), () => keepFocus(() => touchQuote(o))); else touchQuote(o); return; }
     }
     later(() => { if (root === "q") touchQuote(o); else if (root === "db") { S.commit(); rerender(); } else rerender(); }, () => { if (root === "q") { touchQuote(o, true); if (/^current\.metre\./.test(el.dataset.p)) { UM.majResultat(o); refreshTotals(); } } else if (root === "db") S.commit(); else refreshTotals(); });
   } catch (err) { ui.flash = { type: "err", text: err.message }; rerender(); }
@@ -977,7 +1007,7 @@ const actions = {
   metreZoneDel(b) { const q = S.getQuote(ui.qid); metreDe(q).zones.splice(Number(b.dataset.z), 1); ui.tmp.metre.del = null; finMetre(q); },
   metreAsk(b) { ui.tmp.metre.del = b.dataset.id; },
   metreChoix(b) { ui.tmp.metre.add = b.dataset.z; },
-  metreOuvAdd(b) { const q = S.getQuote(ui.qid), z = metreDe(q).zones[Number(b.dataset.z)], type = Mt.typeDe(b.dataset.t); if (!z || !type) return; const o = Mt.nouvelOuvrage(type, S.clone((S.state.db.settings.metreMemo || {})[type.id] || {}), "o" + S.uid()); z.ouvrages.push(o); Object.assign(ui.tmp.metre, { o: o.id, add: null, del: null }); finMetre(q); },
+  metreOuvAdd(b) { const q = S.getQuote(ui.qid), z = metreDe(q).zones[Number(b.dataset.z)], type = Mt.typeDe(b.dataset.t); if (!z || !type) return; const o = Mt.nouvelOuvrage(type, S.clone((S.state.db.settings.metreMemo || {})[type.id] || {}), "o" + S.uid()); z.ouvrages.push(o); Object.assign(ui.tmp.metre, { o: o.id, add: null, del: null }); ui.versOuv = o.id; finMetre(q); },
   metreOuv(b) { const s = ui.tmp.metre; s.o = s.o === b.dataset.o ? null : b.dataset.o; s.del = null; },
   metreOuvDel(b) { const q = S.getQuote(ui.qid); metreDe(q).zones[Number(b.dataset.z)].ouvrages.splice(Number(b.dataset.i), 1); Object.assign(ui.tmp.metre, { o: null, del: null }); finMetre(q); },
   metreAdd(b) { const q = S.getQuote(ui.qid), o = cheminMetre(q, b.dataset.base); if (!o) return; o.v = o.v || {}; const a = Array.isArray(o.v[b.dataset.k]) ? o.v[b.dataset.k] : (o.v[b.dataset.k] = []); const type = Mt.typeDe(o.type), prod = type && (type.champs.find((c) => c.k === b.dataset.k) || {}).t === "prod"; a.push(b.dataset.nom ? (prod ? { nom: b.dataset.nom, ...(fichesMetre("prod")[Mt.clePlate(b.dataset.nom)] || {}) } : { nom: b.dataset.nom, n: null }) : {}); finMetre(q); },
@@ -1157,7 +1187,7 @@ document.addEventListener("click", (e) => {
 window.addEventListener("hashchange", () => { ui.file = null; render(); window.scrollTo(0, 0); });
 window.addEventListener("beforeprint", () => document.body.classList.add("printing"));
 window.addEventListener("afterprint", () => document.body.classList.remove("printing"));
-export const BUILD = "33";
+export const BUILD = "35";
 // Mise à jour automatique : quand une nouvelle version est publiée, l'application la prend toute seule
 // (au retour sur l'application, ou dès que la personne n'est plus en train de taper). Les données ne sont jamais touchées.
 if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {

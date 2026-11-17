@@ -1,0 +1,1 @@
+id_participant,metier,niveau_informatique(1-4),appareil,largeur_ecran_px,langue_telephone,reussite_sans_aide(oui/non),avec_aide(oui/non),nb_aides,temps_minutes,pdf_obtenu(oui/non),word_obtenu(oui/non),nb_erreurs,nb_retours_arriere,abandon(oui/non),cause_abandon,ecrans_ou_blocage,champs_ou_mots_incompris,difficulte_1_a_7,remarques
