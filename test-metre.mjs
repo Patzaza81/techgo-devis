@@ -296,4 +296,10 @@ eq("chaque type a des rubriques (formulaire regroupé) et chaque rubrique un tit
 eq("toute quantité à zéro est écartée du devis", M.calculer({ zones: [{ id: "z", nom: "Z", ouvrages: [{ id: "1", type: "m_mur", v: { ...mur, joint: 0 } }] }] }, "maconnerie").lignes.every((l) => l.qty > 0), true);
 eq("annexe imprimable : zone, mesure et formule", (() => { const a = M.annexe({ zones: [{ id: "z", nom: "Salon", ouvrages: [{ id: "1", type: "c_sol", v: sol }] }] }, "carrelage"); return [a[0].zone, a[0].lignes[0].mesure, a[0].lignes[0].detail]; })(), ["Salon", "Surface à carreler", "5 × 4 = 20 m²"]);
 
+// Aucun texte affiché ne doit contenir « null » (vu par un utilisateur : « Pose des appareils — null ouvrier »)
+for (const [mode, moOuv, attendu] of [["ouvrier", null, false], ["ouvrier", 3, false], ["equipe", null, false], ["tache", null, false]]) {
+  const sortie = JSON.stringify(un("p_piece", { ...piece, moMode: mode, moOuv, moRend: mode === "tache" ? null : 10 }, "peinture"));
+  eq(`aucun « null » affiché — main-d'œuvre ${mode}, ouvriers ${moOuv}`, /null ouvrier|— null|undefined/.test(sortie), attendu);
+}
+
 console.log(`\n${pass} réussis, ${fail} échoués`); process.exit(fail ? 1 : 0);

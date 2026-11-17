@@ -52,3 +52,15 @@ Ces seuils sont posés **avant** le test pour ne pas les ajuster ensuite aux ré
 
 ## Fiche d'observation
 Voir `tests-humains/fiche-observation.csv` (une ligne par personne et par métier).
+
+## Ajouts après la campagne simulée n° 2 (v39) : à observer chez des humains
+
+Ces points ne peuvent pas être jugés par la simulation. Noter pour chacun : la personne comprend-elle sans aide ? combien de temps ?
+
+1. **Aides sous les champs** (« Écrit sur le sac », « Mesure un de tes blocs »…) : sont-elles lues ? Les valeurs écrites sont-elles justes ?
+2. **Liens « Corriger : aller à … »** dans « Vérifier avant d'envoyer » : la personne les voit-elle et les touche-t-elle, ou revient-elle en arrière avec « Précédent » ?
+3. **Étape 3 (artisan)** : l'aperçu et le PDF sont maintenant juste après le total, les réglages sont repliés. La personne trouve-t-elle encore les conditions, le paiement, le logo quand elle en a besoin ?
+4. **Choix de facturation de la main-d'œuvre** : choisit-elle « À la tâche » (le plus simple) ? Comprend-elle « rendement » et « équipe » ?
+5. **Champs de dosage et de section** (maçonnerie, électricité) : qui sait les remplir sans aide ?
+6. **Parcours « entreprise » (5 étapes) : NON simulé de bout en bout.** À tester obligatoirement avec au moins 5 personnes (2 par métier minimum).
+7. **Vrai iPhone et vrai Android** : virgule décimale selon la langue du téléphone, clavier numérique, défilement.

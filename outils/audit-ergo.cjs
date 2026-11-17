@@ -97,11 +97,14 @@ const MOTIF_MO = [/tâche|unité|m²|prix par/i, /ouvrier|journée/i, /équipe/i
 const T = { tap: 1.3, scroll: 0.9, lecture: (mots, info) => (mots / 3.2) * (info === 1 ? 1.8 : info === 2 ? 1.3 : 1), frappe: (n, v) => n * v + 1.2, hesitation: 4, retour: 2, attente: 0.6 };
 
 // ---------- saisie utilisateur ----------
-function formatSaisie(v, fmt, r) {
+function formatSaisie(v, fmt, r, quoi = "") {
   const s = String(v).replace(".", ",");
   if (fmt === "fr") return s;
   if (fmt === "point") return String(v);
-  if (fmt === "unite") return s + pick(r, ["m", " m", "m²", " cm", "cm"]);
+  if (fmt === "unite") { // la personne écrit l'unité du champ (85 %), ou se trompe d'unité (15 %)
+    const q = String(quoi).toLowerCase(); const u = /prix|montant|fcfa/.test(q) ? ["F", " FCFA", " f", "fcfa"] : /\(cm\)/.test(q) ? ["cm", " cm"] : /\(m²\)/.test(q) ? ["m²", " m²"] : /\(m\)/.test(q) ? ["m", " m"] : /\(kg\)/.test(q) ? ["kg", " kg"] : /\(%\)/.test(q) ? ["%", " %"] : [""];
+    return s + (r() < 0.15 && !/prix|montant|fcfa/.test(q) ? pick(r, ["m", " cm", "m²"]) : pick(r, u));
+  }
   if (fmt === "milliers") { const n = Number(v); return Number.isInteger(n) && n >= 1000 ? String(n).replace(/\B(?=(\d{3})+(?!\d))/g, " ") : s; }
   return s;
 }
@@ -168,7 +171,7 @@ async function parcours(browser, P) {
     const petite = b && Math.min(b.width, b.height) < 44;
     if (r() < P.pFauxTap * (petite ? 4 : 0.5)) { inc("faux_tap", "mineur", `Fausse touche à côté de « ${quoi} » (cible ${b ? Math.round(b.width) + "×" + Math.round(b.height) : "?"} px)`); cout(T.hesitation); J.hesitations++; }
     const avant = await empreinte();
-    try { await loc.tap({ timeout: 4000 }); } catch (e) { inc("tap_impossible", "majeur", `Impossible de toucher « ${quoi} » : ${String(e.message).split("\n")[0].slice(0, 90)}`); J.hesitations++; await loc.scrollIntoViewIfNeeded().catch(() => {}); try { await loc.tap({ timeout: 3000 }); } catch { return false; } }
+    try { await loc.tap({ timeout: 4000 }); } catch (e) { inc("tap_impossible", "majeur", `Impossible de toucher « ${quoi} » : ${String(e.message).split("\n").filter((x) => /intercepts|disabled|not visible|not enabled|outside|stable/i.test(x))[0] || String(e.message).split("\n")[0]}`.slice(0, 260)); J.hesitations++; await loc.scrollIntoViewIfNeeded().catch(() => {}); try { await loc.tap({ timeout: 3000 }); } catch { return false; } }
     await p.waitForTimeout(140); cout(T.attente);
     const apres = await empreinte();
     if (avant === apres && !sansEffet && !/Enregistrer|Créer le (PDF|Word)/.test(quoi)) { J.mort++; inc("clic_sans_effet", "mineur", `Aucun changement visible après avoir touché « ${quoi} »`); cout(T.hesitation); }
@@ -180,7 +183,7 @@ async function parcours(browser, P) {
     J.actions++; J.saisies++;
     await loc.tap({ timeout: 4000 }).catch(() => {}); cout(T.tap);
     await p.waitForTimeout(60 + Math.floor(r() * 60)); // temps de réaction : personne ne tape dans les 50 ms qui suivent le toucher
-    const texteSaisi = fmt ? formatSaisie(texte, fmt, r) : String(texte);
+    const texteSaisi = fmt ? formatSaisie(texte, fmt, r, quoi) : String(texte);
     await p.keyboard.press("Control+A").catch(() => {});
     await p.keyboard.press("Backspace").catch(() => {});
     await p.keyboard.type(texteSaisi, { delay: 6 }); cout(T.frappe(texteSaisi.length, P.vitesseFrappe));
@@ -236,7 +239,7 @@ async function parcours(browser, P) {
       const e1 = Date.now();
       await toucher(await trouver(boutonTexte(new RegExp("^\\s*" + NOM_METIER[P.metier] + "\\s*$", "i")), NOM_METIER[P.metier]), NOM_METIER[P.metier]);
       await lire();
-      const prof = r() < 0.75 ? /technicien ou artisan/ : /entreprise/;
+      const prof = (process.env.FORCE_PROFIL ? process.env.FORCE_PROFIL === "technicien" : r() < 0.75) ? /technicien ou artisan/ : /entreprise/;
       if (prof.source.includes("entreprise")) P.profil = "entreprise";
       await toucher(await trouver(tout(prof), "Je suis technicien ou artisan"), "profil");
       J.etapes.demarrage = Date.now() - e1;
@@ -342,7 +345,11 @@ async function parcours(browser, P) {
               await f2.scrollIntoViewIfNeeded().catch(() => {});
               const texteLibre = /type et diamètre/.test(lt) ? 'PPR 20' : /type et section/.test(lt) ? 'câble 2,5 mm²' : /conduit ou gaine/.test(lt) ? 'gaine ICTA 20' : /désignation/.test(lt) ? 'HA 10' : /^nom$|nom de l.élément/.test(lt.trim()) ? 'Poteau' : null;
               if (texteLibre) { await f2.scrollIntoViewIfNeeded().catch(() => {}); await taper(f2, texteLibre, lt.slice(0, 40)); rempli = true; continue; }
-              const val = /ouvriers/.test(lt) ? 2 : /couvert/.test(lt) ? 40 : /fait en une journée|rendement/.test(lt) ? 10 : /plinthe/.test(lt) && /longueur|pièce/.test(lt) ? 60 : /plinthe/.test(lt) ? 10 : /surfaces?|faces?|éléments|lignes|fouilles/.test(lt) ? 1 : null;
+              const val = /ouvriers/.test(lt) ? 2 : /couvert/.test(lt) ? 40 : /fait en une journée|rendement/.test(lt) ? 10 : /plinthe/.test(lt) && /longueur|pièce/.test(lt) ? 60 : /plinthe/.test(lt) ? 10 : /surfaces?|faces?|éléments|lignes|fouilles/.test(lt) ? 1
+                : /poids d.un sac|sac de (colle|joint)/.test(lt) ? 25 : /longueur d.un rouleau|longueur d.une barre|rouleau ou d.une barre/.test(lt) ? (/câble/.test(lt) ? 100 : 6)
+                : /^largeur \(m\)|largeur d.une? (porte|fenêtre)/.test(lt) ? 0.9 : /^hauteur \(m\)/.test(lt) ? 2.1 : /longueur d.un bloc/.test(lt) ? 40 : /épaisseur d.un bloc|largeur de la section|épaisseur ou hauteur de la section/.test(lt) ? 20 : /poids d.un sac de ciment/.test(lt) ? 50
+                : /raccordements/.test(lt) ? 4 : /nombre de barres/.test(lt) ? 6 : /espacement/.test(lt) ? 20 : /longueur d.un carreau|largeur d.un carreau/.test(lt) ? 60 : /carreaux par carton/.test(lt) ? 4
+                : /longueur du tuyau|longueur d.un tube|barre de tuyau/.test(lt) ? 4 : /longueur laissée/.test(lt) ? 0.3 : /nombre de/.test(lt) ? 2 : null;
               if (val === null) { inc("champ_inconnu", "mineur", `« ${lt.replace(/\s+/g, " ").slice(0, 60)} » : le personnage ne sait pas quelle valeur écrire`, { champ: lt.slice(0, 40) }); J.hesitations++; continue; }
               await taper(f2, val, lt.slice(0, 40), "fr"); rempli = true;
             }
@@ -358,8 +365,8 @@ async function parcours(browser, P) {
             const idx = opts.findIndex((x) => MOTIF_MO[mode].test(x));
             if (idx >= 0) { J.actions++; await selMO.selectOption({ index: idx }); cout(T.tap + T.hesitation * (P.info <= 2 ? 1 : 0)); await p.waitForTimeout(250); J.moMode = opts[idx].slice(0, 40); (J.modes = J.modes || []).push(mode); await lire(); }
             // champs du mode (rendement, ouvriers)
-            for (const lab of [/Rendement/i, /Nombre d'ouvriers|Combien d'ouvriers/i]) {
-              const fm = p.locator(".mzone label").filter({ hasText: lab }).locator("input").first();
+            for (const lab of [/Rendement|fait en une journée/i, /Nombre d'ouvriers|Combien d'ouvriers/i]) {
+              const fm = p.locator(".mzone label").filter({ hasText: lab }).first().locator("xpath=following-sibling::input[1]");
               if (await fm.count()) { const lt = await p.locator(".mzone label").filter({ hasText: lab }).first().innerText(); if (niveauMot(lt) > P.metierNiv || /rendement/i.test(lt) && P.metierNiv < 2) { inc("mot_technique", "majeur", `« ${lt.replace(/\s+/g, " ").slice(0, 70)} » : notion de rendement non comprise par ce profil`, { champ: "rendement" }); J.hesitations++; if (r() < 0.5) continue; } await fm.scrollIntoViewIfNeeded().catch(() => {}); await taper(fm, /ouvrier/i.test(lab.source) ? 2 : 10, lt.slice(0, 40), "fr"); }
             }
           }
@@ -375,15 +382,20 @@ async function parcours(browser, P) {
     if (J.voie === "produits" || choixVoie === "produits") {
       // Voie « produits » : toucher un produit, quantité, prix
       J.etape = "étape 2 : produits";
+      if (await p.getByText(/Quel type de matériel/).count()) { // métiers à catalogue : choisir une famille, puis un matériel
+        const ch = await trouver(() => p.locator("button.chip").first(), "famille de matériel", { optionnel: true, ecrans: 3 }); if (ch) await toucher(ch, "famille de matériel");
+      }
+      const fam = p.locator("button.famh"); const nf = await fam.count(); // catalogue : ouvrir une famille ; ses matériels sont les button.rowc qui apparaissent
+      if (nf) { const fb = await trouver(() => fam.first(), "une famille de matériel", { optionnel: true, ecrans: 3 }); if (fb) await toucher(fb, "famille"); }
       const liste = await p.locator('button.rowc').evaluateAll((e) => e.slice(0, 4).map((x) => x.innerText.split("\n")[0].trim())).catch(() => []);
       for (const nom of liste.slice(0, 2 + (P.rang % 2))) {
         const rb = await trouver(() => p.locator("button.rowc").filter({ hasText: nom }).first(), nom, { optionnel: true, ecrans: 4 }); if (!rb) continue;
         await toucher(rb, nom);
-        const q = await trouver(() => p.locator('input[type=number]:visible').first(), "Quantité", { optionnel: true, ecrans: 3 });
-        const us = await p.locator('select:visible').filter({ has: p.locator("option", { hasText: "Pot" }) }).first();
+        const q = await trouver(() => p.locator('input[inputmode=decimal]:visible').first(), "Quantité", { optionnel: true, ecrans: 3 });
+        const us = p.locator('select:visible').filter({ has: p.locator("option", { hasText: /^—$/ }) }).last();
         if (q) await taper(q, 1 + Math.floor(r() * 6), "quantité", pick(r, P.formats.filter((x) => x !== "unite")));
         if (await us.count()) { await us.selectOption({ index: 1 }).catch(() => {}); cout(T.tap); }
-        const pu = p.locator('input[type=number]:visible'); const nn = await pu.count(); if (nn >= 2) { await taper(pu.nth(nn - 1), 2000 + Math.floor(r() * 20) * 500, "prix", pick(r, P.formats.filter((x) => x !== "unite"))); }
+        const pu = p.locator('input[inputmode=decimal]:visible'); const nn = await pu.count(); if (nn >= 2) { await taper(pu.nth(nn - 1), 2000 + Math.floor(r() * 20) * 500, "prix", pick(r, P.formats.filter((x) => x !== "unite"))); }
         const fer = p.locator("button").filter({ hasText: /Fermer/ }).first(); if (await fer.count()) await toucher(fer, "Fermer");
       }
     }
@@ -459,7 +471,7 @@ async function parcours(browser, P) {
           }
         } else if (modif === "retirer") {
           const br = p.locator("button").filter({ hasText: /Retirer cet ouvrage/ }).last();
-          if (await br.count()) { await br.scrollIntoViewIfNeeded().catch(() => {}); await toucher(br, "Retirer cet ouvrage"); await p.waitForTimeout(250);
+          if ((await br.count()) && (await p.locator('button.rowc[data-act="metreOuv"]').count()) >= 2) { await br.scrollIntoViewIfNeeded().catch(() => {}); await toucher(br, "Retirer cet ouvrage"); await p.waitForTimeout(250);
             const conf = p.locator("button").filter({ hasText: /^(Oui|Confirmer|Retirer|Oui, retirer)/ }).last(); if (await conf.count()) await toucher(conf, "Confirmer"); }
           await verifier();
         } else if (modif === "mode") {
@@ -494,15 +506,41 @@ async function parcours(browser, P) {
     // PDF
     let pdfOk = false, wordOk = false;
     const d0 = J.defilements; let bp = await trouver(boutonTexte(/Créer le PDF/), "Créer le PDF", { ecrans: 10 }); J.defilPDF = J.defilements - d0;
-    // PDF grisé : la raison est-elle écrite ? la personne peut-elle corriger ?
-    for (let tour = 0; bp && (await bp.isDisabled().catch(() => false)) && tour < 2; tour++) {
-      const raison = (await corps()).split("\n").filter((x) => /manque|Corrige|prix manquant|bloqu|incomplet/i.test(x)).slice(0, 3).join(" / ");
-      inc("pdf_grise", raison ? "mineur" : "majeur", raison ? `Bouton PDF grisé. Raison affichée : ${raison.slice(0, 120)}` : "Bouton PDF grisé sans aucune raison visible");
-      J.hesitations++; cout(T.hesitation * 2);
-      const prev = await trouver(boutonTexte(/Précédent/), "Précédent", { optionnel: true, ecrans: 6 }); if (!prev) break;
-      J.retours++; for (let k = 0; k < 4; k++) { await toucher(prev, "Précédent"); await p.waitForTimeout(150); if (/Le travail et le matériel|Travaux à faire|Produits et main-d/.test(await corps())) break; const pv = p.getByRole("button", { name: /Précédent/ }); if (!(await pv.count())) break; }
+    const corrigerPrix = async () => { // ouvre chaque ligne « prix manquant », écrit un prix, referme
       const nb2 = await p.locator("button.rowc").count(); let fix = 0;
       for (let i = 0; i < nb2; i++) { const rb = p.locator("button.rowc").nth(i); const tl = ((await rb.innerText().catch(() => "")) || ""); if (!/prix manquant|prix \?/.test(tl)) continue; await rb.scrollIntoViewIfNeeded().catch(() => {}); await toucher(rb, "ligne à corriger"); const c2 = p.locator("label").filter({ hasText: /^Prix (unitaire|pour 1|par)/i }).locator("xpath=following-sibling::input[1]").first(); if (await c2.count()) { await c2.scrollIntoViewIfNeeded().catch(() => {}); await taper(c2, 1000 + Math.floor(r() * 10) * 500, "prix (correction)", "fr"); fix++; const fer = p.locator("button").filter({ hasText: /Fermer/ }).last(); if (await fer.count()) await toucher(fer, "Fermer la ligne"); } }
+      return fix;
+    };
+    // PDF grisé : la raison est-elle écrite ? la personne peut-elle corriger ?
+    for (let tour = 0; bp && (await bp.isDisabled().catch(() => false)) && tour < 6; tour++) {
+      const raison = ((await p.locator(".chk:has(.d-bloque)").allInnerTexts().catch(() => [])).map((x) => x.replace(/\s+/g, " ")).join(" / ")) || (await corps()).split("\n").filter((x) => /manque|Corrige|prix manquant|bloqu|incomplet/i.test(x)).slice(0, 3).join(" / ");
+      inc("pdf_grise", raison ? "mineur" : "majeur", raison ? `Bouton PDF grisé. Raison affichée : ${raison.slice(0, 220)}` : "Bouton PDF grisé sans aucune raison visible");
+      J.hesitations++; cout(T.hesitation * 2);
+      // 1) le contrôle propose un lien « Corriger : aller à … » : la personne le touche, remplit ce qui est demandé, puis revient au bouton PDF
+      const lien = p.locator(".chk:has(.d-bloque) a.fixlink");
+      if (await lien.count()) {
+        const bl = await trouver(() => lien.first(), "Corriger : aller à …", { optionnel: true, ecrans: 6 });
+        if (bl) {
+          J.retours++; J.liensCorriger = (J.liensCorriger || 0) + 1; await toucher(bl, "Corriger : aller à …"); await p.waitForTimeout(300);
+          { const lp = p.locator("label").filter({ hasText: /^Prix (par|unitaire|pour 1)/ }); const np = await lp.count(); // lignes sans prix (entreprise : « Prix par Pot (FCFA) »)
+            for (let i = 0; i < np; i++) { const f4 = lp.nth(i).locator("xpath=following-sibling::input[1]"); if (!(await f4.count()) || (await f4.inputValue()) !== "") continue;
+              await f4.scrollIntoViewIfNeeded().catch(() => {}); await taper(f4, 2000 + Math.floor(r() * 20) * 500, "prix de la ligne", pick(r, P.formats.filter((x) => x !== "unite")));
+              const cb = p.locator("button").filter({ hasText: /Corriger cette ligne/ }).first(); if (await cb.count()) await toucher(cb, "Corriger cette ligne"); } }
+          for (const [re, val] of [[/^Surface des murs/, 60], [/^Hauteur de travail maximale/, 3], [/^Délai minimum/, 5], [/^Délai maximum/, 10]]) {
+            const lb = p.locator("label").filter({ hasText: re }).first(); if (!(await lb.count())) continue;
+            const f3 = lb.locator("xpath=following-sibling::input[1]"); if (!(await f3.count()) || (await f3.inputValue()) !== "") continue;
+            await f3.scrollIntoViewIfNeeded().catch(() => {}); await taper(f3, val, (await lb.innerText()).trim().slice(0, 40), "fr");
+          }
+          await corrigerPrix();
+          for (let k = 0; k < 6 && !/Créer le PDF/.test(await corps()); k++) { const nx = await trouver(boutonTexte(/Continuer|Aperçu, PDF et envoi/), "Continuer", { optionnel: true, ecrans: 6 }); if (!nx) break; await toucher(nx, "Continuer"); await p.waitForTimeout(200); }
+          bp = await trouver(boutonTexte(/Créer le PDF/), "Créer le PDF", { ecrans: 10 });
+          if (bp && !(await bp.isDisabled().catch(() => false))) break; else continue;
+        }
+      }
+      const prev = await trouver(boutonTexte(/Précédent/), "Précédent", { optionnel: true, ecrans: 6 }); if (!prev) break;
+      J.retours++; for (let k = 0; k < 4; k++) { await toucher(prev, "Précédent"); await p.waitForTimeout(150); if (/Le travail et le matériel|Travaux à faire|Produits et main-d/.test(await corps())) break; const pv = p.getByRole("button", { name: /Précédent/ }); if (!(await pv.count())) break; }
+      if (SHOTS) fs.writeFileSync(`${OUT}/${P.id}-retour${tour}.txt`, await corps());
+      const fix = await corrigerPrix();
       if (!fix) break;
       for (let k = 0; k < 5 && !/Créer le PDF/.test(await corps()); k++) { const nx = await trouver(boutonTexte(/Continuer|Aperçu, PDF et envoi/), "Continuer", { optionnel: true, ecrans: 6 }); if (!nx) break; await toucher(nx, "Continuer"); await p.waitForTimeout(200); }
       bp = await trouver(boutonTexte(/Créer le PDF/), "Créer le PDF", { ecrans: 10 });

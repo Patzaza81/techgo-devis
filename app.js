@@ -413,6 +413,8 @@ function stepEnvoiS(q, ev, dis) {
     <div class="total"><div><span>Total du devis</span><span class="big">${fmt(r.totals.base)}</span></div>${miss ? `<div class="opt"><span>Total pas fini : ${miss} prix manquant${miss > 1 ? "s" : ""}</span></div>` : ""}${r.totals.vatBase !== null ? `<div><span>Avec TVA</span><span>${fmt(r.totals.ttcBase)}</span></div>` : ""}</div>
     ${miss ? `<div class="banner warn">Il manque ${miss} prix. <a href="#/devis/${q.id}/1">Retourne au travail et au matériel</a> pour les remplir.</div>` : ""}
     ${UM.controle(q, dis, etatMetre(q))}${carteOublis(q, ev, dis)}${carteIdentite(dis)}
+    ${stepVerifier(q, ev, dis)}
+    <details class="card reglages"><summary><b>Conditions, présentation et paiement</b><small class="hint" style="display:block;margin:2px 0 0">Déjà remplis avec des valeurs courantes. Touche pour les changer.</small></summary>
     <div class="card"><b>Conditions</b>
     <div class="row"><div>${L("TVA (%) — laisse vide si pas de TVA")}${I("q", "current.terms.vatPct", cur.terms.vatPct, { type: "number", n: "n", dis })}</div><div>${L("Le devis reste valable (jours)")}${I("q", "current.validityDays", cur.validityDays, { type: "number", n: "n", dis })}</div></div>
     <div class="row"><div>${L("Remise en % (facultatif)")}${I("q", "current.discount.pct", cur.discount.pct, { type: "number", n: "n", dis })}</div><div>${L("ou remise en FCFA")}${I("q", "current.discount.amount", cur.discount.amount, { type: "number", n: "n", dis })}</div></div>
@@ -427,7 +429,7 @@ function stepEnvoiS(q, ev, dis) {
     <div class="row"><div>${L("Durée des travaux : de (jours)")}${I("q", "current.terms.delayMin", cur.terms.delayMin, { type: "number", n: "n", dis })}</div><div>${L("à (jours)")}${I("q", "current.terms.delayMax", cur.terms.delayMax, { type: "number", n: "n", dis })}</div></div>
     <div class="row"><div>${L("Nombre d'ouvriers (facultatif)")}${I("q", "current.terms.crew.workers", cur.terms.crew?.workers ?? null, { type: "number", n: "n", dis })}</div><div>${L("Supplément par jour si le chantier dépasse (FCFA)")}${I("q", "current.terms.crew.extraDay", cur.terms.crew?.extraDay ?? null, { type: "number", n: "n", dis })}</div></div>
     <p class="hint">Ces informations sont écrites sur le devis, comme sur tes devis habituels.</p></div>
-    ${stepVerifier(q, ev, dis)}`;
+    </details>`;
 }
 
 function skipped(q) {
@@ -476,7 +478,7 @@ function stepPrest(q, ev, dis, simple) {
   }).join("");
   const sk = skipped(q);
   return `${simple ? "" : "<h2>Travaux à faire</h2>" + UM.carte(q, dis, etatMetre(q))}<p class="hint">${simple ? "Choisis le travail, réponds aux questions : les quantités de produit se calculent toutes seules." : "Les quantités se calculent seules à partir de la surface. Si tu corriges une quantité, l'application garde le calcul d'origine et te demande pourquoi."}</p>
-    ${blocks || `<div class="empty">Aucun travail pour l'instant. Choisis-en un ci-dessous.</div>`}
+    ${blocks || (((q.current.metre || {}).zones || []).some((z) => (z.ouvrages || []).length) ? "" : `<div class="empty">Aucun travail pour l'instant. Décris le chantier dans le métré ci-dessus, ou choisis un travail dans la liste ci-dessous.</div>`)}
     ${sk.length && !dis ? `<div class="card"><b>Lignes retirées</b>${sk.map(([id, lab]) => `<div class="chk"><div style="flex:1">${esc(lab)}</div><button class="sec" data-act="restoreLine" data-id="${esc(id)}">Rétablir</button></div>`).join("")}</div>` : ""}
     ${dis ? "" : !mt ? `<div class="card"><b>Quel est ton métier ?</b>${chooser("")}</div>` : `<div class="card"><b>Ajouter un travail (${esc(metierLabel(mt))})</b>${L("Choisis dans la liste")}${Sel("tmp", "addPrest", ui.tmp.addPrest, opts)}<button class="gold" data-act="addPrest" style="margin-top:10px">Ajouter</button>
       <p class="hint">Les prix manquants te seront demandés juste après, pour chaque produit.</p></div>`}`;
@@ -574,6 +576,18 @@ function stepPrix(q, ev, dis) {
     <div class="card"><b>Rentabilité (interne)</b>${m ? `<table><tr><td>Coût de revient</td><td class="n">${fmt(m.base.cost)}</td></tr><tr><td>Bénéfice</td><td class="n">${fmt(m.base.profit)}</td></tr><tr><td>Marge sur coût</td><td class="n">${m.base.markupPct?.toFixed(1)} %</td></tr><tr><td>Taux de marque</td><td class="n">${m.base.marginRatePct?.toFixed(1)} %</td></tr></table>` : `<p class="hint">Non calculable : il manque au moins un coût d'achat. Un coût inconnu n'est jamais compté comme zéro.</p>`}</div>`;
 }
 
+// Pour chaque point du contrôle : l'étape où la personne peut le régler (null = pas de lien sûr).
+function etapeDuPoint(q, label) {
+  const tech = modeOf(q) === "technicien", n = lastOf(q);
+  if (tech && /^Total de l'offre/.test(label)) return 1;
+  if (/^(Le devis est vide|Aucune prestation|Prix manquants|Produit introuvable|Quantités à saisir|Rendements manquants|Coût d'équipement)/.test(label)) return tech ? 1 : /^Prix manquants|^Produit introuvable|^Quantités|^Rendements|^Coût/.test(label) ? 2 : 1;
+  if (tech) return null;
+  if (/^(Surface|Hauteur de travail|Marge de sécurité)/.test(label)) return 0;
+  if (/(Moyens d'accès|examinés?)/.test(label)) return 2;
+  if (/^Total de l'offre/.test(label)) return 2;
+  if (/^(Délai|Validité|Échéancier|TVA|Rentabilité|Quantité corrigée)/.test(label)) return n - 1;
+  return null;
+}
 function stepControle(q, ev, dis) {
   const ck = ev.checks;
   const acts = [];
@@ -582,7 +596,7 @@ function stepControle(q, ev, dis) {
   if (["a_verifier", "pret"].includes(q.status)) acts.push(`<button class="sec" data-act="mark" data-to="brouillon">Repasser en brouillon</button>`);
   return `<h2>Vérifier avant d'envoyer</h2><div class="card"><div style="display:flex;justify-content:space-between;align-items:center"><b>Résultat</b>${badge(ck.status, STATE_LABEL[ck.status])}</div>
     <p class="hint">Prêt : tout est en ordre. À vérifier : un point reste à confirmer. Il manque quelque chose : corrige-le avant d'envoyer.</p>
-    ${ck.items.map((r) => `<div class="chk"><div class="dot d-${r.state}">${r.state === "ok" ? "✓" : r.state === "verifier" ? "!" : "✕"}</div><div><b>${esc(r.label)}</b>${r.hint ? `<div class="hint">${esc(r.hint)}</div>` : ""}</div></div>`).join("")}</div>
+    ${ck.items.map((r) => { const to = r.state === "ok" || dis ? null : etapeDuPoint(q, r.label); return `<div class="chk"><div class="dot d-${r.state}">${r.state === "ok" ? "✓" : r.state === "verifier" ? "!" : "✕"}</div><div><b>${esc(r.label)}</b>${r.hint ? `<div class="hint">${esc(r.hint)}</div>` : ""}${to !== null ? `<a class="fixlink" href="#/devis/${q.id}/${to}">Corriger : aller à « ${esc(stepsOf(q)[to])} »</a>` : ""}</div></div>`; }).join("")}</div>
     ${r_warn(ev)}${dis ? "" : `<div class="row">${acts.join("")}</div>`}`;
 }
 function stepVerifier(q, ev, dis) {
@@ -1187,7 +1201,7 @@ document.addEventListener("click", (e) => {
 window.addEventListener("hashchange", () => { ui.file = null; render(); window.scrollTo(0, 0); });
 window.addEventListener("beforeprint", () => document.body.classList.add("printing"));
 window.addEventListener("afterprint", () => document.body.classList.remove("printing"));
-export const BUILD = "35";
+export const BUILD = "39";
 // Mise à jour automatique : quand une nouvelle version est publiée, l'application la prend toute seule
 // (au retour sur l'application, ou dès que la personne n'est plus en train de taper). Les données ne sont jamais touchées.
 if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {

@@ -122,7 +122,7 @@ function mainOeuvre(v, Q, unite, defNom) {
   const n = mode === "ouvrier" ? (v.moOuv === null || v.moOuv === undefined || v.moOuv === "" ? (m.push("le nombre d'ouvriers de l'équipe"), null) : entier(v.moOuv, "le nombre d'ouvriers de l'équipe", m)) : entier(v.moOuv, "le nombre d'ouvriers de l'équipe", m, 0);
   const duree = m.length ? null : Q / v.moRend, d = m.length ? "" : `${fr(Q)} ${unite} ÷ ${fr(v.moRend)} ${unite} par jour pour l'équipe = ${fr(duree)} jour${duree >= 2 ? "s" : ""} de chantier`;
   if (mode === "equipe") return [besoin("ouvriers", `${nom} — équipe${n ? ` de ${n}` : ""}`, "journée d'équipe", "demi", duree, d, m, { duree, est: EST.duree, prixPour: "Le prix à saisir est celui de TOUTE l'équipe pour une journée." })];
-  return [besoin("ouvriers", `${nom} — ${n} ouvrier${n > 1 ? "s" : ""}`, "journée d'ouvrier", "demi", duree, d, m, { duree, mult: n, est: EST.duree, prixPour: "Le prix à saisir est celui d'UN ouvrier pour UNE journée." })];
+  return [besoin("ouvriers", n ? `${nom} — ${n} ouvrier${n > 1 ? "s" : ""}` : nom, "journée d'ouvrier", "demi", duree, d, m, { duree, mult: n, est: EST.duree, prixPour: "Le prix à saisir est celui d'UN ouvrier pour UNE journée." })];
 }
 const articles = (liste, tab = "produits") => (liste || []).filter((a) => String(a.nom || "").trim() || pos(a.n)).map((a) => {
   const m = []; if (!String(a.nom || "").trim()) m.push("le nom d'un article"); const n = a.n === null || a.n === undefined || a.n === "" ? (m.push(`la quantité de « ${txt(a.nom, "article")} »`), null) : entier(a.n, `la quantité de « ${txt(a.nom, "article")} »`, m);
@@ -135,9 +135,9 @@ const totalArticles = (liste) => (liste || []).reduce((s, a) => s + (pos(a.n) &&
 const G = (titre, champs, pourquoi) => champs.map((c, i) => (i ? c : { ...c, g: titre, gp: pourquoi }));
 const MO = (unite, defNom) => G("Main-d'œuvre", [
   { k: "moMode", t: "choix", l: "Comment tu la factures", opt: [["", "Pas de main-d'œuvre ici"], ["tache", `À la tâche, par ${unite}`], ["ouvrier", "Par jour et par ouvrier"], ["equipe", "Par jour, toute l'équipe"]], memo: true,
-    aide: "Par ouvrier : tu saisiras le prix d'UN ouvrier pour une journée. Toute l'équipe : le prix de l'équipe entière pour une journée." },
+    aide: `Le plus simple : « À la tâche » (tu donnes seulement le prix pour 1 ${unite}). Par ouvrier : le prix d'UN ouvrier pour une journée. Toute l'équipe : le prix de l'équipe entière pour une journée.` },
   { k: "moNom", t: "txt", l: "Nom de la prestation", ph: defNom, si: (v) => !!modeMO(v.moMode) },
-  { k: "moRend", t: "n", l: `Ce que TOUTE l'équipe fait en une journée (${unite})`, memo: true, si: (v) => /^(ouvrier|equipe)$/.test(modeMO(v.moMode)), aide: "Ton rendement à toi, pour l'équipe entière. L'application n'en propose pas." },
+  { k: "moRend", t: "n", l: `Ce que TOUTE l'équipe fait en une journée (${unite})`, memo: true, si: (v) => /^(ouvrier|equipe)$/.test(modeMO(v.moMode)), aide: "Ton rendement à toi, pour l'équipe entière. L'application n'en propose pas. Tu ne le connais pas ? Choisis plutôt « À la tâche » plus haut." },
   { k: "moOuv", t: "n", l: "Nombre d'ouvriers dans l'équipe", memo: true, si: (v) => /^(ouvrier|equipe)$/.test(modeMO(v.moMode)), aide: "Compte tout le monde : toi, les ouvriers et les aides." },
 ], "Une seule façon de facturer par ouvrage : la main-d'œuvre n'est jamais comptée deux fois.");
 const OUV = { k: "ouv", t: "ouv", l: "Portes et fenêtres à déduire" };
@@ -417,7 +417,7 @@ export const TYPES = [
   { id: "e_ligne", metier: "electricite", nom: "Ligne de câble et son conduit", liens: [{ nom: "cable", champs: ["rouleau"] }, { nom: "conduit", champs: ["rouleauC"] }],
     note: "La section du câble, le calibre de sa protection et le diamètre du conduit ne sont pas calculés : ils relèvent d'un électricien qualifié. L'application compte seulement les longueurs à acheter.",
     champs: [
-      ...G("Câble", [{ k: "cable", t: "txt", l: "Type et section (ton choix)", ph: "Ex. : Câble 3G2,5" }, { k: "nombre", t: "n", l: "Nombre de lignes identiques", ph: "1" },
+      ...G("Câble", [{ k: "cable", t: "txt", l: "Type et section (ton choix)", ph: "Ex. : Câble 3G2,5", aide: "Recopie ce que tu achètes, comme sur l'étiquette du rouleau. Le choix de la section revient à l'électricien qualifié." }, { k: "nombre", t: "n", l: "Nombre de lignes identiques", ph: "1" },
         { k: "longueur", t: "n", l: "Longueur du tracé d'une ligne, du tableau au dernier point (m)" }, { k: "fils", t: "n", l: "Fils tirés séparément (1 pour un câble)", ph: "1" },
         { k: "reserve", t: "n", l: "Longueur laissée à chaque raccordement (m)", memo: true }, { k: "racc", t: "n", l: "Nombre de raccordements sur une ligne", si: (v) => pos(v.reserve), aide: "Tableau, boîtes, prises, interrupteurs : chaque endroit où le câble est coupé ou dénudé." },
         PERTE("Chutes (%)"), { k: "rouleau", t: "n", l: "Longueur d'un rouleau de câble (m)" }], "Mesure le tracé réel : montées, descentes et détours compris."),
@@ -454,6 +454,21 @@ export const TYPES = [
       return { manque: [], alertes: [], mesures: [], besoins: [...articles(v.art), ...mainOeuvre({ ...v, moMode: v.moMode ? "tache" : "" }, 1, "forfait", "Câblage du tableau")], base: 1 };
     } },
 ];
+// Aide sous les champs que seul le professionnel connaît : elle dit OÙ trouver la valeur (emballage, plan, vendeur), jamais QUELLE valeur écrire.
+const AIDES = [
+  [/^Poids d'un sac/, "Écrit sur le sac."], [/^(Longueur|Largeur) d'un carreau/, "Écrit sur la boîte de carreaux, ou mesure un carreau."],
+  [/^(Longueur|Hauteur|Épaisseur) d'un bloc/, "Mesure un de tes blocs, ou demande-le au vendeur."], [/^Épaisseur des joints/, "Épaisseur que tu laisses entre deux blocs, à toi de la choisir."],
+  [/^Sable par m³|^Gravier par m³/, "Ton dosage pour 1 m³, ou celui du plan. L'application n'en propose pas."],
+  [/^Longueur d'une barre|^Longueur d'un rouleau|^Longueur d'un rouleau ou d'une barre/, "Écrit sur l'étiquette du rouleau ou de la barre que tu achètes."],
+  [/^(Largeur de la section|Épaisseur ou hauteur de la section)/, "Dimensions de l'élément, lues sur le plan ou mesurées sur place."],
+  [/^Espacement des cadres|^Nombre de barres par élément|^Longueur de fer d'un cadre|^Longueur ajoutée à chaque barre/, "À lire sur le plan ou la liste d'armatures. Sans plan, fais-le préparer par le bureau d'études."],
+  [/^Pertes de béton|^Pertes de produit|^Chutes|^Casse et coupes/, "Facultatif : la part perdue (cassée, coupée, renversée). Laisse vide si tu n'en comptes pas."],
+  [/^Longueur laissée à chaque raccordement/, "Câble en plus, gardé à chaque endroit où on le coupe ou le dénude. Facultatif."],
+  [/^Nombre de surfaces identiques|^Nombre d'éléments identiques|^Nombre de fouilles identiques|^Nombre de lignes identiques/, "Combien d'éléments pareils (mêmes dimensions). Écris 1 s'il n'y en a qu'un."],
+  [/^Faces (à peindre|à enduire)/, "1 si un seul côté, 2 si les deux côtés."],
+];
+for (const t of TYPES) for (const c of t.champs) if (c.l && !c.aide) { const x = AIDES.find(([re]) => re.test(c.l)); if (x) c.aide = x[1]; }
+
 
 function produitsPeinture(v, S) {
   const liste = (v.prod || []).filter((p) => String(p.nom || "").trim() || pos(p.couv));
