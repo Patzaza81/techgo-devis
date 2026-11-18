@@ -63,6 +63,27 @@ export function printableNorm(n) {
   return /\b(IEC|EN|ISO|NF|OIML|CEI)\s?[0-9A-Z]/.test(s) && !/non applicable|à vérifier|applicable$/i.test(s) && s.length <= 90 ? s.replace(/\s*;\s*/g, " ; ") : "";
 }
 
+// Recherche : chaque mot tapé doit se retrouver (dans le nom, la précision ou la famille), dans n'importe quel ordre ;
+// tirets, points et barres ignorés (« PPR » trouve « PP-R ») ; quelques mots du chantier renvoient au terme du référentiel.
+// Ces équivalences ne créent aucun produit : elles orientent seulement vers les fiches qui existent déjà.
+const VIDES = new Set(["de", "du", "des", "la", "le", "les", "l", "d", "a", "au", "aux", "en", "et", "pour", "un", "une"]);
+const EQUIV = { agglo: ["parpaing", "bloc"], agglos: ["parpaing", "bloc"], agglomere: ["parpaing", "bloc"], ampoule: ["lampe", "led"], spot: ["spot", "downlight"], teflon: ["ptfe"], fer: ["fer", "acier", "armature"], tuyau: ["tuyau", "tube"], tuyaux: ["tuyau", "tube"], solaire: ["solaire", "photovolta"], panneau: ["panneau", "module"], fil: ["fil", "conducteur"] };
+const plat = (s) => nz(s).replace(/[-_./'’]/g, "");
+export function chercher(liste, query) {
+  const mots = nz(query).replace(/[-_./'’]/g, "").split(/\s+/).filter((m) => m && !VIDES.has(m));
+  if (!mots.length) return [];
+  const res = [];
+  for (const r of liste) {
+    // un mot tapé doit être le DÉBUT d'un mot de la fiche (« sable » ne trouve pas « réutilisable »)
+    const nom = " " + plat(r.name).replace(/[()\[\],;:]/g, " "), tout = nom + " " + plat(r.spec + " " + r.famLabel).replace(/[()\[\],;:]/g, " ");
+    let score = 0, ok = true;
+    for (const m of mots) { const alt = (EQUIV[m] || [m]).map((a) => " " + a); if (nom.startsWith(alt[0]) || alt.some((a) => nom.startsWith(a))) score += 3; else if (alt.some((a) => nom.includes(a))) score += 2; else if (alt.some((a) => tout.includes(a))) score += 1; else { ok = false; break; } }
+    if (ok) res.push([score, r]);
+  }
+  // « PPR 25 » : le diamètre n'est pas dans les fiches ; on montre les fiches qui ont les mots, sans le nombre.
+  if (!res.length && mots.some((m) => /^\d/.test(m)) && mots.some((m) => !/^\d/.test(m))) return chercher(liste, mots.filter((m) => !/^\d/.test(m)).join(" "));
+  return res.sort((a, b) => b[0] - a[0]).map((x) => x[1]);
+}
 const CACHE = {};
 export function refOf(met) {
   const cfg = CFG[met]; if (!cfg) return null;
@@ -88,7 +109,7 @@ export function refOf(met) {
     rows(tab, dm, query) {
       const q = nz(query);
       if (tab !== "produits") return all.filter((r) => r.tab === tab && (!q || nz(r.name).includes(q)));
-      if (q) return all.filter((r) => r.tab === "produits" && (nz(r.name).includes(q) || nz(r.spec).includes(q))).slice(0, 40);
+      if (q) return chercher(all.filter((r) => r.tab === "produits"), query).slice(0, 40);
       return all.filter((r) => r.tab === "produits" && dom(r) === (d.DOMAINES.some((x) => x[0] === dm) ? dm : d.DOMAINES[0][0]));
     },
     domainOf: dom,

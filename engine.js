@@ -217,7 +217,8 @@ export function runChecks(ctx) {
   const decided = (k) => !!(ctx.decisions && ctx.decisions[k]);
 
   const simple = !!ctx.simple; // technicien : seuls les points qui rendent le devis faux ou vide bloquent
-  if (!simple && !(ctx.surface > 0)) add("bloque", "Surface ou quantité de base non renseignée");
+  // La surface de base ne bloque que si un calcul en dépend (travail calculé à partir de la surface) : un devis fait de lignes saisies (plomberie, électricité…) n'en a pas besoin.
+  if (!simple && !(ctx.surface > 0) && ctx.surfaceNeeded !== false) add("bloque", "Surface ou quantité de base non renseignée", "Un travail de ta liste se calcule à partir de la surface : écris-la à l'étape « Client et chantier ».");
   if (!lines.length) add("bloque", "Le devis est vide", "Touche « Précédent » et remplis au moins une ligne : sa quantité et son prix. Une ligne sans prix ou sans quantité n'entre pas dans le devis.");
   if (r && lines.length && typeof r.totals.base === "number" && r.totals.base <= 0) add("bloque", "Total de l'offre nul ou négatif", "Un devis ne peut pas avoir un montant nul ou négatif : vérifie les prix, les quantités et la remise.");
   if (!simple && (ctx.lossPct === null || ctx.lossPct === undefined)) add("verifier", "Marge de sécurité des produits non renseignée", "0 % est appliqué tant qu'elle n'est pas saisie. Utilise la valeur observée sur tes chantiers.");

@@ -541,8 +541,8 @@ const libelle = (type, k) => (type.champs.find((c) => c.k === k) || {}).l || k;
 // Calcule tout le métré d'un devis. Renvoie zones détaillées, lignes regroupées pour le devis, manques et alertes.
 export function calculer(metre, metier) {
   const zones = [], parCle = new Map(), manques = [], alertes = [];
-  for (const z of metre?.zones || []) {
-    const nomZ = txt(z.nom, "Zone sans nom"), ouvrages = [], vus = new Map();
+  for (const [zi, z] of (metre?.zones || []).entries()) {
+    const nomZ = txt(z.nom, `Zone ${zi + 1}`), ouvrages = [], vus = new Map(); // jamais « Zone sans nom » sur un document client
     for (const o of z.ouvrages || []) {
       const type = typeDe(o.type); if (!type || (metier && type.metier !== metier)) continue;
       const r = type.calc(o.v || {}), titre = titreOuvrage(type, o.v);
