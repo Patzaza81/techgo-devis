@@ -50,7 +50,7 @@ function resultat(r) {
 }
 
 // Carte principale du métré, affichée à l'étape « Le travail et le matériel ».
-export function carte(q, dis, sync) {
+export function carte(q, dis, sync, enPlus = "") { // enPlus : les travaux types, dans la même carte (une seule entrée pour les quantités)
   const metier = H.metierOf(q), types = M.typesDe(metier); if (!types.length) return "";
   const metre = q.current.metre || { zones: [] }, s = st(), calc = M.calculer(metre, metier);
   const zones = metre.zones.map((z, zi) => {
@@ -66,7 +66,7 @@ export function carte(q, dis, sync) {
     }).join("");
     const choix = s.add === z.id ? `<div class="chips">${types.map((t) => `<button type="button" class="chip" data-act="metreOuvAdd" data-z="${zi}" data-t="${t.id}">${esc(t.nom)}</button>`).join("")}</div>` : dis ? "" : `<button type="button" class="addrow" data-act="metreChoix" data-z="${z.id}">＋ Ajouter un ouvrage dans ${esc(z.nom || "cette zone")}</button>`;
     const nb = (z.ouvrages || []).length;
-    return `<div class="mzone"><button type="button" class="sech" data-act="metreZone" data-z="${z.id}"><b>${esc(z.nom || "Zone sans nom")}${nb ? ` · ${nb}` : ""}</b><span><i>${openZ ? "▲" : "▼"}</i></span></button>
+    return `<div class="mzone"><button type="button" class="sech" data-act="metreZone" data-z="${z.id}"><b>${esc(z.nom || `Zone ${zi + 1}`)}${nb ? ` · ${nb}` : ""}</b><span><i>${openZ ? "▲" : "▼"}</i></span></button>
       ${openZ ? `${H.L("Nom de la zone (pièce, étage, bâtiment, lot)")}${H.I("q", `current.metre.zones.${zi}.nom`, z.nom, { dis, ph: "Ex. : Salon, Étage 1, Bâtiment B" })}${ouvr}${choix}
         ${dis ? "" : `<div class="row" style="margin-top:8px"><button type="button" class="sec" data-act="metreZoneCopie" data-z="${zi}">Copier cette zone</button>${s.del === z.id ? `<button type="button" class="sec danger" data-act="metreZoneDel" data-z="${zi}">Confirmer : supprimer</button>` : `<button type="button" class="sec danger" data-act="metreAsk" data-id="${z.id}">Supprimer la zone</button>`}</div>`}` : ""}</div>`;
   }).join("");
@@ -78,7 +78,7 @@ export function carte(q, dis, sync) {
     ${dis ? "" : `<button type="button" class="addrow" data-act="metreZoneAdd">＋ Ajouter une zone (pièce, étage, bâtiment, lot)</button>`}
     ${calc.manques.length ? `<div class="banner warn" id="metremanque">${calc.manques.length} élément${calc.manques.length > 1 ? "s" : ""} du métré à compléter : ${[...new Set(calc.manques.map((m) => `${m.zone} — ${m.besoin || m.ouvrage}`))].slice(0, 4).map(esc).join(" ; ")}${calc.manques.length > 4 ? "…" : ""}</div>` : ""}
     ${ec.map((e) => `<div class="banner warn">« ${esc(e.nom)} » : tu as écrit ${fmtD(e.qty)} dans le devis, le métré ${e.metre === null ? "ne le calcule plus" : "donne " + fmtD(e.metre)}. ${dis ? "" : `<button type="button" class="linkbtn" data-act="metreReprendre" data-id="${e.id}">${e.metre === null ? "Retirer la ligne" : "Reprendre " + fmtD(e.metre)}</button>`}</div>`).join("")}
-    ${lignes}</div>`;
+    ${lignes}${enPlus}</div>`;
 }
 
 // Carte de contrôle à l'étape « Le prix » : ce qui reste à compléter, écarts et durée.

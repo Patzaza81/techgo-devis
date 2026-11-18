@@ -24,9 +24,30 @@ throws("transition interdite brouillon → accepté", () => S.setStatus(q, "acce
 S.setStatus(q, "pret");
 eq("statut prêt", q.status, "pret");
 const v1 = S.freezeVersion(q);
-eq("statut envoyé", q.status, "envoye");
+// « Terminé » n'est pas « Envoyé » : il faut une preuve (partage confirmé ou confirmation de l'artisan)
+eq("version terminée : statut « termine », pas « envoye »", q.status, "termine");
+eq("une version terminée n'expire pas (elle n'a pas été envoyée)", S.effectiveStatus(q), "termine");
+throws("terminé → accepté interdit (le client n'a rien reçu)", () => S.accept(q, { by: "X" }));
+throws("marquer envoyé sans dire comment : refusé", () => S.marquerEnvoye(q, ""));
+S.marquerEnvoye(q, "confirmé par l'artisan");
+eq("après confirmation : statut envoyé", q.status, "envoye");
+eq("la preuve est gardée dans l'historique", /V1 envoyée — confirmé par l'artisan/.test(q.statusLog.at(-1).reason), true);
+throws("marquer envoyé deux fois : refusé", () => S.marquerEnvoye(q, "encore"));
+{ const qb = S.createQuote(); throws("marquer envoyé un brouillon : refusé", () => S.marquerEnvoye(qb, "confirmé")); }
+{ const qc = S.createQuote(); qc.current = { ...referenceDraft(db().settings), ref: qc.ref, date: S.today() }; S.setStatus(qc, "pret"); S.freezeVersion(qc);
+  S.startNegotiation(qc); eq("terminé puis corrigé avant envoi : nouvelle version possible", [qc.status, S.editable(qc)], ["negociation", true]); }
 eq("V1 figée avec empreinte", [v1.n, v1.hash.length], [1, 27]);
 eq("intégrité V1", S.verifyVersion(v1).ok, true);
+{ // Version figée par un moteur antérieur (règle d'arrondi d'avant le 18/11) : montants d'origine gardés, pas de fausse alerte
+  const { fingerprint } = await import("./engine.js"); const cl = (o) => JSON.parse(JSON.stringify(o));
+  const vieux = cl(v1); vieux.result.engineVersion = "2.0.0"; vieux.result.totals.base += 1; vieux.hash = fingerprint({ quote: vieux.quote, items: vieux.items, result: vieux.result });
+  const r1 = S.verifyVersion(vieux);
+  eq("version d'un ancien moteur, recalcul différent : contenu valide + note", [r1.ok, r1.notes.length], [true, 1]);
+  const triche = cl(vieux); triche.result.totals.base += 5;
+  eq("version d'un ancien moteur modifiée après coup : refusée (empreinte)", S.verifyVersion(triche).ok, false);
+  const actuel = cl(v1); actuel.result.totals.base += 1; actuel.hash = fingerprint({ quote: actuel.quote, items: actuel.items, result: actuel.result });
+  eq("version du moteur actuel dont le recalcul diffère : refusée", S.verifyVersion(actuel).ok, false);
+}
 throws("V1 immuable (modification refusée)", () => { v1.quote.site.surface = 1; });
 throws("V1 immuable (résultat)", () => { v1.result.totals.base = 1; });
 eq("devis non modifiable une fois envoyé", S.editable(q), false);
@@ -49,7 +70,7 @@ S.startNegotiation(q);
 eq("négociation : statut", q.status, "negociation");
 eq("négociation : brouillon éditable", S.editable(q), true);
 q.current.discount = { pct: 10, amount: null };
-S.freezeVersion(q);
+S.freezeVersion(q); S.marquerEnvoye(q, "partage confirmé par le téléphone");
 eq("V2 créée, V1 intacte", [q.versions.length, q.versions[0].result.totals.base, q.versions[1].result.totals.base], [2, 15614500, 14053050]);
 eq("V1 et V2 ont des empreintes distinctes", q.versions[0].hash !== q.versions[1].hash, true);
 eq("V1 toujours valide", S.verifyVersion(q.versions[0]).ok, true);
@@ -81,7 +102,7 @@ throws("devis accepté : plus de transition", () => S.setStatus(q, "refuse"));
 // ----- Refus puis réouverture -----
 const q2 = S.createQuote();
 q2.current = { ...referenceDraft(db().settings), ref: q2.ref, date: S.today() };
-S.setStatus(q2, "pret"); S.freezeVersion(q2); S.reject(q2, "Prix trop élevé");
+S.setStatus(q2, "pret"); S.freezeVersion(q2); S.marquerEnvoye(q2, "confirmé par l'artisan"); S.reject(q2, "Prix trop élevé");
 eq("refusé : motif conservé", q2.statusLog[q2.statusLog.length - 1].reason, "Prix trop élevé");
 S.startNegotiation(q2);
 eq("devis refusé rouvert en négociation", q2.status, "negociation");

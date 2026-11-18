@@ -47,7 +47,25 @@ const q3 = S.createQuote(); line(q3, item("Sable ", "materiaux", "m³", null), 2
 const h3 = renderDoc(snapOf(q3), { draft: true, ref: q3.ref });
 eq("prix inconnu : jamais compté à zéro, affiché « — »", h3.includes(">—<") && S.evaluate(q3).result.totals.base === 0, true);
 S.state.db.settings.profil = "entreprise"; const q4 = S.createQuote();
+eq("devis entreprise sans surface : ni « — m² » ni base de calcul (audit v40)", /— m²|Base de calcul des quantités/.test(renderDoc(snapOf(q4), { draft: true, ref: q4.ref })), false);
+q4.current.site.surface = 50; // avec une surface : modèle complet
 eq("devis entreprise : modèle complet conservé", renderDoc(snapOf(q4), { draft: true, ref: q4.ref }).includes("Base de calcul des quantités"), true);
 eq("devis entreprise : profil entreprise", q4.current.profil, "entreprise");
 eq("ancien devis sans profil = entreprise", renderDoc({ ...snapOf(q4), quote: { ...q4.current, profil: undefined } }, {}).includes("Base de calcul des quantités"), true);
+// Main-d'œuvre détaillée : ce que l'artisan a saisi (3 jours × 15 000) est visible du client dans les 3 formes (audit v40)
+{ const q9 = S.createQuote(); q9.current.profil = "technicien"; line(q9, item("Ciment ordinaire", "materiaux", "sac", 6500), 10); line(q9, item("Peintre", "main_oeuvre", "jour", 15000), 3); line(q9, item("Aide-peintre", "main_oeuvre", "jour", 8000), 3);
+  for (const f of ["detaille", "express", "chantier"]) { q9.current.form = f; const h9 = renderDoc(snapOf(q9), { draft: true, ref: q9.ref }).replace(/[\u202f\u00a0]/g, " ");
+    eq(`forme ${f} : « Peintre : 3 jours × 15 000 = 45 000 » écrit`, h9.includes("Peintre : 3 jours × 15 000 = 45 000"), true);
+    eq(`forme ${f} : total de la main-d'œuvre 69 000`, h9.includes("69 000"), true); }
+  eq("devis v4 : forfait unique de main-d'œuvre sans détail ajouté", html.includes("Main-d'œuvre technique (équipe TechGo) : 1"), false);
+}
+// Poste de 4 lignes ou plus : son propre tableau (une ligne par personne), plus de long paragraphe ; moins de 4 : détail en une phrase
+{ const q10 = S.createQuote(); q10.current.profil = "technicien"; line(q10, item("Ciment ordinaire", "materiaux", "sac", 6500), 10);
+  for (const [nom, pu] of [["Maçon", 15000], ["Aide-maçon", 8000], ["Ferrailleur", 12000], ["Manœuvre", 6000]]) line(q10, item(nom, "main_oeuvre", "jour", pu), 3);
+  for (const f of ["detaille", "express", "chantier"]) { q10.current.form = f; const h = renderDoc(snapOf(q10), { draft: true, ref: q10.ref }).replace(/[  ]/g, " ");
+    eq(`forme ${f} : 4 ouvriers → plus de phrase « Maçon : 3 jours × … »`, h.includes("Maçon : 3 jours ×"), false);
+    eq(`forme ${f} : 4 ouvriers → chacun sur sa ligne avec son montant (Ferrailleur 36 000)`, /<td><b>Ferrailleur<\/b>[\s\S]{0,200}36 000/.test(h), true);
+    eq(`forme ${f} : total main-d'œuvre 123 000 toujours écrit`, h.includes("123 000"), true); }
+}
+
 console.log(`\n${pass} réussis, ${fail} échoués`); process.exit(fail ? 1 : 0);

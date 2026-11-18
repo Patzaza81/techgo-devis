@@ -77,3 +77,39 @@ Format : quoi · pourquoi · date.
 - **Mortier d'un mur** : calculé seulement si l'artisan le demande (case à cocher).
 - **Carrelage** : vente au carton ou au m² ; coupes de plinthes séparées de la casse des carreaux.
 - **Contrôle indépendant** : `validation/controle.py` et `VALIDATION.md`.
+
+## v40 — audit de l'expérience utilisateur (18/11/2026, branche audit/ux-v40)
+- Recherche du référentiel : en direct, par mots (ordre libre, début de mot, tirets ignorés) ; quelques mots du chantier renvoient au terme du référentiel (agglo → parpaing, ampoule → lampe, téflon → PTFE…). Aucun produit créé.
+- Documents : un bloc n'est écrit que s'il a un contenu (pas de « … jours », « — m² », base de calcul sans surface, choix d'option sans option). Main-d'œuvre, outils et transport détaillés sous leur poste dans les 3 formes technicien (forfait unique inchangé).
+- Avec une TVA, l'arrêté en lettres porte le montant TTC (modèle entreprise et Word, comme le modèle technicien). À valider par Patrick.
+- La surface de base ne bloque un devis entreprise que si un travail est calculé à partir d'elle.
+- « Vérifier » signale (sans bloquer) : nom de l'entreprise absent, nom du client absent, produit en double.
+- Rapport complet : audit-v40/RAPPORT.md. Aucun test humain réalisé.
+
+## v41 — produit commercial (18/11/2026, branche audit/ux-v41)
+
+Décisions prises par Patrick le 18/11 (questions posées avant de coder) :
+
+- **Arrondi** : une seule règle. Chaque ligne = quantité × prix, arrondi au franc (0,5 → au-dessus), en calcul entier exact. Total HT = somme des lignes. Remise, frais et TVA calculés sur le total HT, arrondis au franc. TTC = HT + TVA. Même règle à l'écran, dans l'aperçu, le PDF et le Word (`engine.js : montantLigne`, `test-arrondi.mjs`).
+- **Arrêté du devis** : en lettres sur le montant TTC.
+- **PDF** : vrai texte (sélectionnable, cherchable, ~15 Ko au lieu d'une image). Coupure de page entre deux lignes, en-tête du tableau répété, numéros de page. L'ancien PDF image reste en secours si le texte échoue.
+- **Catalogue** : on n'ajoute que des noms et des unités de vente, avec source citée, marqués « à confirmer ». Aucun prix, norme ni caractéristique. Les sigles sont écrits en clair, le sigle reste entre parenthèses ; l'ancien nom retrouve toujours la fiche.
+- **Unités** : chaque fiche produit propose ses unités (document source, sinon famille, sinon nom). La fiche de ligne montre d'abord ces unités en boutons, les autres dans « Autre… ». Un nom tapé à la main reçoit les unités de la fiche seulement s'il n'y a pas d'ambiguïté.
+- **Quantités** : un seul outil, le métré. L'aide « calculer à partir de la surface » de la fiche de ligne est retirée ; la fiche renvoie au métré. Les travaux types (calcul depuis la surface du chantier) sont rangés dans la carte du métré.
+- **Envoi (profil technicien)** : plus d'étape « Marquer Prêt à envoyer » ; le bouton « Envoyer au client (version 1) » suffit quand rien ne bloque. Le profil entreprise garde l'étape de vérification. Les points de contrôle réussis ne sont plus listés pour le technicien.
+- **Journal d'essai** : activé par le lien `?essai=1`, reste dans le téléphone, n'enregistre ni nom, ni téléphone, ni prix ; export CSV dans Réglages.
+
+## v41b — suite de l'examen de Patrick (18/11/2026, branche audit/ux-v41)
+
+- **Envoi** : « Envoyer au client » n'envoyait rien (il figeait la version). Désormais : « Terminer le devis et créer le PDF à envoyer (version N) » fige la version et crée son PDF ; puis « Envoyer le PDF (WhatsApp, e-mail…) » ouvre le menu Partager du téléphone, ou « Télécharger le fichier » si le téléphone ne sait pas partager.
+- **Règle de calcul** (complète) : quantité et prix au millième (la saisie est ramenée au millième, l'affichage aussi) ; montant de ligne au franc ; pourcentages et répartitions en calcul entier exact quelle que soit la taille ; location refacturée = jours × prix par jour. Moteur 2.1.0 ; une version figée avant garde ses montants, l'écart de recalcul est signalé, pas traité comme une fraude.
+- **TVA** : choix en deux boutons « Sans TVA » / « TVA 19,25 % » ; « sans TVA » choisi n'est plus signalé comme un oubli.
+- **Catalogue** : matériel d'usine (HTA, moteurs, ATEX, cimenteries ; fiches « industriel », « réactifs ») caché à l'artisan, visible au profil entreprise ou d'un toucher ; recherche en peinture et en carrelage ; à score égal, le sous-ensemble « Logement » passe d'abord.
+- **PDF/Word** : un poste de 4 lignes ou plus a son tableau ; Word : lignes insécables et en-tête répété.
+- **Unités** : la fiche dit si l'unité est celle d'achat, de facturation du travail ou issue du métré ; pas de conversion carton ↔ m² devinée pour une ligne saisie à la main.
+- **Étape 1** : l'outil « surface des murs moins portes » est retiré pour le technicien (le métré le fait) ; gardé pour les anciens devis qui l'utilisent.
+
+## v41c — vérification avant intégration (18/11/2026)
+
+- **Statut « Envoyé »** : « Terminer le devis et créer le PDF » ne met plus le devis à « Envoyé ». Nouveau statut **« Terminé, pas encore envoyé »** (version figée, non modifiable sans préparer une nouvelle version). Il devient « Envoyé » seulement : (a) quand le téléphone confirme le partage du fichier PDF ou Word **de cette version** (menu Partager terminé) ; ou (b) quand l'artisan touche « J'ai envoyé la version N au client ». Un téléchargement, un partage annulé ou le partage d'un brouillon ne changent rien. La preuve est écrite dans l'historique du devis. Un devis « Terminé » n'expire pas et ne peut pas être accepté avant d'être envoyé. Les devis déjà « Envoyé » avant la mise à jour gardent leur statut.
+- **Sources du catalogue** : registre avec lien, pays et ce que chaque source démontre réellement. Statut par produit : « vérifié » (source camerounaise lue, produit et façon de le vendre démontrés) ou « à confirmer » (affiché à l'artisan dans la fiche). 11 vérifiés, 24 à confirmer. 4 références introuvables retirées ; unités corrigées d'après les sources (pointes au paquet ou au carton, film polyane au rouleau, peinture antirouille au kg).

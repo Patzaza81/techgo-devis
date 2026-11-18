@@ -1,17 +1,20 @@
 import * as S from "./store.js";
 import { PLAN_TECH, CATS, PRICING, DECISION_TAGS, PACKS, scaffoldLines, referenceDraft, effSurface, surfaceSource } from "./packs.js";
 import { buildDocx, DOCX_MIME } from "./docx.js";
-import { manqueLigne, aDesDonnees, AIDE_QTE, quantiteCouverture, oublis } from "./metiers/aide.js";
+import { manqueLigne, aDesDonnees, AIDE_QTE, oublis } from "./metiers/aide.js";
 import * as Lic from "./licence.js";
 import * as Mt from "./metiers/metre.js";
 import * as UM from "./ui-metre.js";
 import { lireSaisie } from "./saisie.js";
+import { montantLigne } from "./engine.js";
+import * as Journal from "./journal.js";
 import { analyseCsv, exportCatalogueCsv, templateCsv, exportRowsCsv } from "./csv.js";
 const NEUTRAL_LOGO = "data:image/svg+xml;utf8," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><rect width="40" height="40" rx="9" fill="#e7ebed"/><path d="M12 9h12l6 6v16H12z" fill="none" stroke="#69787e" stroke-width="2.2" stroke-linejoin="round"/><path d="M16 21h10M16 26h10" stroke="#69787e" stroke-width="2.2" stroke-linecap="round"/></svg>');
 import { LISTES, METIERS, visibleIn, metierLabel } from "./metiers/listes.js";
-import { refOf, unitsOf } from "./metiers/ref.js";
+import { refOf, unitsOf, chercher } from "./metiers/ref.js";
+import { AJOUTS, unitesListe } from "./metiers/complements.js";
 import { vocab } from "./metiers/vocab.js";
-import { esc, fmt, fmtN, fmtQ, fmtD, frDate, renderDoc, renderInvoice, summaryText } from "./ui-doc.js";
+import { esc, fmt, fmtN, fmtQ, fmtPU, fmtD, frDate, renderDoc, renderInvoice, summaryText, uniteAccord } from "./ui-doc.js";
 
 const $ = (s) => document.querySelector(s);
 const ICONS = {
@@ -71,7 +74,7 @@ const badge = (state, text) => `<span class="badge b-${state}">${esc(text)}</spa
 const stBadge = (s) => `<span class="st st-${s}">${esc(S.STATUS[s])}</span>`;
 // Nombre écrit par une personne : « 4,5 », « 4.5 », « 1 500 » (espaces ordinaires ou insécables). Tout autre texte (« 4m », « abc ») donne NaN :
 // on ne devine jamais une unité (60 cm lu comme 60 m serait une erreur silencieuse).
-const num = (v, z) => { const t = v === null || v === undefined ? "" : String(v).replace(/[\s\u00a0\u202f]/g, ""); if (t === "") return z ? 0 : null; return /^[+-]?(\d+([.,]\d*)?|[.,]\d+)$/.test(t) ? Number(t.replace(",", ".")) : NaN; };
+const num = (v, z) => { const t = v === null || v === undefined ? "" : String(v).replace(/[\s\u00a0\u202f]/g, ""); if (t === "") return z ? 0 : null; if (!/^[+-]?(\d+([.,]\d*)?|[.,]\d+)$/.test(t)) return NaN; const x = Number(t.replace(",", ".")); return Math.round(x * 1000) / 1000; }; // au millième : ce qui est enregistré = ce qui est affiché = ce qui est calculé
 const pctList = (s) => String(s).split("/").map((x) => x.trim()).filter((x) => x !== "").map((x) => Number(x.replace(",", ".")));
 const roots = () => ({ q: S.getQuote(ui.qid), db: S.state.db, it: ui.itemDraft, cl: ui.clientDraft, tmp: ui.tmp, ui });
 function setPath(o, path, v) { const k = path.split("."); for (let i = 0; i < k.length - 1; i++) { if (o[k[i]] === undefined || o[k[i]] === null) o[k[i]] = {}; o = o[k[i]]; } o[k[k.length - 1]] = v; }
@@ -113,7 +116,7 @@ function viewDevis() {
     <div>${L("Statut")}${Sel("ui", "f.status", f.status, [["", "Tous"], ...Object.entries(S.STATUS)])}</div></div>
     ${counts.length ? `<div class="chips">${counts.map(([k, n]) => `<span class="st st-${k}">${S.STATUS[k]} ${n}</span>`).join("")}</div>` : ""}</div>
     <p class="hint">Tes devis restent dans ce navigateur (Safari et Chrome ne partagent rien). Pour les retrouver ailleurs : rouvre un PDF créé par l'application, ou fais une sauvegarde (Réglages).</p>
-    <div class="card"><b>Rouvrir un ancien devis</b><p class="hint">Choisis un PDF créé par l'application (version 24 ou plus) : le devis revient ici, modifiable.</p><input type="file" accept="application/pdf" data-on="importQuote"></div>
+    <div class="card"><b>Rouvrir un ancien devis</b><p class="hint">Choisis un PDF créé par TechGo Devis : le devis revient ici, modifiable.</p><input type="file" accept="application/pdf" data-on="importQuote"></div>
     ${list.length ? list.map(quoteCard).join("") : `<div class="empty"><b>Aucun devis.</b><br>Touche « Nouveau devis » pour commencer.</div>`}`;
 }
 function quoteCard(q) {
@@ -136,7 +139,7 @@ function viewQuote() {
     : `<div class="prog noprint"><div class="segs">${STEPS.map((t, i) => `<a class="${ui.step === i ? "on" : i < ui.step ? "done" : ""}" href="#/devis/${q.id}/${i}" aria-label="${esc(t)}"><i></i></a>`).join("")}</div>
        <div class="progtop"><span>Étape ${n} sur ${STEPS.length}</span><span class="ref">${esc(q.ref)} · ${esc(S.STATUS[st])}</span></div></div>`;
   const head = "";
-  const frozen = dis ? `<div class="banner info">Ce devis est « ${S.STATUS[q.status]} » : les versions envoyées sont figées. ${["envoye", "refuse", "expire"].includes(q.status) ? "Prépare une nouvelle version pour modifier." : ""}</div>` : "";
+  const frozen = dis ? `<div class="banner info">Ce devis est « ${S.STATUS[q.status]} » : les versions terminées ne changent plus. ${["termine", "envoye", "refuse", "expire"].includes(q.status) ? "Prépare une nouvelle version pour modifier." : ""}</div>` : "";
   const steps = simple ? [stepClientS, stepTravauxS, stepEnvoiS, stepVersions] : [stepClient, stepPrest, stepBesoins, stepPrix, stepVerifier, stepVersions];
   const bar = onSuivi ? "" : `<div class="actbar noprint"><div class="acts">${ui.step > 0 ? `<button class="sec sq" data-act="prev" aria-label="Précédent">${ic("back", 24)}</button>` : ""}${ui.step < LAST ? `<button class="go" data-act="next"><span>Continuer</span><span class="amt">${miss ? `${miss} prix manquant${miss > 1 ? "s" : ""}` : fmt(ev.result.totals.base)}</span></button>` : `<button class="go" data-act="toApercu"><span>Aperçu, PDF et envoi</span>${ic("next", 22)}</button>`}</div></div>`;
   return `<a class="back" href="#/devis">${ic("back", 18)} Tous les devis</a>${head}${prog}${frozen}${steps[ui.step](q, ev, dis)}${bar}`;
@@ -156,12 +159,17 @@ function stepClient(q, ev, dis) {
     <div class="card"><b>Chantier</b>
     ${L("Nom du chantier")}${I("q", "current.site.name", cur.site.name, { ph: v.chantier, dis })}
     ${L("Adresse / quartier")}${I("q", "current.site.address", cur.site.address, { dis })}
+    ${L("Hauteur de travail maximale (m)")}${I("q", "current.site.workHeightM", cur.site.workHeightM, { type: "number", n: "n", dis })}
+    <p class="hint" style="margin:-4px 0 8px">Obligatoire : sert à décider s'il faut un échafaudage ou une nacelle.</p>
+    <details data-k="surfaceE" ${(ui.ouvert || {}).surfaceE || [cur.site.surfaceBrute, cur.site.ouvertures, cur.site.surface, cur.site.levels, cur.site.lossPct].some((x) => x !== null && x !== undefined && x !== "") ? "open" : ""}><summary>Surface, niveaux et pertes (facultatif — pour les travaux types)</summary>
+    <p class="hint" style="margin:6px 0">Le métré, à l'étape suivante, calcule les quantités pièce par pièce. Ces champs ne servent qu'aux travaux types calculés sur une surface globale.</p>
     ${v.calc ? `<div class="row"><div>${L(v.murs)}${I("q", "current.site.surfaceBrute", cur.site.surfaceBrute, { type: "number", n: "n", dis })}</div><div>${L(v.ouv)}${I("q", "current.site.ouvertures", cur.site.ouvertures, { type: "number", n: "n", dis })}</div></div>` : ""}
     ${L(v.calc ? "ou surface déjà calculée (m²)" : v.surface)}${I("q", "current.site.surface", cur.site.surface, { type: "number", n: "n", ph: v.calc ? "" : v.surfacePh, dis })}
     <p class="hint"><b>Surface retenue pour le calcul : ${effSurface(cur.site) === null ? "non renseignée" : fmtD(effSurface(cur.site)) + " m² (" + surfaceSource(cur.site) + ")"}.</b> Si la surface brute est saisie, elle prime : surface nette = brute − ouvertures (portes, fenêtres).</p>
-    <div class="row"><div>${L("Hauteur de travail maximale (m)")}${I("q", "current.site.workHeightM", cur.site.workHeightM, { type: "number", n: "n", dis })}</div><div>${L("Nombre de niveaux")}${I("q", "current.site.levels", cur.site.levels, { type: "number", n: "n", dis })}</div></div>
+    ${L("Nombre de niveaux")}${I("q", "current.site.levels", cur.site.levels, { type: "number", n: "n", dis })}
     ${L("Produit en plus pour les pertes (%)")}${I("q", "current.site.lossPct", cur.site.lossPct, { type: "number", n: "n", dis })}
-    <p class="hint">La marge de sécurité couvre pertes, reprises et irrégularités. Elle s'applique aux fournitures, jamais à la main-d'œuvre. Utilise la valeur observée sur tes chantiers. Seuil d'accès de l'entreprise : ${S.state.db.settings.accessThresholdM === null ? "non défini (Réglages)" : S.state.db.settings.accessThresholdM + " m"}.</p>
+    <p class="hint">Les pertes s'ajoutent aux fournitures, jamais à la main-d'œuvre. Mets la valeur observée sur tes chantiers.</p>
+    </details>
     <details><summary>Informations facultatives sur le chantier</summary>
     <div class="row"><div>${L("Type de bâtiment")}${I("q", "current.site.buildingType", cur.site.buildingType, { ph: "Villa, immeuble, entrepôt…", dis })}</div><div>${L("Occupation des lieux")}${Sel("q", "current.site.occupied", cur.site.occupied, [["", "—"], ["Occupé", "Occupé"], ["Vide", "Vide"]], { dis })}</div></div>
     <div class="row"><div>${L(v.support)}${I("q", "current.site.support", cur.site.support, { ph: v.supportPh, dis })}</div><div>${L(v.finish)}${I("q", "current.site.finish", cur.site.finish, { ph: v.finishPh, dis })}</div></div>
@@ -183,7 +191,7 @@ function stepClientS(q, ev, dis) {
     ${L("Quartier ou adresse")}${I("q", "current.site.address", cur.site.address, { ph: "Ex. : Bonamoussadi, près du carrefour", dis })}
     ${L(v.surface)}${I("q", "current.site.surface", cur.site.surface, { type: "number", n: "n", ph: v.surfacePh, dis })}
     <p class="hint">${effSurface(cur.site) === null ? "Pas de surface ? Laisse vide si ton travail ne se mesure pas en m²." : `Surface retenue : <b>${fmtD(effSurface(cur.site))} m²</b> (${esc(surfaceSource(cur.site))})`}</p>
-    ${elec ? "" : `<details><summary>Je veux calculer la surface (murs moins portes et fenêtres)</summary>
+    ${elec || !(cur.site.surfaceBrute > 0 || cur.site.ouvertures > 0) ? "" : `<details open><summary>Surface des murs moins portes et fenêtres</summary>
       <div class="row"><div>${L(v.murs)}${I("q", "current.site.surfaceBrute", cur.site.surfaceBrute, { type: "number", n: "n", dis })}</div><div>${L(v.ouv)}${I("q", "current.site.ouvertures", cur.site.ouvertures, { type: "number", n: "n", dis })}</div></div>
       <p class="hint">Si tu remplis « surface des murs », l'application enlève elle-même les portes et fenêtres.</p></details>`}
     ${L("Description courte du chantier (facultatif)")}${I("q", "current.site.name", cur.site.name, { ph: "Ex. : " + v.desc, dis })}</div>${rf ? ficheMetier(cur, dis, rf) : ""}`;
@@ -195,9 +203,11 @@ function ficheMetier(cur, dis, rf) {
   const field = (x) => x.multi
     ? `${L(x.label)}<div class="chips">${x.opts.map((o) => `<button type="button" class="chip ${(f[x.k] || []).includes(o) ? "on" : ""}" data-act="ficheToggle" data-k="${x.k}" data-v="${esc(o)}" ${dis ? "disabled" : ""}>${esc(o)}</button>`).join("")}</div>`
     : `${L(x.label)}${Sel("q", "current.fiche." + x.k, f[x.k], [["", "—"], ...x.opts.map((o) => [o, o])], { dis })}`;
-  return `<div class="card"><b>Ce que tu dois savoir avant de chiffrer</b><p class="hint">Facultatif. Ces réponses sont écrites sur le devis, sous l'objet du chantier.</p>
+  // Repliée par défaut : 20 à 40 choix facultatifs ne doivent pas allonger le premier écran d'un devis rapide.
+  const nb = Object.values(f).reduce((a, v) => a + (Array.isArray(v) ? v.length : v ? 1 : 0), 0);
+  return `<details class="card reglages" ${nb ? "open" : ""}><summary><b>Précisions sur le chantier (facultatif)</b><small class="hint" style="display:block;margin:2px 0 0">${nb ? `${nb} précision${nb > 1 ? "s" : ""} écrite${nb > 1 ? "s" : ""} sur le devis.` : "Type de travaux, pose, contraintes. Écrites sur le devis si tu les remplis."}</small></summary>
     ${rf.fiche.fields.map(field).join("")}
-    ${rf.fiche.warn(f) ? `<div class="banner warn">${esc(rf.fiche.warnText)}</div>` : ""}</div>`;
+    ${rf.fiche.warn(f) ? `<div class="banner warn">${esc(rf.fiche.warnText)}</div>` : ""}</details>`;
 }
 // Aide de métier au moment d'envoyer (plomberie : vérifications, ce que le devis doit distinguer, erreurs fréquentes)
 function guideCard(met) {
@@ -214,6 +224,8 @@ const secOf = (met) => { const lb = refOf(met)?.labels || {}; return SEC0.map(([
 const UNITS_ROW = { ouvriers: ["forfait", "jour", "heure", "m²"], outils: ["forfait", "jour"], autres: ["forfait", "trajet", "jour"] };
 const composeLabel = (t) => `${(t.label || "").trim()}${(t.brand || "").trim() ? " " + t.brand.trim() : ""}${(t.cond || "").trim() ? " (" + t.cond.trim() + ")" : ""}`.trim();
 // Une ligne = un produit déjà proposé. On touche la ligne, la fiche s'ouvre, on remplit, le total se calcule tout seul.
+// Matériel d'usine (HTA, moteurs, ATEX, cimenteries) : montré au profil entreprise ; l'artisan le fait apparaître d'un toucher.
+const voirIndus = (q) => modeOf(q) === "entreprise" || !!ui.tmp.elec.indus;
 function sheetRows(q, ev, tab) {
   const db = S.state.db, met = metierOf(q), manIds = new Set(q.current.manual.map((m) => m.id));
   const lines = ev.result.lines.filter((l) => manIds.has(l.id) && !l.option && tabOf(l) === tab);
@@ -221,31 +233,18 @@ function sheetRows(q, ev, tab) {
   for (const l of lines) { const m = q.current.manual.find((x) => x.id === l.id); const nm = m.nom ?? l.label; used.add(nz(nm)); rows.push({ key: nz(nm), name: nm, line: l, man: m }); }
   const rf = refOf(met);
   // Électricité, plomberie : la liste vient du référentiel (sous-ensemble choisi ou recherche), pas d'une liste à plat.
-  const generic = rf && tab === "produits" ? [] : LISTES[met]?.[tab] || [];
+  const generic = rf && tab === "produits" ? [] : [...(LISTES[met]?.[tab] || []), ...(AJOUTS[met] || []).filter((x) => x.liste === tab).map((x) => x.nom)];
   const names = [...generic, ...db.catalogue.filter((i) => !i.archived && TAB_OF[i.cat] === tab && String(i.id).startsWith("TER-") && i.price != null && ownsItem(i, met) && !(rf && tab === "produits" && rf.find(i.nom || i.label))).map((i) => i.nom || i.label)];
   for (const n of names) { if (used.has(nz(n))) continue; used.add(nz(n)); rows.push({ key: nz(n), name: n, line: null, man: null }); }
   if (rf) {
     for (const r of rows) r.ref = rf.find(r.name) || null;
     const e = ui.tmp.elec;
-    for (const r of rf.rows(tab, e.dom, e.q)) { if (used.has(nz(r.name))) continue; used.add(nz(r.name)); rows.push({ key: nz(r.name), name: r.name, line: null, man: null, ref: r, fam: r.fam }); }
+    for (const r of rf.rows(tab, e.dom, e.q, { indus: voirIndus(q) })) { if (used.has(nz(r.name))) continue; used.add(nz(r.name)); rows.push({ key: nz(r.name), name: r.name, line: null, man: null, ref: r, fam: r.fam }); }
   }
   return rows.sort((x, y) => (y.line ? 1 : 0) - (x.line ? 1 : 0));
 }
 // Aide « calculer la quantité à partir de la surface » (peinture, carrelage). La couverture par unité est
 // toujours saisie par l'utilisateur ; la formule est affichée en clair.
-function aideQuantite(t, met) {
-  const cfg = AIDE_QTE[met]; if (!cfg) return "";
-  const c = ui.tmp.calc, q = S.getQuote(ui.qid), site = q ? effSurface(q.current.site) : null;
-  if (!c.open) return `<button type="button" class="linkbtn" data-act="calcToggle" style="margin:2px 0 8px">Calculer la quantité à partir de la surface</button>`;
-  const surface = c.surface ?? site, couches = cfg.couches ? (c.couches ?? 1) : 1;
-  const r = quantiteCouverture({ surface, couches, couverture: c.couv, pertePct: c.perte ?? 0 });
-  return `<div class="calc"><b>Calculer la quantité</b>
-    <div class="row"><div>${L("Surface (m²)")}${I("tmp", "calc.surface", surface, { type: "number", n: "n" })}</div>${cfg.couches ? `<div>${L("Nombre de couches")}${I("tmp", "calc.couches", couches, { type: "number", n: "n" })}</div>` : ""}</div>
-    ${L(cfg.couverture)}${I("tmp", "calc.couv", c.couv, { type: "number", n: "n" })}<p class="hint" style="margin:2px 0 8px">${cfg.ou}</p>
-    ${L("Pertes et coupes (%) — laisse vide si tu n'en comptes pas")}${I("tmp", "calc.perte", c.perte, { type: "number", n: "n" })}
-    ${r.ok ? `<div class="banner info"><b>Quantité : ${fmtN(r.qty)}</b><div class="hint" style="margin:4px 0 0">${esc(r.detail)}</div></div><div class="row"><button type="button" data-act="calcUse" data-q="${r.qty}">Utiliser ${fmtN(r.qty)}</button><button type="button" class="sec" data-act="calcToggle">Fermer le calcul</button></div>`
-      : `<p class="hint">Il manque : ${r.manque.join(", ")}.</p><button type="button" class="sec" data-act="calcToggle">Fermer le calcul</button>`}</div>`;
-}
 // ---------- Métré : lien entre le chantier décrit et les lignes du devis ----------
 const ligneMetre = (t) => { const q = S.getQuote(ui.qid); return (t && t.lineId && q && q.current.manual.find((m) => m.id === t.lineId && m.metre)) || null; };
 function explMetre(t) {
@@ -255,6 +254,9 @@ function explMetre(t) {
 }
 const metreManuel = (q) => q.current.manual.map((m) => ({ id: m.id, metre: m.metre, metreQty: m.metreQty, qty: m.qty, nom: m.nom ?? m.label, detail: m.detail }));
 // État du devis par rapport au métré (sans rien modifier) : sert à afficher les écarts.
+// Ce qui change l'affichage hors du champ en cours : ouvrage complet ou non, lignes du devis et leurs quantités.
+// Quand cela change, l'écran est redessiné (curseur gardé) ; sinon seul le calcul de l'ouvrage est mis à jour.
+function signatureMetre(q) { const c = Mt.calculer(q.current.metre || { zones: [] }, metierOf(q)); return JSON.stringify([c.manques.map((m) => m.zone + m.ouvrage + (m.besoin || "") + m.quoi.join()), c.lignes.map((l) => l.nom + ":" + l.qty)]); }
 function etatMetre(q) {
   if (!q.current.metre) return null;
   const lignes = Mt.calculer(q.current.metre, metierOf(q)).lignes, plan = Mt.planSync(metreManuel(q), lignes);
@@ -310,52 +312,88 @@ function apresMetre(q, chemin) {
   syncMetre(q);
   return redessiner;
 }
+// Unités de vente qui ont un sens pour ce produit (référentiel, compléments v41, liste à plat) ; vide si inconnu.
+function unitesDe(t, rf, met) {
+  if (t.tab !== "produits") return UNITS_ROW[t.tab] || [];
+  if (rf) return rf.unitesPour(t.label);
+  return unitesListe(met, t.label) || [];
+}
 function sheetForm(t, prod, rf, met) {
   const elec = !!rf, v = vocab(met);
   const manq = manqueLigne(t), incomplet = !t.lineId && aDesDonnees(t) && manq.length > 0;
-  const tot = t.qty > 0 && t.price > 0 ? t.qty * t.price : null;
+  const qd = S.getQuote(ui.qid), dejaLa = qd && String(t.label || "").trim() ? qd.current.manual.find((m) => m.id !== t.lineId && !m.metre && nz(m.nom ?? m.label ?? "") === nz(t.label)) : null;
+  const tot = t.qty > 0 && t.price > 0 ? montantLigne(t.qty, t.price) : null; // même règle d'arrondi que le devis
   const ref = rf ? rf.find(t.label) : null;
   const base = rf ? [...unitsOf(ref?.unit), ...(t.tab === "produits" ? [] : UNITS_ROW[t.tab] || []), ...rf.units] : t.tab === "produits" ? v.unitsP : UNITS_ROW[t.tab] || [];
-  const opts = [["", "—"], ...[...new Set([...base, t.unit].filter(Boolean))].map((u) => [u, u])];
+  // Unités qui correspondent au produit en premier ; les autres restent possibles, rangées à part.
+  const rel = unitesDe(t, rf, met), low = (u) => String(u).toLowerCase(), relL = new Set(rel.map(low));
+  const autres = [...new Set([...base, t.unit].filter(Boolean))].filter((u) => !relL.has(low(u)) && !(rel.length && [...relL].some((x) => x === low(u))));
+  const optU = (u) => `<option value="${esc(u)}" ${low(t.unit || "") === low(u) ? "selected" : ""}>${esc(u)}</option>`;
+  const selUnite = `<select data-r="tmp" data-p="row.unit"><option value="" ${t.unit ? "" : "selected"}>${rel.length && rel.length <= 5 ? "Autre…" : "Choisir"}</option>${rel.length ? `<optgroup label="Pour ce produit">${rel.map(optU).join("")}</optgroup>${autres.length ? `<optgroup label="Autres unités">${autres.map(optU).join("")}</optgroup>` : ""}` : autres.map(optU).join("")}</select>`;
+  // Produit ajouté par TechGo (compléments) : son statut est toujours affiché, jamais présenté comme sûr s'il ne l'est pas.
+  const ajout = ref && ref.ajout ? ref : (AJOUTS[met] || []).find((x) => x.liste === t.tab && nz(x.nom) === nz(t.label));
+  const ajoutHint = ajout && ajout.statut ? `<p class="hint" style="margin:2px 0 8px">${ajout.statut === "vérifié" ? `Produit ajouté par TechGo, vérifié au Cameroun (${esc(ajout.note || "")}).` : "<b>Produit ajouté par TechGo — à confirmer</b> : vérifie le nom et l'unité chez ton fournisseur."}</p>` : "";
   const specHint = ref && ref.spec ? `<p class="hint" style="margin:2px 0 8px">${t.tab === "autres" ? "Contenu" : rf.specLabel} : ${esc(ref.spec)}</p>` : "";
   const normHint = ref && ref.norm ? `<p class="hint" style="margin:2px 0 8px">Norme de référence : ${esc(ref.norm)}</p>` : "";
+  // Ordre de la fiche : le nom, puis ce qui fait le montant (quantité, unité, prix), puis le facultatif replié.
+  const puces = rel.length && rel.length <= 5 ? `<div class="chips unites" style="margin:0">${rel.map((u) => `<button type="button" class="chip ${low(t.unit || "") === low(u) ? "on" : ""}" data-act="rowUnit" data-u="${esc(u)}">${esc(u)}</button>`).join("")}</div>` : "";
+  const facultatif = prod ? `${L(elec ? "Marque ou référence fabricant" : "Référence ou marque")}${I("tmp", "row.brand", t.brand, { ph: v.brand })}
+    ${!v.cond ? `${L(v.condLabel)}${I("tmp", "row.cond", t.cond, { ph: rf && rf.met !== "maconnerie" && ref && ref.spec ? "Ex. : " + ref.spec.split(",").slice(0, 2).join(",") : v.condPh })}` : `${L(v.condLabel)}<div class="chips">${v.cond.map((c) => `<button type="button" class="chip ${nz(t.cond) === nz(c) ? "on" : ""}" data-act="rowCond" data-c="${esc(c)}">${esc(c)}</button>`).join("")}</div>`}
+    ${ref ? specHint + normHint : ""}` : "";
+  const nbFac = [t.brand, t.cond, t.role].filter((x) => String(x || "").trim()).length;
   return `<div class="sheet">
-    ${prod ? `${L(elec ? "Marque ou référence fabricant (facultatif)" : "Référence ou marque (facultatif)")}${I("tmp", "row.brand", t.brand, { ph: v.brand })}` : ""}
     ${L(prod ? "Nom du produit" : "Désignation")}${I("tmp", "row.label", t.label)}
-    ${prod && !v.cond ? `${L(v.condLabel)}${I("tmp", "row.cond", t.cond, { ph: rf && rf.met !== "maconnerie" && ref && ref.spec ? "Ex. : " + ref.spec.split(",").slice(0, 2).join(",") : v.condPh })}` : ""}
-    ${ref ? specHint + normHint : ""}
-    ${prod && v.cond ? `${L(v.condLabel)}<div class="chips">${v.cond.map((c) => `<button type="button" class="chip ${nz(t.cond) === nz(c) ? "on" : ""}" data-act="rowCond" data-c="${esc(c)}">${esc(c)}</button>`).join("")}</div>` : ""}
-    ${explMetre(t)}${prod && !ligneMetre(t) ? aideQuantite(t, met) : ""}
-    <div class="row"><div>${L("Quantité")}${I("tmp", "row.qty", t.qty, { type: "number", n: "n" })}</div><div>${L("Unité")}${Sel("tmp", "row.unit", t.unit, opts)}</div></div>
-    <div class="row"><div>${L(ligneMetre(t) ? `Prix pour 1 ${esc(String(t.unit || "unité").toLowerCase())} (FCFA)` : "Prix unitaire (FCFA)")}${I("tmp", "row.price", t.price, { type: "number", n: "n" })}</div><div>${L("Montant")}<div class="rowtot"><b>${tot === null ? "—" : fmt(tot)}</b></div></div></div>
+    ${ajoutHint}
+    ${dejaLa ? `<div class="banner warn" id="doublon"><b>« ${esc(t.label)} » est déjà dans le devis.</b> Si c'est le même produit, ferme cette fiche et change plutôt la quantité de la ligne existante. Sinon, précise le nom (ex. : la pièce).</div>` : ""}
+    ${explMetre(t)}
+    ${L("Unité")}<div class="unitesl">${puces}${selUnite}</div>
+    <p class="hint" style="margin:-2px 0 8px">${t.tab === "ouvriers" ? "Comment tu factures ce travail : au m², au mètre, à la journée ou au forfait." : t.tab === "produits" ? (ligneMetre(t) && /carton|pot|sac|seau|barre|pièce|rouleau|couronne/i.test(t.unit || "") ? `Mesuré par le métré, acheté et facturé en ${esc(uniteAccord(t.unit, 2))} entier${/^(barre|pièce|couronne)$/i.test(t.unit) ? "e" : ""}s : le prix est celui d'un${/^(barre|pièce|couronne)$/i.test(t.unit) ? "e" : ""} ${esc(String(t.unit).toLowerCase())}.` : "Unité d'achat : celle dans laquelle tu achètes et factures ce produit. Le prix est celui d'une unité.") : "Le prix est celui d'une unité."}</p>
+    <div class="row"><div>${L("Quantité")}${I("tmp", "row.qty", t.qty, { type: "number", n: "n" })}</div><div>${L(t.unit ? `Prix pour 1 ${esc(uniteAccord(t.unit, 1))}` : "Prix unitaire")}${I("tmp", "row.price", t.price, { type: "number", n: "n" })}</div></div>
+    <div class="rowtot montantl"><span>${tot === null ? "Montant de la ligne" : `${fmtQ(Number(t.qty))} ${esc(uniteAccord(t.unit, Number(t.qty)))} × ${fmtPU(Number(t.price))} =`}</span><b>${tot === null ? "—" : fmt(tot)}</b></div>
     ${incomplet ? `<div class="banner warn" id="lignemanque"><b>Cette ligne n'est pas encore dans le devis.</b> Il manque : ${manq.join(", ")}.</div>` : ""}
-    <details><summary>Écrire à quoi ça sert (facultatif)</summary>${I("tmp", "row.role", t.role, { ph: "Ex. : " + v.role })}</details>
+    ${prod && !ligneMetre(t) && AIDE_QTE[met] ? `<button type="button" class="linkbtn" data-act="versMetre" style="margin:2px 0 6px">Calculer la quantité à partir d'une surface (métré)</button>` : ""}
+    <details ${nbFac ? "open" : ""}><summary>Précisions écrites sur le devis (facultatif)${nbFac ? ` · ${nbFac}` : ""}</summary>${facultatif}${L("À quoi ça sert")}${I("tmp", "row.role", t.role, { ph: "Ex. : " + v.role })}</details>
     <div class="row" style="margin-top:8px"><button class="sec" data-act="rowClose">▲ Fermer</button>${ligneMetre(t) ? `<p class="hint" style="margin:0;align-self:center">Ligne du métré : pour la retirer, modifie le métré.</p>` : t.lineId ? `<button class="sec danger" data-act="rowRemove">Retirer du devis</button>` : `<p class="hint" style="margin:0;align-self:center">Remplis la quantité, l'unité et le prix : la ligne entre dans le devis.</p>`}</div></div>`;
 }
 // Électricité, plomberie : le matériel est rangé en sous-ensembles, puis en familles repliables (avec les points de vigilance du référentiel).
+// Peinture, carrelage : liste à plat, avec la même recherche que les autres métiers (début des mots, mots du chantier).
+// Les lignes déjà remplies restent toujours visibles.
+function listeAvecRecherche(rows, oneRow, met) {
+  const e = ui.tmp.elec, qq = String(e.q || "").trim();
+  const vus = qq ? new Set(chercher(rows.filter((r) => !r.line).map((r) => ({ name: r.name, spec: "", famLabel: "", r })), qq).map((x) => x.r)) : null;
+  const visibles = qq ? [...rows.filter((r) => r.line), ...rows.filter((r) => vus.has(r))] : rows;
+  return `<div class="elecbar">${L("Cherche un produit")}<input type="search" data-r="tmp" data-p="elec.q" value="${esc(e.q)}" placeholder="${met === "carrelage" ? "Ex. : colle, joint, plinthe" : "Ex. : enduit, sous-couche, diluant"}" autocomplete="off" enterkeyhint="search">
+    ${qq ? `<p class="hint" style="margin:6px 0">${visibles.length > rows.filter((r) => r.line).length ? "Produits qui correspondent :" : "Aucun produit trouvé. Tu peux l'ajouter à la main plus bas (« ＋ Ajouter un produit »)."}</p>` : ""}</div>${visibles.map(oneRow).join("")}`;
+}
 function refBrowser(q, k, rows, oneRow, dis, rf) {
   const e = ui.tmp.elec, searching = !!(e.q || "").trim();
-  if (!rf.domaines.some((d) => d[0] === e.dom)) e.dom = rf.firstDomain;
-  const top = rows.filter((r) => !r.fam), grp = {};
-  for (const r of rows) if (r.fam) (grp[r.fam] = grp[r.fam] || []).push(r);
+  const doms = voirIndus(q) ? rf.domaines : rf.domainesLogement, cachés = !voirIndus(q) && searching ? rf.industrielsTrouves(e.q) : 0;
+  if (!doms.some((d) => d[0] === e.dom)) e.dom = doms[0][0];
+  // Familles dans l'ordre des résultats (meilleur résultat d'abord). Un objet ne convient pas : ses clés numériques
+  // (« 1 », « 2 »…) seraient triées par numéro et la famille 1 passerait devant le meilleur résultat.
+  const top = rows.filter((r) => !r.fam), grp = {}, ordre = [];
+  for (const r of rows) if (r.fam) { if (!grp[r.fam]) { grp[r.fam] = []; ordre.push(r.fam); } grp[r.fam].push(r); }
   let head = "";
   if (k === "produits") {
     const d = rf.domaines.find((x) => x[0] === e.dom);
-    head = `<div class="elecbar"><p class="hint" style="margin:0 0 6px"><b>Quel type de matériel ?</b> Touche un sous-ensemble, puis une famille.</p>
-      <div class="chips">${rf.domaines.map(([id, lab]) => `<button type="button" class="chip ${!searching && e.dom === id ? "on" : ""}" data-act="elecDom" data-d="${id}">${esc(lab)}</button>`).join("")}</div>
-      ${d && !searching ? `<p class="hint" style="margin:6px 0">${esc(d[2])}</p>` : ""}
-      ${L("Ou cherche un matériel dans tout le référentiel")}<input type="search" data-r="tmp" data-p="elec.q" value="${esc(e.q)}" placeholder="${rf.ph.search}" autocomplete="off">
-      ${searching ? `<p class="hint" style="margin:6px 0">${Object.values(grp).flat().length ? "Résultats (40 au plus). Affine ta recherche si besoin." : "Aucun matériel trouvé. Tu peux l'ajouter à la main plus bas."}</p>` : ""}
+    head = `<div class="elecbar">${L("Cherche un matériel")}<input type="search" data-r="tmp" data-p="elec.q" value="${esc(e.q)}" placeholder="${rf.ph.search}" autocomplete="off" enterkeyhint="search">
+      ${searching ? `<p class="hint" style="margin:6px 0">${Object.values(grp).flat().length ? "Résultats (40 au plus). Affine ta recherche si besoin." : "Aucun matériel trouvé. Tu peux l'ajouter à la main plus bas (« ＋ Ajouter un produit »)."}${cachés ? ` <button type="button" class="linkbtn" data-act="voirIndus">+ ${cachés} dans le matériel d'usine : les montrer</button>` : ""}</p>` : `<p class="hint" style="margin:8px 0 6px"><b>Ou choisis par type de matériel</b>, puis une famille.</p>
+      <div class="chips doms">${doms.map(([id, lab]) => `<button type="button" class="chip ${e.dom === id ? "on" : ""}" data-act="elecDom" data-d="${id}">${esc(lab)}</button>`).join("")}${modeOf(q) === "technicien" && rf.domaines.length > rf.domainesLogement.length ? `<button type="button" class="chip" data-act="voirIndus">${e.indus ? "Cacher le matériel d'usine" : "+ Matériel d'usine (industrie)"}</button>` : ""}</div>
+      ${d ? `<p class="hint" style="margin:6px 0">${esc(d[2])}</p>` : ""}`}
+      <details><summary>Normes et méthode de comptage (facultatif)</summary>
       ${Chk("q", "current.showNorms", q.current.showNorms, "Écrire la norme de référence sous chaque matériel du devis", { dis })}
       <p class="hint" style="margin:0 0 6px">Une norme citée est un repère. Elle ne prouve pas que le produit est conforme, ni qu'elle est obligatoire au Cameroun : vérifie-la avant de l'engager dans un contrat.</p>
-      ${rf.guide ? `<details><summary>Comment compter (unités de métré)</summary><ul class="guide">${rf.guide.metre.map(([fam, u, r]) => `<li><b>${esc(fam)}</b> : ${esc(u)}${r ? ". " + esc(r) : ""}</li>`).join("")}</ul></details>` : ""}
-      ${rf.guide && rf.guide.formules ? `<details><summary>Formules de métré du document</summary><ul class="guide">${rf.guide.formules.map((x) => `<li>${esc(x)}</li>`).join("")}</ul><p class="hint">Les dimensions viennent des plans. Ces formules ne remplacent ni une étude ni un dimensionnement.</p></details>` : ""}</div>`;
+      ${rf.guide ? `<p class="hint" style="margin:6px 0 2px"><b>Comment compter (unités de métré)</b></p><ul class="guide">${rf.guide.metre.map(([fam, u, r]) => `<li><b>${esc(fam)}</b> : ${esc(u)}${r ? ". " + esc(r) : ""}</li>`).join("")}</ul>` : ""}
+      ${rf.guide && rf.guide.formules ? `<p class="hint" style="margin:6px 0 2px"><b>Formules de métré du document</b></p><ul class="guide">${rf.guide.formules.map((x) => `<li>${esc(x)}</li>`).join("")}</ul><p class="hint">Les dimensions viennent des plans. Ces formules ne remplacent ni une étude ni un dimensionnement.</p>` : ""}</details></div>`;
   }
-  const groups = Object.keys(grp).map((f) => {
+  const groups = ordre.map((f) => {
     const open = searching || e.open[f] || grp[f].some((r) => ui.tmp.row.open === r.key && ui.tmp.row.tab === k);
     const note = open && !searching && rf.note(f) ? `<div class="famnote">${esc(rf.note(f))}</div>` : "";
     return `<button type="button" class="famh ${open ? "open" : ""}" data-act="elecFam" data-f="${esc(f)}"><span>${esc(rf.famLabel(f))}</span><small>${grp[f].length}</small><i>${open ? "▲" : "▼"}</i></button>${note}${open ? grp[f].map(oneRow).join("") : ""}`;
   }).join("");
+  // Pendant une recherche, un article hors référentiel ne passe devant les résultats que si son nom commence par le mot cherché
+  // (« câble » : les câbles d'abord, « Sortie de câble » après).
+  if (searching) { const debut = (r) => nz(r.name).startsWith(nz(e.q).split(" ")[0]); return head + top.filter(debut).map(oneRow).join("") + groups + top.filter((r) => !debut(r)).map(oneRow).join(""); }
   return head + top.map(oneRow).join("") + groups;
 }
 function stepTravauxS(q, ev, dis) {
@@ -368,11 +406,11 @@ function stepTravauxS(q, ev, dis) {
     const oneRow = (r) => {
       const open = t.open === r.key && t.tab === k, l = r.line, unk = l && (l.price === null || l.qty === null);
       const head = `<button type="button" class="rowc ${l ? "ok" : "empty"} ${unk ? "warn" : ""} ${open ? "open" : ""}" data-act="rowToggle" data-key="${esc(r.key)}" data-tab="${k}" ${dis || (r.man && r.man.mode === "equip") ? "disabled" : ""}>
-        ${l ? `<em class="tick ${unk ? "w" : ""}">${unk ? "!" : "✓"}</em>` : ""}<span class="rn"><b>${esc(r.name)}</b><small>${l ? `${l.qty === null ? "quantité ?" : fmtQ(l.qty) + " " + esc(l.unit)} × ${l.price === null ? "prix ?" : fmtN(l.price)}` : "Toucher pour remplir"}</small></span>
+        ${l ? `<em class="tick ${unk ? "w" : ""}">${unk ? "!" : "✓"}</em>` : ""}<span class="rn"><b>${esc(r.name)}</b><small>${l ? `${l.qty === null ? "quantité ?" : fmtQ(l.qty) + " " + esc(uniteAccord(l.unit, l.qty))} × ${l.price === null ? "prix ?" : fmtPU(l.price)}` : "Toucher pour remplir"}</small></span>
         <span class="rt">${l ? (l.total === null ? "prix manquant" : fmtN(l.total)) : ""}<i>${open ? "▲" : "▼"}</i></span></button>`;
       return head + (open ? sheetForm(t, k === "produits", rf, met) : "");
     };
-    const rowHtml = rf ? refBrowser(q, k, rows, oneRow, dis, rf) : rows.map(oneRow).join("");
+    const rowHtml = rf ? refBrowser(q, k, rows, oneRow, dis, rf) : k === "produits" ? listeAvecRecherche(rows, oneRow, met) : rows.map(oneRow).join("");
     const custom = t.open === "new:" + k && t.tab === k ? sheetForm(t, k === "produits", rf, met) : dis ? "" : `<button type="button" class="addrow" data-act="rowToggle" data-key="new:${k}" data-tab="${k}">＋ ${add}</button>`;
     return `<div class="card sec"><button type="button" class="sech" data-act="secToggle" data-tab="${k}"><b>${filled.length ? '<em class="tick sm">✓</em>' : ""}${title}${filled.length ? ` · ${filled.length}` : ""}</b><span>${filled.length ? fmt(sum) : ""} <i>${isOpen ? "▲" : "▼"}</i></span></button>
       ${isOpen ? rowHtml + custom : ""}</div>`;
@@ -380,10 +418,9 @@ function stepTravauxS(q, ev, dis) {
   return `<h2>Le travail et le matériel</h2>
     <p class="hint">Touche un produit, remplis la quantité et le prix : le montant se calcule tout seul. Seules les lignes remplies entrent dans le devis.</p>
     <div class="total"><div><span>Total du devis</span><span class="big">${fmt(ev.result.totals.base)}</span></div></div>
-    ${UM.carte(q, dis, etatMetre(q))}
+    ${UM.carte(q, dis, etatMetre(q), q.current.prestations.length || PACKS[metierOf(q)]?.prestations?.length ? `<details class="more" ${q.current.prestations.length ? "open" : ""}><summary>Travaux types : calcul rapide à partir de la surface totale</summary>${stepPrest(q, ev, dis, true)}</details>` : "")}
     ${body}
     ${auto.length ? `<p class="hint">${auto.length} ligne${auto.length > 1 ? "s" : ""} calculée${auto.length > 1 ? "s" : ""} automatiquement (voir « Calcul automatique » plus bas) sont aussi comptées.</p>` : ""}
-    <details class="more"><summary>Calcul automatique à partir de la surface (facultatif)</summary>${stepPrest(q, ev, dis, true)}</details>
     ${stepBesoins(q, ev, dis, true, true)}`;
 }
 // Rappels « as-tu pensé à… » : jamais bloquants, écartables d'un toucher.
@@ -400,6 +437,7 @@ function carteOublis(q, ev, dis) {
     ${ignores.length && !dis ? `<button type="button" class="linkbtn" data-act="oubliReset">Réafficher les ${ignores.length} rappel${ignores.length > 1 ? "s" : ""} écarté${ignores.length > 1 ? "s" : ""}</button>` : ""}</div>`;
 }
 // Identité de l'entreprise : demandée ici tant qu'elle manque, car elle s'imprime en haut de chaque devis.
+const sansIdentite = () => { const c = S.state.db.company; return !String(c.name || "").trim() || c.name === "Mon entreprise"; };
 function carteIdentite(dis) {
   const c = S.state.db.company, sansNom = !String(c.name || "").trim() || c.name === "Mon entreprise", sansTel = !String(c.phone || "").trim();
   if (dis || (!sansNom && !sansTel)) return "";
@@ -407,14 +445,23 @@ function carteIdentite(dis) {
     ${L("Nom de ton entreprise ou ton nom")}${I("db", "company.name", c.name === "Mon entreprise" ? "" : c.name, { ph: "Ex. : Ets Kamga Carrelage" })}
     <div class="row"><div>${L("Téléphone")}${I("db", "company.phone", c.phone, { type: "tel" })}</div><div>${L("Ville ou quartier")}${I("db", "company.address", c.address)}</div></div></div>`;
 }
+// TVA : un choix clair en deux touches (taux légal camerounais 19,25 % = TVA 17,5 % + centimes additionnels) ;
+// un autre taux reste possible dans « Conditions ».
+function carteTva(q, dis) {
+  const t = q.current.terms, v = t.vatPct, sans = !!t.sansTva && (v === null || v === undefined);
+  const on = (x) => (x ? "on" : "");
+  return `<div class="card" id="tva"><b>TVA</b><div class="chips" style="margin-top:8px"><button type="button" class="chip ${on(sans)}" data-act="tva" data-v="0" ${dis ? "disabled" : ""}>Sans TVA</button><button type="button" class="chip ${on(v === 19.25)}" data-act="tva" data-v="19.25" ${dis ? "disabled" : ""}>TVA 19,25 %</button>${v !== null && v !== undefined && v !== 19.25 ? `<button type="button" class="chip on" disabled>TVA ${fmtD(v)} %</button>` : ""}</div>
+    ${!sans && (v === null || v === undefined) ? `<p class="hint" style="margin:8px 0 0">Choisis : ton client doit savoir si le prix comprend la TVA.</p>` : ""}</div>`;
+}
 function stepEnvoiS(q, ev, dis) {
   const cur = q.current, r = ev.result, miss = missingPrices(ev);
   return `<h2>Le prix</h2>
     <div class="total"><div><span>Total du devis</span><span class="big">${fmt(r.totals.base)}</span></div>${miss ? `<div class="opt"><span>Total pas fini : ${miss} prix manquant${miss > 1 ? "s" : ""}</span></div>` : ""}${r.totals.vatBase !== null ? `<div><span>Avec TVA</span><span>${fmt(r.totals.ttcBase)}</span></div>` : ""}</div>
     ${miss ? `<div class="banner warn">Il manque ${miss} prix. <a href="#/devis/${q.id}/1">Retourne au travail et au matériel</a> pour les remplir.</div>` : ""}
+    ${carteTva(q, dis)}
     ${UM.controle(q, dis, etatMetre(q))}${carteOublis(q, ev, dis)}${carteIdentite(dis)}
     ${stepVerifier(q, ev, dis)}
-    <details class="card reglages"><summary><b>Conditions, présentation et paiement</b><small class="hint" style="display:block;margin:2px 0 0">Déjà remplis avec des valeurs courantes. Touche pour les changer.</small></summary>
+    <details class="card reglages" data-k="reglages" ${(ui.ouvert || {}).reglages ? "open" : ""}><summary><b>Conditions, présentation et paiement</b><small class="hint" style="display:block;margin:2px 0 0">Déjà remplis avec des valeurs courantes. Touche pour les changer.</small></summary>
     <div class="card"><b>Conditions</b>
     <div class="row"><div>${L("TVA (%) — laisse vide si pas de TVA")}${I("q", "current.terms.vatPct", cur.terms.vatPct, { type: "number", n: "n", dis })}</div><div>${L("Le devis reste valable (jours)")}${I("q", "current.validityDays", cur.validityDays, { type: "number", n: "n", dis })}</div></div>
     <div class="row"><div>${L("Remise en % (facultatif)")}${I("q", "current.discount.pct", cur.discount.pct, { type: "number", n: "n", dis })}</div><div>${L("ou remise en FCFA")}${I("q", "current.discount.amount", cur.discount.amount, { type: "number", n: "n", dis })}</div></div>
@@ -446,7 +493,7 @@ function lineCard(l, q, dis) {
   const mf = (f, label, val, o = {}) => `<div>${L(label)}<input data-on="mf" data-id="${esc(l.id)}" data-f="${f}" type="text" inputmode="decimal" autocomplete="off" enterkeyhint="next" value="${esc(val ?? "")}" ${dis ? "disabled" : ""}></div>`;
   return `<div class="lcard ${l.flags.length ? "warn" : ""}"><div class="lt"><b>${esc(l.label)}</b>${l.option ? '<span class="tag">option</span>' : ""}${l.overridden ? '<span class="tag t2">corrigé</span>' : ""}</div>
     ${l.role ? `<div class="note">${esc(l.role)}</div>` : ""}<div class="lcalc">${esc(l.calc)}</div>
-    <div class="lnums"><span>${l.qty === null ? "quantité inconnue" : fmtQ(l.qty) + " " + esc(l.unit)}</span><span>× ${l.mode === "equip" ? (l.total === 0 ? "non facturé" : "forfait") : l.price === null ? "prix inconnu" : fmtN(l.price)}</span><b>${l.total === null ? "—" : fmt(l.total)}</b></div>
+    <div class="lnums"><span>${l.qty === null ? "quantité inconnue" : fmtQ(l.qty) + " " + esc(l.unit)}</span><span>× ${l.mode === "equip" ? (l.total === 0 ? "non facturé" : "forfait") : l.price === null ? "prix inconnu" : fmtPU(l.price)}</span><b>${l.total === null ? "—" : fmt(l.total)}</b></div>
     ${!dis && l.flags.includes("prix_inconnu") && l.mode !== "equip" ? (q.current.pricing.method === "cout_plus_marge"
       ? `<div class="miss">${ic("warn", 18)} <b>Il manque le prix d'achat de ${esc(l.label)}.</b>${L("Prix d'achat par " + esc(l.unit) + " (FCFA)")}<input data-on="adj" data-id="${esc(l.id)}" data-f="cost" type="text" inputmode="decimal" autocomplete="off" enterkeyhint="next" value="${esc(adj.costOverride ?? "")}"></div>`
       : `<div class="miss">${ic("warn", 18)} <b>Il manque le prix de ${esc(l.label)}.</b>${L("Prix par " + esc(l.unit) + " (FCFA)")}<input data-on="adj" data-id="${esc(l.id)}" data-f="price" type="text" inputmode="decimal" autocomplete="off" enterkeyhint="next" value="${esc(adj.priceOverride ?? "")}"></div>`) : ""}
@@ -557,7 +604,7 @@ function stepBesoins(q, ev, dis, simple, nofree) {
 
 function stepPrix(q, ev, dis) {
   const cur = q.current, r = ev.result, m = r.margin;
-  return `<h2>Prix et conditions</h2>${UM.controle(q, dis, etatMetre(q))}
+  return `<h2>Prix et conditions</h2>${carteTva(q, dis)}${UM.controle(q, dis, etatMetre(q))}
     <div class="card"><b>Comment calculer le prix de vente</b>${L("Prix de vente")}${Sel("q", "current.pricing.method", cur.pricing.method, [["catalogue", "Prix de vente du catalogue"], ["cout_plus_marge", "Prix d'achat + ma marge"]], { dis })}
     ${cur.pricing.method === "cout_plus_marge" ? `${L("Majoration sur coût d'achat (%)")}${I("q", "current.pricing.markupPct", cur.pricing.markupPct, { type: "number", n: "n", dis })}<p class="hint">Chaque article doit avoir un coût d'achat dans le Catalogue, sinon son prix reste inconnu.</p>` : ""}</div>
     <div class="card"><b>Remise</b><div class="row"><div>${L("Remise (%)")}${I("q", "current.discount.pct", cur.discount.pct, { type: "number", n: "n", dis })}</div><div>${L("ou montant (FCFA)")}${I("q", "current.discount.amount", cur.discount.amount, { type: "number", n: "n", dis })}</div></div>
@@ -595,9 +642,11 @@ function stepControle(q, ev, dis) {
   if (["brouillon", "a_verifier"].includes(q.status)) acts.push(`<button data-act="mark" data-to="pret" ${ck.status === "bloque" ? "disabled" : ""}>Marquer « Prêt à envoyer »</button>`);
   if (["a_verifier", "pret"].includes(q.status)) acts.push(`<button class="sec" data-act="mark" data-to="brouillon">Repasser en brouillon</button>`);
   return `<h2>Vérifier avant d'envoyer</h2><div class="card"><div style="display:flex;justify-content:space-between;align-items:center"><b>Résultat</b>${badge(ck.status, STATE_LABEL[ck.status])}</div>
-    <p class="hint">Prêt : tout est en ordre. À vérifier : un point reste à confirmer. Il manque quelque chose : corrige-le avant d'envoyer.</p>
-    ${ck.items.map((r) => { const to = r.state === "ok" || dis ? null : etapeDuPoint(q, r.label); return `<div class="chk"><div class="dot d-${r.state}">${r.state === "ok" ? "✓" : r.state === "verifier" ? "!" : "✕"}</div><div><b>${esc(r.label)}</b>${r.hint ? `<div class="hint">${esc(r.hint)}</div>` : ""}${to !== null ? `<a class="fixlink" href="#/devis/${q.id}/${to}">Corriger : aller à « ${esc(stepsOf(q)[to])} »</a>` : ""}</div></div>`; }).join("")}</div>
-    ${r_warn(ev)}${dis ? "" : `<div class="row">${acts.join("")}</div>`}`;
+    ${sansIdentite() && !dis ? `<div class="chk"><div class="dot d-verifier">!</div><div><b>Ton nom n'est pas sur le devis</b><div class="hint">Le devis porte « Mon entreprise »${String(S.state.db.company.phone || "").trim() ? "" : " et aucun téléphone"} : ton client ne saura pas qui l'envoie.</div>${modeOf(q) === "technicien" ? `<button type="button" class="fixlink linkbtn" data-act="voirIdentite">Corriger : écrire mon nom et mon téléphone</button>` : `<a class="fixlink" href="#/reglages">Corriger : aller dans Réglages</a>`}</div></div>` : ""}
+    ${!String(q.current.client.name || "").trim() && !dis ? `<div class="chk"><div class="dot d-verifier">!</div><div><b>Le nom du client n'est pas écrit</b><div class="hint">Le devis portera une ligne en pointillés à la place du nom.</div><a class="fixlink" href="#/devis/${q.id}/0">Corriger : aller à « ${esc(stepsOf(q)[0])} »</a></div></div>` : ""}
+    ${modeOf(q) === "technicien" && ck.items.every((r) => r.state === "ok") && !sansIdentite() && String(q.current.client.name || "").trim() ? `<p class="hint" style="margin:8px 0 0">Tout est en ordre.</p>` : ""}
+    ${ck.items.filter((r) => modeOf(q) !== "technicien" || r.state !== "ok").map((r) => { const to = r.state === "ok" || dis ? null : etapeDuPoint(q, r.label); return `<div class="chk"><div class="dot d-${r.state}">${r.state === "ok" ? "✓" : r.state === "verifier" ? "!" : "✕"}</div><div><b>${esc(r.label)}</b>${r.hint ? `<div class="hint">${esc(r.hint)}</div>` : ""}${/^TVA : à choisir/.test(r.label) && !dis ? `<button type="button" class="fixlink linkbtn" data-act="voirTva">Corriger : choisir avec ou sans TVA</button>` : to !== null ? `<a class="fixlink" href="#/devis/${q.id}/${to}">Corriger : aller à « ${esc(stepsOf(q)[to])} »</a>` : ""}</div></div>`; }).join("")}</div>
+    ${r_warn(ev)}${dis || modeOf(q) === "technicien" ? "" : `<div class="row">${acts.join("")}</div>`}`;
 }
 function stepVerifier(q, ev, dis) {
   return `<div class="noprint">${stepControle(q, ev, dis)}${guideCard(metierOf(q))}</div>${stepApercu(q, ev, dis)}<div class="noprint"><a class="btn sec" href="#/devis/${q.id}/${lastOf(q) + 1}" style="margin-top:14px;width:100%">Suivi du devis : statut, versions, décision du client</a></div>`;
@@ -614,20 +663,21 @@ function snapFor(q, ev) {
 function stepApercu(q, ev, dis) {
   const { snap, draft, sel } = snapFor(q, ev);
   const opts = [...(S.editable(q) || !q.versions.length ? [["draft", "Brouillon actuel"]] : []), ...q.versions.map((v) => [String(v.n), `V${v.n} — ${frDate(v.at)}`])];
-  const seg = `<div class="seg noprint"><button class="${ui.view === "client" ? "on" : ""}" data-act="view" data-v="client">Version client</button><button class="${ui.view === "interne" ? "on" : ""}" data-act="view" data-v="interne">Interne (marge)</button></div>`;
-  const canSend = ["pret", "negociation"].includes(q.status);
-  const top = `<div class="noprint" id="apercu"><h2>Aperçu et envoi</h2>${seg}<div class="row">${L("Version affichée")}${Sel("ui", "ver", sel, opts)}</div></div>`;
+  const seg = `<div class="seg noprint"><button class="${ui.view === "client" ? "on" : ""}" data-act="view" data-v="client">Ce que voit le client</button><button class="${ui.view === "interne" ? "on" : ""}" data-act="view" data-v="interne">Ma marge (pour moi)</button></div>`;
+  const canSend = ["pret", "negociation"].includes(q.status) || (modeOf(q) === "technicien" && ["brouillon", "a_verifier"].includes(q.status));
+  const top = `<div class="noprint" id="apercu"><h2>Aperçu et envoi</h2>${seg}${opts.length > 1 ? `<div class="row">${L("Version affichée")}${Sel("ui", "ver", sel, opts)}</div>` : ""}</div>`;
   if (ui.view === "interne") return top + internal(snap, q);
   const wa = `https://wa.me/?text=${encodeURIComponent(summaryText(snap, q.ref))}`;
   const blocked = ev.checks.status === "bloque";
-  return `${top}<div class="noprint">${draft ? `<div class="banner info">Aperçu d'un brouillon : il n'a ni empreinte ni valeur contractuelle tant qu'il n'est pas envoyé (figé).</div>` : `<div class="banner info">Version figée V${snap.n} — empreinte ${snap.hash}</div>`}
-    <div class="row"><button data-act="pdf" ${(draft && blocked) || ui.busy ? "disabled" : ""}>${ui.busy === "pdf" ? "PDF en préparation…" : "Créer le PDF"}</button><button class="sec" data-act="word" data-n="${draft ? "draft" : snap.n}" ${draft && blocked ? "disabled" : ""}>Créer le Word (.docx)</button></div>
-    ${ui.file ? `<div class="banner info"><b>${esc(ui.file.name)}</b> est prêt.<div class="row"><button class="gold" data-act="saveFile">Enregistrer / envoyer le fichier</button></div></div>` : ""}
+  return `${top}<div class="noprint">${draft ? `<div class="banner info">Brouillon : tu peux encore tout changer. Il devient le devis officiel quand tu l'envoies.</div>` : `<div class="banner info">Version ${snap.n} terminée — elle ne change plus. Code de contrôle : ${snap.hash}</div>${q.status === "termine" && S.lastVersion(q) && S.lastVersion(q).n === snap.n ? `<div class="banner warn" id="pasenvoye"><b>Pas encore envoyée au client.</b> Envoie le PDF ci-dessous : le devis passe à « Envoyé » quand ton téléphone confirme le partage. Si tu l'as envoyé autrement (imprimé, autre téléphone, e-mail), confirme-le :<div class="row" style="margin-top:8px"><button type="button" class="sec" data-act="confirmEnvoi">J'ai envoyé la version ${snap.n} au client</button></div></div>` : ""}`}
+    <div class="row"><button data-act="pdf" ${(draft && blocked) || ui.busy ? "disabled" : ""}>${ui.busy === "pdf" ? "PDF en préparation…" : draft ? "PDF brouillon (pour relire)" : `Créer le PDF (version ${snap.n})`}</button><button class="sec" data-act="word" data-n="${draft ? "draft" : snap.n}" ${draft && blocked ? "disabled" : ""}>${draft ? "Word brouillon" : `Créer le Word (version ${snap.n})`}</button></div>
+    ${ui.file ? `<div class="banner info"><b>${esc(ui.file.name)}</b> est prêt.<div class="row"><button class="gold" data-act="saveFile">${peutPartager(ui.file) ? (/\.pdf$/.test(ui.file.name) ? "Envoyer le PDF (WhatsApp, e-mail…)" : "Envoyer le fichier Word (WhatsApp, e-mail…)") : "Télécharger le fichier"}</button></div></div>` : ""}
     <div class="row"><button class="sec" data-act="print" ${draft && blocked ? "disabled" : ""}>Imprimer</button>
-    <button class="gold" data-act="send" ${canSend && !blocked ? "" : "disabled"}>Envoyer : figer V${q.versions.length + 1}</button></div>
+    ${draft ? `<button class="gold" data-act="send" ${canSend && !blocked && !ui.busy ? "" : "disabled"}>${ui.busy === "send" ? "PDF en préparation…" : `Terminer le devis et créer le PDF à envoyer (version ${q.versions.length + 1})`}</button>` : ""}</div>
+    ${canSend && !blocked && draft ? `<p class="hint">Après ce bouton, la version ${q.versions.length + 1} ne change plus. Elle devient « Envoyé » quand ton téléphone confirme le partage, ou quand tu le confirmes toi-même. Une modification plus tard crée la version ${q.versions.length + 2}.</p>` : ""}
     ${canSend ? "" : draft ? `<p class="hint">Pour envoyer : marque d'abord le devis « Prêt à envoyer » (bloc Vérifier, plus haut).</p>` : ""}
     ${blocked && draft ? `<p class="hint">Corrige ce qui manque (bloc Vérifier, plus haut) pour générer le PDF.</p>` : ""}
-    ${!draft ? `<div class="row"><a class="btn sec" href="${wa}" target="_blank" rel="noopener">Partager sur WhatsApp</a><button class="sec" data-act="copy" data-t="${esc(summaryText(snap, q.ref))}">Copier le message</button></div><p class="hint">WhatsApp reçoit le message de synthèse ; joins ensuite le PDF créé ci-dessus.</p>` : ""}</div>
+    ${!draft ? `<div class="row"><a class="btn sec" href="${wa}" target="_blank" rel="noopener">Message WhatsApp (résumé en texte)</a><button class="sec" data-act="copy" data-t="${esc(summaryText(snap, q.ref))}">Copier le message</button></div><p class="hint">WhatsApp reçoit le message de synthèse ; joins ensuite le PDF créé ci-dessus.</p>` : ""}</div>
     ${renderDoc(snap, { draft, ref: q.ref })}`;
 }
 function internal(snap, q) {
@@ -641,9 +691,10 @@ function internal(snap, q) {
 
 function stepVersions(q, ev) {
   const last = S.lastVersion(q), st = S.effectiveStatus(q), t = ui.tmp;
-  const vers = q.versions.map((v) => { const ok = S.verifyVersion(v).ok; return `<div class="chk"><div class="dot d-${ok ? "ok" : "bloque"}">${ok ? "✓" : "✕"}</div><div style="flex:1"><b>V${v.n}</b> — ${frDate(v.at)} — ${fmt(v.result.totals.base)} HT<div class="note">Empreinte ${v.hash} · ${ok ? "intégrité vérifiée par recalcul" : "INTÉGRITÉ NON VÉRIFIÉE"}</div></div><a class="btn sec" href="#/devis/${q.id}/${lastOf(q)}" data-act="seeVer" data-n="${v.n}">Voir</a></div>`; }).join("");
+  const vers = q.versions.map((v) => { const vv = S.verifyVersion(v), ok = vv.ok; return `<div class="chk"><div class="dot d-${ok ? "ok" : "bloque"}">${ok ? "✓" : "✕"}</div><div style="flex:1"><b>V${v.n}</b> — ${frDate(v.at)} — ${fmt(v.result.totals.base)} HT<div class="note">Code de contrôle ${v.hash} · ${ok ? (vv.notes.length ? esc(vv.notes.join(" ")) : "contenu vérifié par recalcul") : "CONTENU NON VÉRIFIÉ"}</div></div><a class="btn sec" href="#/devis/${q.id}/${lastOf(q)}" data-act="seeVer" data-n="${v.n}">Voir</a></div>`; }).join("");
   const actions = [];
-  if (["envoye", "refuse", "expire"].includes(q.status)) actions.push(`<button data-act="startNeg">Préparer V${q.versions.length + 1}${q.status === "expire" ? " (renouveler)" : ""}</button>`);
+  if (q.status === "termine") actions.push(`<button data-act="confirmEnvoi">J'ai envoyé la version ${q.versions.length} au client</button>`);
+  if (["termine", "envoye", "refuse", "expire"].includes(q.status)) actions.push(`<button data-act="startNeg">Préparer V${q.versions.length + 1}${q.status === "expire" ? " (renouveler)" : ""}</button>`);
   if (q.status === "negociation") actions.push(`<button class="sec" data-act="discardNeg">Abandonner le brouillon de V${q.versions.length + 1}</button>`);
   actions.push(`<button class="sec" data-act="dup">Dupliquer ce devis</button>`);
   if (S.deletable(q)) actions.push(`<button class="sec" data-act="delQuote">Supprimer ce brouillon</button>`);
@@ -738,7 +789,7 @@ function viewSuivi(a) {
     const inv = db.invoices.find((x) => x.id === ui.invoice); if (!inv) return `<div class="empty">Facture introuvable.</div>`;
     return `<div class="noprint"><a class="back" href="#/suivi">‹ Suivi</a><button data-act="print">Imprimer / Enregistrer en PDF</button></div>${renderInvoice(inv, db.company, db.settings.presentation)}`;
   }
-  const pipe = ["envoye", "negociation", "accepte", "refuse", "expire"].map((k) => [k, db.quotes.filter((q) => S.effectiveStatus(q) === k)]);
+  const pipe = ["termine", "envoye", "negociation", "accepte", "refuse", "expire"].map((k) => [k, db.quotes.filter((q) => S.effectiveStatus(q) === k)]);
   const soon = db.quotes.filter((q) => ["envoye", "negociation"].includes(q.status) && S.lastVersion(q)).map((q) => [q, S.expiryDate(q)]).filter(([, e]) => e && e >= S.today() && e <= new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10));
   return `<h2>Suivi</h2><div class="card"><b>Devis en cours</b><div class="chips">${pipe.map(([k, a2]) => `<span class="st st-${k}">${S.STATUS[k]} ${a2.length}</span>`).join("")}</div>
     ${soon.length ? `<p class="hint">À relancer (validité dans moins de 7 jours) : ${soon.map(([q, e]) => `<a href="#/devis/${q.id}/${lastOf(q) + 1}">${esc(q.ref)}</a> (${frDate(e)})`).join(", ")}</p>` : ""}</div>
@@ -776,6 +827,8 @@ function viewReglages() {
       <button data-act="export">Exporter une sauvegarde complète (.json)</button> <button class="sec" data-act="quotesCsv">Exporter la liste des devis (CSV)</button>
       ${L("Restaurer depuis un fichier (testé avant d'être appliqué)")}<input type="file" accept=".json,application/json" data-on="backupFile">
       ${b ? `<div class="banner ${b.ok ? "info" : "bad"}">${b.ok ? `Sauvegarde valide : ${b.summary.devis} devis, ${b.summary.clients} clients, ${b.summary.articles} articles, ${b.summary.commandes} commandes. Toutes les versions de devis passent le contrôle d'intégrité.` : b.errors.map(esc).join("<br>")}</div>${b.ok ? `<button class="gold" data-act="restore">Restaurer comme nouvelle entreprise</button><p class="hint">La restauration crée un nouvel espace : tes données actuelles ne sont pas écrasées.</p>` : ""}` : ""}</div>
+    ${Journal.actif() ? `<div class="card" id="journal"><b>Journal d'essai</b><p class="hint">Actif sur ce téléphone (lien d'essai). ${Journal.entrees().length} événement(s) noté(s) : écrans, boutons, erreurs — jamais ce qui est écrit (ni nom, ni téléphone, ni prix).</p>
+      <div class="row"><button data-act="journalCsv">Exporter (CSV)</button><button class="sec" data-act="journalEffacer">Effacer</button></div><button class="sec" data-act="journalStop" style="margin-top:8px">Arrêter le journal sur ce téléphone</button></div>` : ""}
     <div class="card"><b>Repartir de zéro</b><p class="hint">Supprime les devis commencés mais jamais envoyés. Les devis envoyés ou acceptés ne sont jamais supprimés. Fais d'abord une sauvegarde ci-dessus si tu hésites.</p>
       <button class="sec" data-act="delDrafts" ${S.deletableQuotes().length ? "" : "disabled"}>Supprimer mes brouillons (${S.deletableQuotes().length})</button></div>
     <div class="card"><b>Journal d'audit</b><p class="hint">Les 40 dernières actions (création, envoi, statut, prix, paiements).</p>${db.audit.slice(-40).reverse().map((a) => `<div class="chk"><div style="flex:1"><b>${esc(a.action)}</b><div class="note">${esc(a.detail)}</div></div><span class="note">${frDate(a.at)}</span></div>`).join("") || `<p class="hint">Vide.</p>`}</div>
@@ -813,7 +866,7 @@ function lierLibelles(racine) {
 }
 // Après « Ajouter un ouvrage », la nouvelle fiche s'ouvre ailleurs dans la page : on l'amène à l'écran, sinon la personne ne voit rien changer.
 function voirNouvelOuvrage() { const id = ui.versOuv; if (!id) return; ui.versOuv = null; const b = document.querySelector(`[data-act="metreOuv"][data-o="${id}"]`); if (b && b.scrollIntoView) b.scrollIntoView({ block: "start" }); }
-function rerender(keepScroll = true) { const y = window.scrollY; render(); if (keepScroll) window.scrollTo(0, y); voirNouvelOuvrage(); }
+function rerender(keepScroll = true) { const y = window.scrollY; render(); if (keepScroll) window.scrollTo(0, y); voirNouvelOuvrage(); if (ui.versMetre) { ui.versMetre = false; const m = document.getElementById("metre"); if (m) m.scrollIntoView({ block: "start" }); } }
 
 // ---------- Événements ----------
 function parseValue(el) {
@@ -876,15 +929,38 @@ function processLogo(file) {
     rd.readAsDataURL(file);
   });
 }
+// PDF de la version affichée (brouillon ou version terminée), prêt dans ui.file. Faux si la création échoue.
+async function creerPdfFichier(q) {
+  try {
+    const el = document.getElementById("doc"); if (!el) throw new Error("Aperçu introuvable");
+    const { creerPdf } = await import("./pdf-texte.js");
+    const snapNow = snapFor(q, S.evaluate(q)).snap;
+    const { data } = await creerPdf(el, "TGDQ1:" + encPayload(S.quotePayload(q, snapNow.quote)));
+    const v = snapNow.n;
+    ui.file = { name: `${q.ref}${v ? "-V" + v : "-brouillon"}.pdf`, mime: "application/pdf", data: new Uint8Array(data), qid: q.id, n: v || null };
+    sortieFaite(q); return true;
+  } catch (err) { ui.flash = { type: "err", text: "PDF impossible : " + err.message + ". Utilise « Imprimer »." }; return false; }
+}
 const encPayload = (o) => btoa(unescape(encodeURIComponent(JSON.stringify(o))));
 const decPayload = (b64) => JSON.parse(decodeURIComponent(escape(atob(b64))));
+// Le téléphone sait-il ouvrir le menu « Partager » avec un fichier (iPhone, Android) ? Sinon : téléchargement.
+function peutPartager(f) {
+  try { return !!(f && navigator.canShare && navigator.canShare({ files: [new File([""], f.name, { type: f.mime })] })); } catch { return false; }
+}
+// Le devis passe à « Envoyé » seulement si le fichier partagé est celui de la dernière version terminée
+// (jamais pour un brouillon, jamais sur un simple téléchargement).
+function envoiConfirme(f, comment) {
+  const q = f && f.qid ? S.getQuote(f.qid) : null, v = q && S.lastVersion(q);
+  if (!q || q.status !== "termine" || !v || f.n !== v.n) return;
+  S.marquerEnvoye(q, `${comment} (${f.name})`); ui.flash = { type: "ok", text: `Version ${v.n} envoyée : ${f.name} a été partagé.` };
+}
 function saveFile() {
   const f = ui.file; if (!f) return;
   const blob = new Blob([f.data], { type: f.mime });
   try {
     const file = new File([blob], f.name, { type: f.mime });
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      navigator.share({ files: [file], title: f.name }).then(() => { ui.flash = { type: "ok", text: f.name + " : envoyé vers l'application choisie." }; rerender(); })
+      navigator.share({ files: [file], title: f.name }).then(() => { ui.flash = { type: "ok", text: f.name + " : partagé." }; envoiConfirme(f, "partage confirmé par le téléphone"); rerender(); })
         .catch((err) => { if (err && err.name === "AbortError") return; download(f.name, f.mime, f.data); ui.flash = { type: "ok", text: f.name + " téléchargé." }; rerender(); });
       return "skip";
     }
@@ -934,7 +1010,7 @@ function refreshTotals() {
 // Met à jour sans redessiner le total de la ligne en cours de saisie et la barre du bas
 function liveTotals() {
   const r = ui.tmp.row, el = document.querySelector(".rowtot b");
-  if (el && r) el.textContent = r.qty > 0 && r.price > 0 ? fmt(r.qty * r.price) : "—";
+  if (el && r) el.textContent = r.qty > 0 && r.price > 0 ? fmt(montantLigne(r.qty, r.price)) : "—";
 }
 // Un toucher sur un bouton après une saisie fait d'abord « sortir » du champ (événement change). Si l'écran se redessine
 // à ce moment, le bouton disparaît avant la fin du toucher et le toucher est perdu. On garde donc la valeur tout de suite,
@@ -960,8 +1036,14 @@ document.addEventListener("pointerup", () => setTimeout(() => { if (tapping) flu
 let changed = null; // dernier champ modifié : si le curseur y est encore (Entrée, « OK »), on redessine normalement
 const later = (full, quiet = () => {}) => { if (tapping) deferred = { full, quiet }; else { const chg = changed; setTimeout(() => { if (inField() && document.activeElement !== chg) { quiet(); liveTotals(); } else keepFocus(full); }, 0); } };
 // Calcul automatique : le montant de la fiche se met à jour à chaque chiffre tapé
+// Un bloc repliable marqué data-k garde son état ouvert/fermé quand l'écran se redessine.
+document.addEventListener("toggle", (e) => { const d = e.target; if (d && d.tagName === "DETAILS" && d.dataset && d.dataset.k) { ui.ouvert = ui.ouvert || {}; ui.ouvert[d.dataset.k] = d.open; } }, true);
+let rechercheT = null;
 document.addEventListener("input", (e) => {
-  const el = e.target; if (!el.dataset || el.dataset.r !== "tmp" || !/^row\.(qty|price)$/.test(el.dataset.p || "")) return;
+  const el = e.target;
+  // Recherche dans le référentiel : les résultats suivent la frappe (sans attendre « Entrée »), le curseur reste dans le champ.
+  if (el.dataset && el.dataset.r === "tmp" && el.dataset.p === "elec.q") { clearTimeout(rechercheT); rechercheT = setTimeout(() => { if (ui.tmp.elec.q === el.value) return; ui.tmp.elec.q = el.value; keepFocus(() => rerender()); }, 250); return; }
+  if (!el.dataset || el.dataset.r !== "tmp" || !/^row\.(qty|price)$/.test(el.dataset.p || "")) return;
   const v = parseFloat(String(el.value).replace(",", ".")); ui.tmp.row[el.dataset.p.slice(4)] = isNaN(v) ? null : v; liveTotals();
 });
 // Message juste sous le champ (la personne voit ce qu'elle a tapé) ; rien n'est enregistré tant que ce n'est pas un nombre.
@@ -987,16 +1069,25 @@ document.addEventListener("change", (e) => {
     setPath(o, el.dataset.p, parseValue(el));
     // Le premier nom d'entreprise saisi remplace aussi « Mon entreprise » dans le bandeau de l'application.
     if (root === "db" && el.dataset.p === "company.name" && String(el.value).trim()) { const w = S.listWorkspaces().find((x) => x.id === S.state.ws); if (w && w.name === "Mon entreprise") S.renameWorkspace(w.id, String(el.value).trim()); }
-    if (root === "tmp" && /^row\./.test(el.dataset.p)) { if (!commitRow()) dropIfEmpty(); }
+    if (root === "tmp" && /^row\./.test(el.dataset.p)) { if (!commitRow()) dropIfEmpty(); if (el.dataset.p === "row.label") avertirDoublon(el); }
     if (root === "q" && /^current\.metre\./.test(el.dataset.p)) {
       const redessiner = apresMetre(o, el.dataset.p);
       // case à cocher, liste ou nom de produit : d'autres champs peuvent apparaître ou se remplir, on redessine tout de suite
       if (redessiner || el.type === "checkbox" || el.tagName === "SELECT") { if (el.tagName === "INPUT" && el.type !== "checkbox") later(() => touchQuote(o), () => keepFocus(() => touchQuote(o))); else touchQuote(o); return; }
     }
-    later(() => { if (root === "q") touchQuote(o); else if (root === "db") { S.commit(); rerender(); } else rerender(); }, () => { if (root === "q") { touchQuote(o, true); if (/^current\.metre\./.test(el.dataset.p)) { UM.majResultat(o); refreshTotals(); } } else if (root === "db") S.commit(); else refreshTotals(); });
+    later(() => { if (root === "q") touchQuote(o); else if (root === "db") { S.commit(); rerender(); } else rerender(); }, () => { if (root === "q") { if (/^current\.(terms|discount|validityDays|notes|overhead|pricing)/.test(el.dataset.p) && document.getElementById("doc")) { keepFocus(() => touchQuote(o)); return; } touchQuote(o, true); if (/^current\.metre\./.test(el.dataset.p)) { UM.majResultat(o); refreshTotals(); const sig = signatureMetre(o); if (sig !== ui.sigMetre) { ui.sigMetre = sig; keepFocus(() => touchQuote(o)); } } } else if (root === "db") S.commit(); else refreshTotals(); });
   } catch (err) { ui.flash = { type: "err", text: err.message }; rerender(); }
 });
 
+// Doublon : dès que le nom est saisi, la fiche dit si ce produit est déjà dans le devis (sans attendre un redessin).
+function avertirDoublon(el) {
+  const q = S.getQuote(ui.qid), t = ui.tmp.row; if (!q || !t) return;
+  const d = String(t.label || "").trim() ? q.current.manual.find((m) => m.id !== t.lineId && !m.metre && nz(m.nom ?? m.label ?? "") === nz(t.label)) : null;
+  const sheet = el.closest(".sheet"); let b = sheet && sheet.querySelector("#doublon");
+  if (!d) { if (b) b.remove(); return; }
+  if (!b && sheet) { b = document.createElement("div"); b.className = "banner warn"; b.id = "doublon"; b.setAttribute("role", "status"); el.insertAdjacentElement("afterend", b); }
+  if (b) b.innerHTML = `<b>« ${esc(t.label)} » est déjà dans le devis.</b> Si c'est le même produit, ferme cette fiche et change plutôt la quantité de la ligne existante. Sinon, précise le nom (ex. : la pièce).`;
+}
 // Licence : toute sortie d'un devis (PDF, Word, impression, envoi) passe par ici.
 // La saisie et les calculs ne sont jamais bloqués.
 function sortieAutorisee(q) {
@@ -1051,20 +1142,22 @@ const actions = {
     const it = S.state.db.catalogue.filter((i) => !i.archived && TAB_OF[i.cat] === tab && nz(i.nom || i.label) === key && i.price != null).sort((x, y) => String(y.priceDate || "").localeCompare(String(x.priceDate || "")))[0];
     const rf = row.ref; // fiche du référentiel : unité et norme viennent du document, jamais devinées
     const ru = rf && rf.unit && tab !== "outils" ? unitsOf(rf.unit)[0] : ""; // un outil du chantier se compte au forfait ou à la journée
-    ui.tmp.row = { ...blank, label: row.name, unit: it ? it.unit : ru || blank.unit, qty: !it && rf && tab === "autres" ? (/^forfait/i.test(ru) ? 1 : null) : blank.qty, price: it ? it.price : null, brand: it?.brand || "", cond: it?.cond || "", norm: rf ? rf.norm || "" : "" };
+    const rel1 = !ru && !it && tab === "produits" ? unitesDe({ tab, label: row.name }, rf ? refOf(metierOf(q)) : null, metierOf(q)) : [];
+    ui.tmp.row = { ...blank, label: row.name, unit: it ? it.unit : ru || (rel1.length === 1 ? rel1[0] : blank.unit), qty: !it && rf && tab === "autres" ? (/^forfait/i.test(ru) ? 1 : null) : blank.qty, price: it ? it.price : null, brand: it?.brand || "", cond: it?.cond || "", norm: rf ? rf.norm || "" : "" };
   },
   formChoice(b) { const q = S.getQuote(ui.qid); q.current.form = b.dataset.f; touchQuote(q); },
   ficheToggle(b) { const q = S.getQuote(ui.qid), k = b.dataset.k, v = b.dataset.v; if (!q.current.fiche && q.current.elec) q.current.fiche = { ...q.current.elec }; const f = (q.current.fiche = q.current.fiche || {}); const a = Array.isArray(f[k]) ? f[k] : []; f[k] = a.includes(v) ? a.filter((x) => x !== v) : [...a, v]; touchQuote(q); },
   elecDom(b) { const e = ui.tmp.elec; e.dom = b.dataset.d; e.q = ""; e.open = {}; },
   elecFam(b) { const e = ui.tmp.elec, f = b.dataset.f; e.open[f] = !e.open[f]; },
+  rowUnit(b) { const t = ui.tmp.row; t.unit = b.dataset.u; if (!commitRow()) dropIfEmpty(); },
+  versMetre() { const t = ui.tmp.row; ui.tmp.row = { ...t, open: null }; ui.versMetre = true; },
+  voirIdentite() { const c = document.getElementById("identite"); if (c) { c.scrollIntoView({ block: "start" }); const i = c.querySelector("input"); if (i) i.focus({ preventScroll: true }); } return "skip"; },
   rowClose() {
     const t = ui.tmp.row, manq = manqueLigne(t);
     // Une ligne commencée mais incomplète n'est pas perdue en silence : on dit ce qui manque, une fois.
     if (!t.lineId && aDesDonnees(t) && manq.length && !t.averti) { ui.tmp.row = { ...t, averti: true }; throw new Error(`Ligne non enregistrée : il manque ${manq.join(", ")}. Complète-la, ou touche encore « Fermer » pour l'abandonner.`); }
     ui.tmp.row = { ...t, open: null, averti: false }; ui.tmp.calc = { ...ui.tmp.calc, open: false, surface: null, couv: null, perte: null, couches: 1 };
   },
-  calcToggle() { ui.tmp.calc = { ...ui.tmp.calc, open: !ui.tmp.calc.open }; },
-  calcUse(b) { const n = Number(b.dataset.q); if (!(n > 0)) return; ui.tmp.row = { ...ui.tmp.row, qty: n }; ui.tmp.calc = { ...ui.tmp.calc, open: false }; commitRow(); },
   oubliNa(b) { const q = S.getQuote(ui.qid); q.current.decisions = q.current.decisions || {}; q.current.decisions["oubli_" + b.dataset.id] = "na"; touchQuote(q); },
   oubliReset() { const q = S.getQuote(ui.qid); for (const k of Object.keys(q.current.decisions || {})) if (k.startsWith("oubli_")) delete q.current.decisions[k]; touchQuote(q); },
   rowCond(b) { const t = ui.tmp.row; t.cond = t.cond === b.dataset.c ? "" : b.dataset.c; commitRow(); },
@@ -1124,7 +1217,17 @@ const actions = {
   mark(b) { const q = S.getQuote(ui.qid); S.setStatus(q, b.dataset.to); ui.flash = { type: "ok", text: "Statut : " + S.STATUS[q.status] }; },
   view(b) { ui.view = b.dataset.v; },
   print() { const q = S.getQuote(ui.qid); sortieAutorisee(q); window.print(); sortieFaite(q); },
-  send() { const q = S.getQuote(ui.qid); sortieAutorisee(q); const v = S.freezeVersion(q); sortieFaite(q); ui.ver = String(v.n); ui.view = "client"; ui.flash = { type: "ok", text: `V${v.n} figée et envoyée. Empreinte ${v.hash}.` }; },
+  confirmEnvoi() { const q = S.getQuote(ui.qid), v = S.lastVersion(q); S.marquerEnvoye(q, "confirmé par l'artisan"); ui.flash = { type: "ok", text: `Version ${v.n} marquée « Envoyé ».` }; },
+  async send() {
+    const q = S.getQuote(ui.qid);
+    try { sortieAutorisee(q); if (modeOf(q) === "technicien" && ["brouillon", "a_verifier"].includes(q.status)) S.setStatus(q, "pret"); }
+    catch (err) { ui.flash = { type: "err", text: err.message }; rerender(); return "skip"; }
+    const v = S.freezeVersion(q); sortieFaite(q); ui.ver = String(v.n); ui.view = "client"; ui.busy = "send"; rerender();
+    const ok = await creerPdfFichier(q);
+    ui.flash = ok ? { type: "ok", text: `Version ${v.n} terminée : elle ne change plus. Elle n'est pas encore envoyée : touche « ${peutPartager(ui.file) ? "Envoyer le PDF" : "Télécharger le fichier"} ».` }
+      : { type: "err", text: `Version ${v.n} terminée, mais le PDF n'a pas pu être créé. Touche « Créer le PDF » ou « Imprimer ».` };
+    ui.busy = ""; rerender(); return "skip";
+  },
   seeVer(b) { ui.file = null; ui.ver = b.dataset.n; ui.view = "client"; },
   copy(b) { const t = b.dataset.t; const ok = () => { ui.flash = { type: "ok", text: "Message copié." }; rerender(); }; if (navigator.clipboard) navigator.clipboard.writeText(t).then(ok).catch(() => { ui.flash = { type: "err", text: "Copie impossible : sélectionne le texte manuellement." }; rerender(); }); else ok(); return "skip"; },
   startNeg() { const q = S.getQuote(ui.qid); S.startNegotiation(q); ui.ver = "draft"; ui.flash = { type: "ok", text: `Brouillon de V${q.versions.length + 1} prêt : modifie puis envoie.` }; go(`#/devis/${q.id}/0`); },
@@ -1153,26 +1256,23 @@ const actions = {
     const q = S.getQuote(ui.qid); sortieAutorisee(q);
     const { snap } = snapFor(q, S.evaluate(q)); const v = b.dataset.n === "draft" ? snap : q.versions.find((x) => String(x.n) === b.dataset.n); if (!v) throw new Error("Version introuvable.");
     const { bytes } = buildDocx(v, q.ref); sortieFaite(q); const name = `${q.ref}${v.n ? "-V" + v.n : "-brouillon"}.docx`;
-    ui.file = { name, mime: DOCX_MIME, data: bytes }; return saveFile();
+    ui.file = { name, mime: DOCX_MIME, data: bytes, qid: q.id, n: v.n || null }; return saveFile();
   },
   async pdf() {
     const q = S.getQuote(ui.qid);
     try { sortieAutorisee(q); } catch (err) { ui.flash = { type: "err", text: err.message }; rerender(); return; }
-    const el = document.getElementById("doc"); if (!el) throw new Error("Aperçu introuvable.");
-    ui.busy = "pdf"; rerender();
-    try {
-      const { makePdf } = await import("./pdf.js");
-      const snapNow = snapFor(q, S.evaluate(q)).snap;
-      const data = await makePdf(document.getElementById("doc"), "TGDQ1:" + encPayload(S.quotePayload(q, snapNow.quote)));
-      const v = (snapFor(q, S.evaluate(q)).snap || {}).n;
-      ui.file = { name: `${q.ref}${v ? "-V" + v : "-brouillon"}.pdf`, mime: "application/pdf", data: new Uint8Array(data) };
-      sortieFaite(q);
-      ui.flash = { type: "ok", text: "PDF créé. Touche « Enregistrer / envoyer le fichier »." };
-    } catch (err) { ui.flash = { type: "err", text: "PDF impossible : " + err.message + ". Utilise « Imprimer »." }; }
+    ui.busy = "pdf"; ui.file = null; rerender();
+    if (await creerPdfFichier(q)) ui.flash = { type: "ok", text: `PDF créé. Touche « ${peutPartager(ui.file) ? "Envoyer le PDF" : "Télécharger le fichier"} ».` };
     ui.busy = ""; rerender();
     return "skip";
   },
   saveFile() { return saveFile(); },
+  journalCsv() { download(`journal-essai-${S.today()}.csv`, "text/csv;charset=utf-8", Journal.csv()); ui.flash = { type: "ok", text: "Journal d'essai exporté (CSV)." }; },
+  journalEffacer() { Journal.effacer(); ui.flash = { type: "ok", text: "Journal d'essai effacé." }; },
+  journalStop() { Journal.arreter(); ui.flash = { type: "ok", text: "Journal d'essai arrêté sur ce téléphone." }; },
+  voirIndus() { const e = ui.tmp.elec; e.indus = !e.indus; if (!e.indus) { const rf = refOf(metierOf(S.getQuote(ui.qid))); if (rf && !rf.domainesLogement.some((d) => d[0] === e.dom)) e.dom = rf.domainesLogement[0][0]; } },
+  voirTva() { const c = document.getElementById("tva"); if (c) { c.scrollIntoView({ block: "center" }); return "skip"; } const q = S.getQuote(ui.qid); go(`#/devis/${q.id}/${modeOf(q) === "technicien" ? 2 : 3}`); },
+  tva(b) { const q = S.getQuote(ui.qid), t = q.current.terms; if (b.dataset.v === "0") { t.vatPct = null; t.sansTva = true; } else { t.vatPct = Number(b.dataset.v); t.sansTva = false; } touchQuote(q); },
   csvExport() { download(`catalogue-${S.today()}.csv`, "text/csv;charset=utf-8", exportCatalogueCsv(S.state.db.catalogue)); ui.flash = { type: "ok", text: "Catalogue exporté (CSV)." }; },
   csvTemplate() { download("modele-catalogue.csv", "text/csv;charset=utf-8", templateCsv()); },
   csvApply() { const ok = ui.csv.rows.filter((r) => r.status !== "error").map((r) => r.item); S.saveItems(ok, "import CSV"); ui.flash = { type: "ok", text: `${ok.length} article(s) importé(s).` }; ui.csv = null; },
@@ -1201,7 +1301,7 @@ document.addEventListener("click", (e) => {
 window.addEventListener("hashchange", () => { ui.file = null; render(); window.scrollTo(0, 0); });
 window.addEventListener("beforeprint", () => document.body.classList.add("printing"));
 window.addEventListener("afterprint", () => document.body.classList.remove("printing"));
-export const BUILD = "39";
+export const BUILD = "41";
 // Mise à jour automatique : quand une nouvelle version est publiée, l'application la prend toute seule
 // (au retour sur l'application, ou dès que la personne n'est plus en train de taper). Les données ne sont jamais touchées.
 if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
@@ -1217,4 +1317,5 @@ if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
   }).catch(() => {});
 }
 S.init({ blank: true });
+Journal.brancher();
 render();

@@ -1,7 +1,7 @@
 import { annexe } from "./metiers/metre.js";
 // Export Word (.docx) d'un devis FIGÉ. Aucun calcul ici : tous les montants viennent de snap.result (le même objet que le PDF).
 // Le fichier est produit sans dépendance : un zip « stocké » écrit à la main, au contenu déterministe (mêmes données → mêmes octets).
-import { fmt, fmtN, fmtQ, fmtD, frDate, toWordsFr, exclusions, legalLine } from "./ui-doc.js";
+import { fmt, fmtN, fmtQ, fmtPU, fmtD, frDate, toWordsFr, exclusions, legalLine } from "./ui-doc.js";
 import { effSurface, surfaceSource } from "./packs.js";
 
 export const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
@@ -40,10 +40,11 @@ const para = (inner, o = {}) => `<w:p><w:pPr><w:spacing w:before="${o.before ?? 
 const txt = (t, o = {}) => para(run(t, o), o);
 const h3 = (t, acc) => para(run(t.toUpperCase(), { b: 1, color: acc, sz: 22 }), { before: 240, after: 80 });
 const cell = (inner, w, o = {}) => `<w:tc><w:tcPr><w:tcW w:w="${w}" w:type="dxa"/>${o.fill ? `<w:shd w:val="clear" w:color="auto" w:fill="${o.fill}"/>` : ""}${o.span ? `<w:gridSpan w:val="${o.span}"/>` : ""}</w:tcPr>${inner}</w:tc>`;
-const row = (cells) => `<w:tr>${cells}</w:tr>`;
+// Une ligne de tableau ne se coupe jamais entre deux pages (cantSplit) ; les lignes d'en-tête se répètent en haut de chaque page (tblHeader).
+const row = (cells, entete = false) => `<w:tr><w:trPr><w:cantSplit/>${entete ? "<w:tblHeader/>" : ""}</w:trPr>${[].concat(cells).join("")}</w:tr>`; // un tableau de cellules ne doit jamais devenir « cellule,cellule » (texte interdit dans une ligne de tableau Word)
 const table = (rows, widths) => `<w:tbl><w:tblPr><w:tblW w:w="${widths.reduce((a, b) => a + b, 0)}" w:type="dxa"/><w:tblBorders>${["top", "left", "bottom", "right", "insideH", "insideV"].map((s) => `<w:${s} w:val="single" w:sz="4" w:space="0" w:color="BBBBBB"/>`).join("")}</w:tblBorders><w:tblLayout w:type="fixed"/></w:tblPr><w:tblGrid>${widths.map((w) => `<w:gridCol w:w="${w}"/>`).join("")}</w:tblGrid>${rows.join("")}</w:tbl>` + para("", { before: 0, after: 0 });
 const WIDTHS = [4600, 1700, 1600, 1738]; // désignation, quantité, P.U., total
-const headRow = (acc, labels = ["Désignation", "Quantité", "P.U. (FCFA)", "Total HT"]) => row(labels.map((l, i) => cell(para(run(l, { b: 1, color: "FFFFFF", sz: 18 }), { jc: i ? "right" : "left" }), WIDTHS[i], { fill: acc })));
+const headRow = (acc, labels = ["Désignation", "Quantité", "P.U. (FCFA)", "Total HT"]) => row(labels.map((l, i) => cell(para(run(l, { b: 1, color: "FFFFFF", sz: 18 }), { jc: i ? "right" : "left" }), WIDTHS[i], { fill: acc })), true);
 const lineRow = (cells) => row(cells.map((c, i) => cell(c, WIDTHS[i])));
 const subRow = (label, amount, acc) => row([cell(para(run(label, { b: 1, sz: 18 }), {}), WIDTHS[0] + WIDTHS[1] + WIDTHS[2], { fill: "EEEEEE", span: 3 }), cell(para(run(amount, { b: 1, sz: 18 }), { jc: "right" }), WIDTHS[3], { fill: "EEEEEE" })]);
 const plainRow = (label, amount) => row([cell(para(run(label, { sz: 18 })), WIDTHS[0] + WIDTHS[1] + WIDTHS[2], { span: 3 }), cell(para(run(amount, { sz: 18 }), { jc: "right" }), WIDTHS[3])]);
@@ -55,7 +56,7 @@ function groupRows(lines, acc) {
     out.push(row([cell(para(run(g, { b: 1, sz: 18 })), WIDTHS.reduce((a, b) => a + b, 0), { fill: "F3F3F3", span: 4 })]));
     for (const l of ls) out.push(lineRow([
       para(run(l.label, { b: 1, sz: 18 }), { before: 20, after: 0 }) + (l.role ? para(run(l.role, { sz: 15, color: "666666" }), { before: 0, after: 20 }) : ""),
-      para(run(`${fmtQ(l.qty)} ${l.unit}`, { sz: 18 }), { jc: "right" }), para(run(fmtN(l.price), { sz: 18 }), { jc: "right" }), para(run(fmtN(l.total), { sz: 18 }), { jc: "right" })]));
+      para(run(`${fmtQ(l.qty)} ${l.unit}`, { sz: 18 }), { jc: "right" }), para(run(fmtPU(l.price), { sz: 18 }), { jc: "right" }), para(run(fmtN(l.total), { sz: 18 }), { jc: "right" })]));
     out.push(subRow(`Sous-total — ${g}`, fmtN(ls.reduce((a, l) => a + (l.total ?? 0), 0)), acc));
   }
   return out;
@@ -81,11 +82,11 @@ export function buildDocx(snap, ref = "") {
   const logo = parseDataUrl(pres.logo);
   const sNet = effSurface(q.site);
   const tail = (sub, oh, disc, net, v, ttc) => [
-    subRow("Sous-total HT", fmtN(sub), acc),
+    ...(ohLabel || disc ? [subRow("Sous-total HT", fmtN(sub), acc)] : []),
     ...(ohLabel ? [plainRow(`Frais généraux (${q.overhead.pct} %)`, fmtN(oh))] : []),
     ...(disc ? [plainRow(`Remise${q.discount.pct > 0 ? " (" + q.discount.pct + " %)" : ""}`, "− " + fmtN(disc))] : []),
     subRow("TOTAL HT", fmtN(net), acc),
-    ...(v === null ? [] : [plainRow(`TVA ${vat} %`, fmtN(v)), subRow("TOTAL TTC", fmtN(ttc), acc)]),
+    ...(v === null ? [] : [plainRow(`TVA ${fmtD(vat)} %`, fmtN(v)), subRow("TOTAL TTC", fmtN(ttc), acc)]),
   ];
   const body = [];
   // en-tête
@@ -99,50 +100,50 @@ export function buildDocx(snap, ref = "") {
   body.push(txt([c.tagline, c.address, c.phone ? "Tél. " + c.phone : "", c.whatsapp ? "WhatsApp " + c.whatsapp : "", c.web].filter(Boolean).join(" — "), { sz: 16, color: "666666", before: 0 }));
   body.push(txt(fige ? `Copie modifiable de la version V${snap.n}. Le PDF et la version figée font foi : pour changer un montant, créer une nouvelle version dans l'application.` : "Brouillon non figé : copie modifiable, sans valeur contractuelle tant que le devis n'est pas envoyé.", { i: 1, sz: 16, color: "B00020" }));
   body.push(txt("DEVIS ESTIMATIF", { b: 1, sz: 40, color: acc, before: 200 }));
-  const meta = [["RÉFÉRENCE", refTxt], ["DATE", frDate(snap.at)], ["VALIDITÉ", `${q.validityDays ?? "…"} jours`], ["SURFACE / QUANTITÉ DE BASE", `${fmtD(sNet)} m²`], ["CLIENT", q.client.name || "........................"], ["CHANTIER", q.site.name + (q.site.address ? " — " + q.site.address : "")], ...(c.responsible ? [["RESPONSABLE CHANTIER", c.responsible + (c.responsiblePhone ? " — " + c.responsiblePhone : "")]] : [])];
+  const tech = q.profil === "technicien", base0 = !(sNet > 0); // devis sans surface de base : pas de ligne « surface », pas de « base de calcul »
+  const meta = [["RÉFÉRENCE", refTxt], ["DATE", frDate(snap.at || q.date)], ["VALIDITÉ", `${q.validityDays ?? "…"} jours`], ...(base0 ? [] : [["SURFACE / QUANTITÉ DE BASE", `${fmtD(sNet)} m²`]]), ["CLIENT", (q.client.name || "........................") + (q.client.contact ? " — " + q.client.contact : "")], ["CHANTIER", [q.site.name, q.site.address].filter(Boolean).join(" — ") || "—"], ...(c.responsible ? [["RESPONSABLE CHANTIER", c.responsible + (c.responsiblePhone ? " — " + c.responsiblePhone : "")]] : [])];
   body.push(table(meta.map(([k, v]) => row([cell(para(run(k, { b: 1, sz: 16, color: "666666" })), 3200), cell(para(run(v, { sz: 18 })), 6438)])), [3200, 6438]));
-  body.push(table([row([cell(para(run(`TOTAL OFFRE DE BASE${vat === null ? " (hors taxes)" : " (HT)"} : ${fmt(t.base)}`, { b: 1, sz: 26, color: "FFFFFF" })) + (vat === null ? "" : para(run(`Total TTC : ${fmt(t.ttcBase)}`, { b: 1, sz: 22, color: "FFFFFF" }))) + (hasOpt ? para(run(`Avec option${vat === null ? "" : " (HT)"} : ${fmt(t.withOption)}`, { b: 1, sz: 22, color: "FFE08A" })) : ""), 9638, { fill: acc })])], [9638]));
-  body.push(h3("Base de calcul des quantités", acc));
-  body.push(txt(`Quantité ou surface de base : ${fmtD(sNet)} m²${surfaceSource(q.site) === "brute − ouvertures" ? ` (surface brute ${fmtD(q.site.surfaceBrute)} m² − ouvertures ${fmtD(q.site.ouvertures ?? 0)} m²)` : ""}. Marge de sécurité sur les produits : ${q.site.lossPct ?? 0} % (pertes, reprises, irrégularités du support) — surface de calcul : ${r.calcSurface.toLocaleString("fr-FR")} m². Quantité de produit = surface de calcul ÷ rendement, arrondie à l'unité de conditionnement supérieure. La main-d'œuvre est calculée sur la surface réelle.`, { sz: 17 }));
-  body.push(h3("Offre de base", acc));
+  body.push(table([row([cell(para(run(`${hasOpt ? "TOTAL OFFRE DE BASE" : "MONTANT TOTAL"}${vat === null ? " (hors taxes)" : " (HT)"} : ${fmt(t.base)}`, { b: 1, sz: 26, color: "FFFFFF" })) + (vat === null ? "" : para(run(`Total TTC : ${fmt(t.ttcBase)}`, { b: 1, sz: 22, color: "FFFFFF" }))) + (hasOpt ? para(run(`Avec option${vat === null ? "" : " (HT)"} : ${fmt(t.withOption)}`, { b: 1, sz: 22, color: "FFE08A" })) : ""), 9638, { fill: acc })])], [9638]));
+  if (!base0 && !tech) body.push(h3("Base de calcul des quantités", acc));
+  if (!base0 && !tech) body.push(txt(`Quantité ou surface de base : ${fmtD(sNet)} m²${surfaceSource(q.site) === "brute − ouvertures" ? ` (surface brute ${fmtD(q.site.surfaceBrute)} m² − ouvertures ${fmtD(q.site.ouvertures ?? 0)} m²)` : ""}. Marge de sécurité sur les produits : ${q.site.lossPct ?? 0} % (pertes, reprises, irrégularités du support) — surface de calcul : ${r.calcSurface.toLocaleString("fr-FR")} m². Quantité de produit = surface de calcul ÷ rendement, arrondie à l'unité de conditionnement supérieure. La main-d'œuvre est calculée sur la surface réelle.`, { sz: 17 }));
+  body.push(h3(hasOpt ? "Offre de base" : "Détail du devis", acc));
   body.push(table([headRow(acc), ...groupRows(base, acc), ...tail(t.subBase, t.overheadBase, t.discountBase, t.base, t.vatBase, t.ttcBase)], WIDTHS));
   if (hasOpt) {
     body.push(h3("Option non obligatoire", acc));
     body.push(table([headRow(acc), ...groupRows(opt, acc), subRow("SOUS-TOTAL OPTION", fmtN(t.matOpt + t.svcOpt), acc), ...tail(t.subOption, t.overheadOption, t.discountOption, t.withOption, t.vatOption, t.ttcOption)], WIDTHS));
   }
   body.push(h3("Synthèse financière", acc));
-  body.push(table([plainRow("Fournitures et consommables (offre de base)", fmt(t.matBase)), plainRow("Main-d'œuvre, équipements et services (offre de base)", fmt(t.svcBase)), subRow("Total offre de base (HT)", fmt(t.base), acc),
+  body.push(table([plainRow(`Fournitures et consommables${hasOpt ? " (offre de base)" : ""}`, fmt(t.matBase)), plainRow(`Main-d'œuvre, équipements et services${hasOpt ? " (offre de base)" : ""}`, fmt(t.svcBase)), ...(ohLabel ? [plainRow(`Frais généraux (${q.overhead.pct} %)`, fmt(t.overheadBase))] : []), ...(t.discountBase ? [plainRow(`Remise${q.discount.pct > 0 ? " (" + fmtD(q.discount.pct) + " %)" : ""}`, "− " + fmt(t.discountBase))] : []), subRow(`Total${hasOpt ? " offre de base" : ""} (HT)`, fmt(t.base), acc),
     ...(hasOpt ? [plainRow("Option (HT)", fmt(t.withOption - t.base)), subRow("Total offre de base + option (HT)", fmt(t.withOption), acc)] : [])], WIDTHS));
-  body.push(txt(`Arrêté le présent devis, offre de base, à la somme de ${toWordsFr(t.base)} (${fmtN(t.base)}) francs CFA hors taxes${hasOpt ? `; avec option, à la somme de ${toWordsFr(t.withOption)} (${fmtN(t.withOption)}) francs CFA hors taxes` : ""}.`, { sz: 17 }));
+  body.push(txt(`Arrêté le présent devis${hasOpt ? ", offre de base," : ""} à la somme de ${toWordsFr(vat === null ? t.base : t.ttcBase)} (${fmtN(vat === null ? t.base : t.ttcBase)}) francs CFA ${vat === null ? "hors taxes" : "toutes taxes comprises"}${hasOpt ? `; avec option, à la somme de ${toWordsFr(t.withOption)} (${fmtN(t.withOption)}) francs CFA hors taxes` : ""}.`, { sz: 17 }));
   const excl = exclusions(q.decisions);
   if (excl.length || q.notes) { body.push(h3("Périmètre, hypothèses et exclusions", acc)); excl.forEach((e) => body.push(txt("• " + e, { sz: 17 }))); if (q.notes) body.push(txt("• " + q.notes, { sz: 17 })); }
-  body.push(h3("Délai", acc));
-  body.push(txt(`${q.terms.delayMin ?? "…"} jours minimum à ${q.terms.delayMax ?? "…"} jours maximum, à compter du démarrage effectif des travaux sur site.`, { sz: 17 }));
+  { const a = q.terms.delayMin, b = q.terms.delayMax; const d = a && b && a !== b ? `${a} à ${b} jours` : a || b ? `${b || a} jours maximum` : ""; // pas de « … jours » sur un document envoyé au client
+    if (d) { body.push(h3("Délai", acc)); body.push(txt(`${d}, à compter du démarrage effectif des travaux sur site.`, { sz: 17 })); } }
   body.push(h3("Modalités de paiement", acc));
-  const cols = ["Versement", "Offre de base (HT)", ...(hasOpt ? ["Avec option (HT)"] : []), ...(vat === null ? [] : ["Base TTC"]), "Déclenchement"];
+  const cols = ["Versement", hasOpt ? "Offre de base (HT)" : "Montant (HT)", ...(hasOpt ? ["Avec option (HT)"] : []), ...(vat === null ? [] : ["Base TTC"]), "Déclenchement"];
   const used = cols.length, tot = 9638, fixed = 1100, per = Math.floor((tot - fixed - 2600) / Math.max(1, used - 2)); const W2 = cols.map((_, i) => (i === 0 ? fixed : i === used - 1 ? 2600 : per));
   W2[used - 1] += tot - W2.reduce((a, b) => a + b, 0);
   const prow = (vals, o = {}) => row(vals.map((v, i) => cell(para(run(v, { sz: 18, b: o.b }), { jc: i && i < used - 1 ? "right" : "left" }), W2[i], o.fill ? { fill: o.fill } : {})));
   body.push(table([row(cols.map((l, i) => cell(para(run(l, { b: 1, color: "FFFFFF", sz: 18 }), { jc: i && i < used - 1 ? "right" : "left" }), W2[i], { fill: acc }))),
     ...Array.from({ length: nPay }, (_, i) => prow([String(i + 1), fmtN(sc.base.combined[i]), ...(hasOpt ? [fmtN(sc.option.combined[i])] : []), ...(vat === null ? [] : [fmtN(sc.base.ttc[i])]), trig[i] || ""])),
     prow(["Total", fmtN(sc.base.combined.reduce((a, b) => a + b, 0)), ...(hasOpt ? [fmtN(sc.option.combined.reduce((a, b) => a + b, 0))] : []), ...(vat === null ? [] : [fmtN(sc.base.ttc.reduce((a, b) => a + b, 0))]), ""], { b: 1, fill: "EEEEEE" })], W2));
-  body.push(txt(`Fournitures : ${(q.terms.payment.materials || []).join(" / ")} % · Main-d'œuvre et services : ${(q.terms.payment.services || []).join(" / ")} %.`, { sz: 17 }));
+  if (JSON.stringify(q.terms.payment.materials || []) !== JSON.stringify(q.terms.payment.services || [])) body.push(txt(`Fournitures : ${(q.terms.payment.materials || []).join(" / ")} % · Main-d'œuvre et services : ${(q.terms.payment.services || []).join(" / ")} %.`, { sz: 17 }));
   if ((snap.conditions || []).length) { body.push(h3("Conditions de l'offre", acc)); snap.conditions.forEach((x) => body.push(txt("• " + x, { sz: 17 }))); }
   if (q.metre && q.metre.imprimer !== false) {
     const an = annexe(q.metre, q.metier || undefined);
     if (an.length) {
       body.push(h3("Détail du métré", acc)); const WM = [2900, 4838, 1900];
-      const rows = [row(["Zone et ouvrage", "Calcul", "Résultat"].map((l, i) => cell(para(run(l, { b: 1, color: "FFFFFF", sz: 18 }), { jc: i === 2 ? "right" : "left" }), WM[i], { fill: acc })))];
+      const rows = [row(["Zone et ouvrage", "Calcul", "Résultat"].map((l, i) => cell(para(run(l, { b: 1, color: "FFFFFF", sz: 18 }), { jc: i === 2 ? "right" : "left" }), WM[i], { fill: acc })), true)];
       for (const z of an) { rows.push(row([cell(para(run(z.zone, { b: 1, sz: 18 })), WM[0] + WM[1] + WM[2], { fill: "EEEEEE", span: 3 })])); for (const l of z.lignes) rows.push(row([cell(para(run(l.ouvrage, { b: 1, sz: 17 })) + para(run(l.mesure, { sz: 15, color: "666666" })), WM[0]), cell(para(run(l.detail, { sz: 16 })), WM[1]), cell(para(run(`${fmtD(Math.round(l.val * 100) / 100)} ${l.unite}`, { sz: 17 }), { jc: "right" }), WM[2])])); }
       body.push(table(rows, WM));
     }
   }
-  body.push(h3("Choix du client et signatures", acc));
-  body.push(txt(`☐ Offre de base seule — ${fmt(t.base)}`));
-  if (hasOpt) body.push(txt(`☐ Offre de base + option — ${fmt(t.withOption)}`));
+  body.push(h3(hasOpt ? "Choix du client et signatures" : "Signatures", acc));
+  if (hasOpt) { body.push(txt(`☐ Offre de base seule — ${fmt(t.base)}`)); body.push(txt(`☐ Offre de base + option — ${fmt(t.withOption)}`)); }
   body.push(table([row([
     cell(para(run("POUR LE CLIENT — Bon pour accord", { b: 1, sz: 18 })) + para(run("Date : ____/____/______", { sz: 18 })) + para("") + para(run("____________________________", { sz: 18 })) + para(run("Nom, signature et mention « Bon pour accord »", { sz: 15, color: "666666" })), 4819),
-    cell(para(run(`POUR ${c.name}`, { b: 1, sz: 18 })) + para(run(`Date : ${frDate(snap.at)}`, { sz: 18 })) + para("") + para(run("____________________________", { sz: 18 })) + para(run(`${c.responsible || ""} — Signature & cachet`, { sz: 15, color: "666666" })), 4819)])], [4819, 4819]));
+    cell(para(run(`POUR ${c.name}`, { b: 1, sz: 18 })) + para(run(`Date : ${frDate(snap.at || q.date)}`, { sz: 18 })) + para("") + para(run("____________________________", { sz: 18 })) + para(run(c.responsible ? `${c.responsible} — Signature & cachet` : "Signature & cachet", { sz: 15, color: "666666" })), 4819)])], [4819, 4819]));
   if (legalLine(c)) body.push(txt(legalLine(c), { sz: 14, color: "666666" }));
   if (fige) body.push(txt(`Empreinte de contrôle : ${snap.hash} (vérifie l'intégrité du document ; ne remplace pas une signature électronique).`, { sz: 14, color: "666666" }));
 
