@@ -6,6 +6,7 @@ import * as Lic from "./licence.js";
 import * as Mt from "./metiers/metre.js";
 import * as UM from "./ui-metre.js";
 import { lireSaisie } from "./saisie.js";
+import { montantLigne } from "./engine.js";
 import { analyseCsv, exportCatalogueCsv, templateCsv, exportRowsCsv } from "./csv.js";
 const NEUTRAL_LOGO = "data:image/svg+xml;utf8," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><rect width="40" height="40" rx="9" fill="#e7ebed"/><path d="M12 9h12l6 6v16H12z" fill="none" stroke="#69787e" stroke-width="2.2" stroke-linejoin="round"/><path d="M16 21h10M16 26h10" stroke="#69787e" stroke-width="2.2" stroke-linecap="round"/></svg>');
 import { LISTES, METIERS, visibleIn, metierLabel } from "./metiers/listes.js";
@@ -319,7 +320,7 @@ function sheetForm(t, prod, rf, met) {
   const elec = !!rf, v = vocab(met);
   const manq = manqueLigne(t), incomplet = !t.lineId && aDesDonnees(t) && manq.length > 0;
   const qd = S.getQuote(ui.qid), dejaLa = qd && String(t.label || "").trim() ? qd.current.manual.find((m) => m.id !== t.lineId && !m.metre && nz(m.nom ?? m.label ?? "") === nz(t.label)) : null;
-  const tot = t.qty > 0 && t.price > 0 ? t.qty * t.price : null;
+  const tot = t.qty > 0 && t.price > 0 ? montantLigne(t.qty, t.price) : null; // même règle d'arrondi que le devis
   const ref = rf ? rf.find(t.label) : null;
   const base = rf ? [...unitsOf(ref?.unit), ...(t.tab === "produits" ? [] : UNITS_ROW[t.tab] || []), ...rf.units] : t.tab === "produits" ? v.unitsP : UNITS_ROW[t.tab] || [];
   const opts = [["", "—"], ...[...new Set([...base, t.unit].filter(Boolean))].map((u) => [u, u])];
@@ -944,7 +945,7 @@ function refreshTotals() {
 // Met à jour sans redessiner le total de la ligne en cours de saisie et la barre du bas
 function liveTotals() {
   const r = ui.tmp.row, el = document.querySelector(".rowtot b");
-  if (el && r) el.textContent = r.qty > 0 && r.price > 0 ? fmt(r.qty * r.price) : "—";
+  if (el && r) el.textContent = r.qty > 0 && r.price > 0 ? fmt(montantLigne(r.qty, r.price)) : "—";
 }
 // Un toucher sur un bouton après une saisie fait d'abord « sortir » du champ (événement change). Si l'écran se redessine
 // à ce moment, le bouton disparaît avant la fin du toucher et le toucher est perdu. On garde donc la valeur tout de suite,
@@ -1187,9 +1188,9 @@ const actions = {
     const el = document.getElementById("doc"); if (!el) throw new Error("Aperçu introuvable.");
     ui.busy = "pdf"; rerender();
     try {
-      const { makePdf } = await import("./pdf.js");
+      const { creerPdf } = await import("./pdf-texte.js");
       const snapNow = snapFor(q, S.evaluate(q)).snap;
-      const data = await makePdf(document.getElementById("doc"), "TGDQ1:" + encPayload(S.quotePayload(q, snapNow.quote)));
+      const { data } = await creerPdf(document.getElementById("doc"), "TGDQ1:" + encPayload(S.quotePayload(q, snapNow.quote)));
       const v = (snapFor(q, S.evaluate(q)).snap || {}).n;
       ui.file = { name: `${q.ref}${v ? "-V" + v : "-brouillon"}.pdf`, mime: "application/pdf", data: new Uint8Array(data) };
       sortieFaite(q);
@@ -1227,7 +1228,7 @@ document.addEventListener("click", (e) => {
 window.addEventListener("hashchange", () => { ui.file = null; render(); window.scrollTo(0, 0); });
 window.addEventListener("beforeprint", () => document.body.classList.add("printing"));
 window.addEventListener("afterprint", () => document.body.classList.remove("printing"));
-export const BUILD = "40";
+export const BUILD = "41";
 // Mise à jour automatique : quand une nouvelle version est publiée, l'application la prend toute seule
 // (au retour sur l'application, ou dès que la personne n'est plus en train de taper). Les données ne sont jamais touchées.
 if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {

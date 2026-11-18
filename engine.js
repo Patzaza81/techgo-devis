@@ -13,6 +13,15 @@ const isNum = (x) => typeof x === "number" && isFinite(x);
 const sc = (x) => { if (!isNum(x)) throw new Error("Nombre invalide : " + x); return Math.round(x * SC); };
 const ceilDiv = (a, b) => { if (!(b > 0)) throw new Error("Division invalide"); return Math.floor((a + b - 1) / b); };
 const roundDiv = (n, d) => Math.floor((2 * n + d) / (2 * d));
+// RÈGLE D'ARRONDI UNIQUE (décision de Patrick, 18/11/2026) : chaque montant de ligne est arrondi au franc le plus proche
+// (0,5 vers le haut) ; les totaux sont la somme des lignes ; frais, remise et TVA sont calculés sur le total HT puis arrondis
+// au franc de la même façon ; TTC = HT + TVA. Le produit est calculé en nombres entiers : 0,35 × 1 350 = 472,5 → 473
+// (en virgule flottante, 0,35 × 1 350 donne 472,4999… et un arrondi ordinaire donnerait 472).
+export function montantLigne(a, b) {
+  if (!isNum(a) || !isNum(b)) return null;
+  const p = BigInt(sc(a)) * BigInt(sc(b)), d = BigInt(SC * SC), neg = p < 0n, q = ((neg ? -p : p) * 2n + d) / (2n * d);
+  return Number(neg ? -q : q);
+}
 
 export const MATERIAL_CATS = ["materiaux", "consommables"];
 
@@ -120,17 +129,17 @@ export function computeQuote(inp) {
 
     if (isEquip) {
       if (L.bill === "refacture") {
-        if (cost !== null && isNum(L.markupPct)) { total = Math.round(cost * (1 + L.markupPct / 100)); unitPrice = qty ? Math.round(total / qty) : null; }
+        if (cost !== null && isNum(L.markupPct)) { total = montantLigne(cost, 1 + L.markupPct / 100); unitPrice = qty ? Math.round(total / qty) : null; }
         else flags.push("prix_inconnu");
       } else { total = 0; unitPrice = 0; calc += " — non facturé séparément (absorbé)"; }
     } else {
       const c = isNum(L.costOverride) ? L.costOverride : it.cost;
       if (pricing.method === "cout_plus_marge") {
-        unitPrice = isNum(c) && isNum(pricing.markupPct) ? Math.round(c * (1 + pricing.markupPct / 100)) : null;
+        unitPrice = isNum(c) && isNum(pricing.markupPct) ? montantLigne(c, 1 + pricing.markupPct / 100) : null;
       } else unitPrice = isNum(L.priceOverride) ? L.priceOverride : isNum(it.price) ? it.price : null;
       if (unitPrice === null) flags.push("prix_inconnu");
-      total = unitPrice !== null && qty !== null ? Math.round(qty * unitPrice) : null;
-      cost = isNum(c) && qty !== null ? Math.round(qty * c) : null;
+      total = unitPrice !== null && qty !== null ? montantLigne(qty, unitPrice) : null;
+      cost = isNum(c) && qty !== null ? montantLigne(qty, c) : null;
     }
     if (qty === null && total === null && !flags.includes("qte_inconnue") && !isEquip) flags.push("qte_inconnue");
     flags.forEach((f) => warnings.push(`${it.label} : ${{ prix_inconnu: "prix inconnu", rendement_inconnu: "rendement inconnu", qte_inconnue: "quantité inconnue", cout_inconnu: "coût inconnu" }[f]}`));

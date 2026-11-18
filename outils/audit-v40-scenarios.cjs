@@ -97,8 +97,8 @@ module.exports = ({ scenario, nonTeste, METIERS, montant, contient, nombre, norm
     note("Points à vérifier restants", (await p.locator(".chk:has(.d-verifier) b").allInnerTexts()).join(" ; "));
     // valeurs attendues, calculées ici : HT 123 000 ; TVA 19,25 % = 23 677,5 ; TTC 146 677,5
     const ap = await A.apercu(); await A.capture("apercu");
-    ok(contient(ap, 123000), "Aperçu : total HT 123 000"); const ttc = [146677, 146678].find((v) => contient(ap, v)); ok(ttc, "Aperçu : TTC 146 677,5 arrondi (146 677 ou 146 678)", ttc);
-    ok(contient(ap, 23677) || contient(ap, 23678), "Aperçu : TVA 23 677,5 arrondie"); ok(new RegExp(prod.split(" ")[0]).test(ap) && new RegExp(ouv).test(ap), "Aperçu : produit et main-d'œuvre détaillés");
+    ok(contient(ap, 123000), "Aperçu : total HT 123 000"); const ttc = 146678; ok(contient(ap, 146678), "Aperçu : TTC 146 678 (TVA 23 677,5 arrondie au franc supérieur : règle unique)");
+    ok(contient(ap, 23678), "Aperçu : TVA 23 678"); ok(new RegExp(prod.split(" ")[0]).test(ap) && new RegExp(ouv).test(ap), "Aperçu : produit et main-d'œuvre détaillés");
     ok(/5 à 10 jours|5 jours minimum à 10 jours/.test(ap), "Aperçu : délai 5 à 10 jours");
     const pdf = await A.exporter("pdf"); ok(pdf.ok, "PDF créé", pdf.raison);
     if (pdf.ok) { ok(contient(pdf.texte, 123000), "PDF : 123 000 HT"); ok(contient(pdf.texte, ttc || 146678), "PDF : TTC identique à l'aperçu"); ok(/SCI Les Palmiers/.test(pdf.texte), "PDF : client"); }
@@ -123,10 +123,10 @@ module.exports = ({ scenario, nonTeste, METIERS, montant, contient, nombre, norm
     const t = await A.lire(); const ap = await A.apercu(); await A.capture("apercu");
     ok(contient(ap, 103500), "Aperçu : HT après remise 103 500", (ap.match(/[\d ]{5,} FCFA/g) || []).slice(0, 8).join(" | "));
     ok(contient(ap, 11500), "Aperçu : remise 11 500 écrite");
-    const ttc = [123424, 123423].find((v) => contient(ap, v)); ok(ttc, "Aperçu : TTC 123 423,75 arrondi");
+    const ttc = 123424; ok(contient(ap, 123424), "Aperçu : TTC 123 424 (TVA 19 923,75 → 19 924)");
     ok(contient(t, ttc || 123424), "Écran : « Avec TVA » égal au TTC de l'aperçu");
     const pdf = await A.exporter("pdf"); ok(pdf.ok, "PDF créé", pdf.raison);
-    if (pdf.ok) { for (const v of [103500, ttc || 123424]) ok(contient(pdf.texte, v), `PDF contient ${montant(v)}`); ok(/Remise \(10 ?%\)/.test(pdf.texte), "PDF : ligne « Remise (10 %) » (le montant − 11 500 est vérifié sur l'image : l'OCR lit mal le signe moins)"); }
+    if (pdf.ok) { for (const v of [103500, ttc || 123424]) ok(contient(pdf.texte, v), `PDF contient ${montant(v)}`); ok(contient(pdf.texte, 11500) && /Remise \(10 ?%\)/.test(pdf.texte), "PDF : « Remise (10 %) » et 11 500"); }
     const w = await A.exporter("word"); ok(w.ok, "Word créé", w.raison);
     if (w.ok) for (const v of [103500, 11500, ttc || 123424]) ok(contient(w.texte, v), `Word contient ${montant(v)}`);
     if (w.ok) ok(new RegExp(n1.split(" ")[0]).test(w.texte) && /Main-d'œuvre de pose/.test(w.texte), "Word : désignations présentes");
@@ -281,6 +281,7 @@ module.exports = ({ scenario, nonTeste, METIERS, montant, contient, nombre, norm
     ok(!contient(ap, 78000), "Aperçu : pas d'ancien montant 78 000");
     ok(/Mbarga/.test(ap), "Aperçu : nom du client");
     const pdf = await A.exporter("pdf"); ok(pdf.ok, "PDF créé et téléchargé", pdf.raison || pdf.nom);
+    if (pdf.ok) { ok(!/^\[OCR\]/.test(pdf.texte), "PDF en vrai texte (lu sans reconnaissance de caractères)"); ok(require("fs").statSync(pdf.f).size < 150000, "PDF léger (< 150 Ko) pour WhatsApp", require("fs").statSync(pdf.f).size); }
     if (pdf.ok) { for (const v of [65000, 3125, 45000, 113125]) ok(contient(pdf.texte, v), `PDF contient ${montant(v)}`); ok(!contient(pdf.texte, 78000), "PDF : pas d'ancien montant"); ok(/Ciment ordinaire/.test(pdf.texte) && /Peinture acrylique/.test(pdf.texte) && /Peintre/.test(pdf.texte), "PDF : les 3 désignations (dont la main-d'œuvre)"); ok(/Mbarga/.test(pdf.texte), "PDF : client"); }
     const w = await A.exporter("word"); ok(w.ok, "Word créé et téléchargé", w.raison || w.nom);
     if (w.ok) { for (const v of [65000, 3125, 45000, 113125]) ok(contient(w.texte, v), `Word contient ${montant(v)}`); ok(/Ciment ordinaire/.test(w.texte) && /Peintre/.test(w.texte), "Word : désignations"); }
