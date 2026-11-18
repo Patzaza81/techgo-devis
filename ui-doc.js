@@ -5,6 +5,14 @@ export const esc = (x) => String(x ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&am
 export const fmtN = (n) => (n === null || n === undefined ? "—" : Math.round(n).toLocaleString("fr-FR"));
 export const fmtD = (n) => (n === null || n === undefined ? "—" : Number(n).toLocaleString("fr-FR", { maximumFractionDigits: 2 }));
 // Quantité : entière → sans décimale ; mesurée (m³, m², ml) → jusqu'à 2 décimales. Jamais « 0 » pour 0,32 m³.
+// Accord de l'unité dans une phrase (« 2 jours × 20 000 ») : pluriel à partir de 2 (règle française),
+// seulement pour les unités qui sont des mots ; m², ml, kg, FCFA… ne changent jamais. Le tableau garde l'unité telle quelle.
+const MOTS_UNITE = new Set(["jour", "heure", "sac", "pièce", "carton", "pot", "seau", "rouleau", "barre", "camion", "trajet", "mètre", "tonne", "litre", "paquet", "feuille", "lot", "unité", "point", "ensemble", "semaine", "voyage", "poste", "appareil", "bidon", "boîte", "flacon", "tube", "cartouche", "forfait"]);
+export function uniteAccord(u, q) {
+  const s = String(u || ""), k = s.toLowerCase();
+  if (!(Number(q) >= 2) || !MOTS_UNITE.has(k)) return s;
+  return s + (/eau$/i.test(s) ? "x" : "s");
+}
 export const fmtQ = (n) => (n === null || n === undefined ? "—" : Number.isInteger(n) ? fmtN(n) : fmtD(n));
 export const fmt = (n) => (n === null || n === undefined ? "—" : fmtN(n) + " FCFA");
 export const frDate = (iso) => (iso ? iso.slice(0, 10).split("-").reverse().join("/") : "");
@@ -119,7 +127,7 @@ const optBox = (x) => (x.opt.length ? `<p>☐ Offre de base seule — <b>${fmt(x
 
 // Détail d'un poste résumé (main-d'œuvre, outils, transport) : ce que l'artisan a saisi reste visible du client.
 // Un forfait unique (1 ligne, quantité 1) garde la présentation des devis d'origine.
-const detailPoste = (ls) => (ls.length === 1 && ls[0].qty === 1 ? "" : `<div class="note">${ls.map((l) => `${esc(l.label)} : ${fmtQ(l.qty)} ${esc(l.unit)} × ${fmtN(l.price)} = ${fmtN(l.total)}`).join(" · ")}</div>`);
+const detailPoste = (ls) => (ls.length === 1 && ls[0].qty === 1 ? "" : `<div class="note">${ls.map((l) => `${esc(l.label)} : ${fmtQ(l.qty)} ${esc(uniteAccord(l.unit, l.qty))} × ${fmtN(l.price)} = ${fmtN(l.total)}`).join(" · ")}</div>`);
 // Forme « Express » : une page, un seul tableau (modèle devis n° 1111)
 function techExpress(snap, { draft = false } = {}) {
   const x = tctx(snap, arguments[1] && arguments[1].ref), { q, c, t, vat } = x;

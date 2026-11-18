@@ -25,3 +25,7 @@ jobs:
       - run: node test-listes.mjs
       - run: node test-ref.mjs
       - run: node test-tech.mjs
+      - run: node test-saisie.mjs
+      - run: node test-arrondi.mjs
+      - run: node test-journal.mjs
+      - run: node test-texte.mjs

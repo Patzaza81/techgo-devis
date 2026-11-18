@@ -31,8 +31,9 @@ Aucun devis enregistré n'est perdu : un ancien nom de produit retrouve sa fiche
 | Unités du produit en premier dans la fiche | RÉUSSI | captures `ecrans/fiche-carrelage.png` ; contrôle mobile 140/140 |
 | Ancienne aide au m² retirée, renvoi au métré visible | RÉUSSI | contrôle mobile (360 et 390 px) |
 | Envoi en un geste pour le technicien | RÉUSSI | scénario V1 (version 1 envoyée, puis V2, V1 inchangée) |
+| Texte du PDF : espace gardé entre deux morceaux (« francs CFA (123 424… ») ; « 3 jours × 15 000 » au lieu de « 3 jour » | RÉUSSI | `test-texte.mjs` (10), PDF de K2 relu |
 | Journal d'essai sans contenu saisi | RÉUSSI | `test-journal.mjs` (12) + `outils/essai-journal.cjs` (8/8) |
-| Non-régression | RÉUSSI | 14 fichiers de tests unitaires (784 vérifications), parcours métré 325/325, contrôle mobile 140/140, 29 scénarios × 360/390/414 px |
+| Non-régression | RÉUSSI | 15 fichiers de tests unitaires (794 vérifications), parcours métré 325/325, contrôle mobile 140/140, 29 scénarios × 360/390/414 px |
 | Word ouvert dans Microsoft Word | NON TESTÉ | à faire par toi sur iPhone (voir kit, § 7) |
 | Affichage sur un vrai iPhone / Android | NON TESTÉ | à faire sur l'aperçu Netlify |
 | 25 artisans débutants sans tutoriel | NON TESTÉ | kit prêt : `KIT-ESSAI-ARTISANS.md` |

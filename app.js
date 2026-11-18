@@ -14,7 +14,7 @@ import { LISTES, METIERS, visibleIn, metierLabel } from "./metiers/listes.js";
 import { refOf, unitsOf } from "./metiers/ref.js";
 import { AJOUTS, unitesListe } from "./metiers/complements.js";
 import { vocab } from "./metiers/vocab.js";
-import { esc, fmt, fmtN, fmtQ, fmtD, frDate, renderDoc, renderInvoice, summaryText } from "./ui-doc.js";
+import { esc, fmt, fmtN, fmtQ, fmtD, frDate, renderDoc, renderInvoice, summaryText, uniteAccord } from "./ui-doc.js";
 
 const $ = (s) => document.querySelector(s);
 const ICONS = {
@@ -379,7 +379,7 @@ function stepTravauxS(q, ev, dis) {
     const oneRow = (r) => {
       const open = t.open === r.key && t.tab === k, l = r.line, unk = l && (l.price === null || l.qty === null);
       const head = `<button type="button" class="rowc ${l ? "ok" : "empty"} ${unk ? "warn" : ""} ${open ? "open" : ""}" data-act="rowToggle" data-key="${esc(r.key)}" data-tab="${k}" ${dis || (r.man && r.man.mode === "equip") ? "disabled" : ""}>
-        ${l ? `<em class="tick ${unk ? "w" : ""}">${unk ? "!" : "✓"}</em>` : ""}<span class="rn"><b>${esc(r.name)}</b><small>${l ? `${l.qty === null ? "quantité ?" : fmtQ(l.qty) + " " + esc(l.unit)} × ${l.price === null ? "prix ?" : fmtN(l.price)}` : "Toucher pour remplir"}</small></span>
+        ${l ? `<em class="tick ${unk ? "w" : ""}">${unk ? "!" : "✓"}</em>` : ""}<span class="rn"><b>${esc(r.name)}</b><small>${l ? `${l.qty === null ? "quantité ?" : fmtQ(l.qty) + " " + esc(uniteAccord(l.unit, l.qty))} × ${l.price === null ? "prix ?" : fmtN(l.price)}` : "Toucher pour remplir"}</small></span>
         <span class="rt">${l ? (l.total === null ? "prix manquant" : fmtN(l.total)) : ""}<i>${open ? "▲" : "▼"}</i></span></button>`;
       return head + (open ? sheetForm(t, k === "produits", rf, met) : "");
     };

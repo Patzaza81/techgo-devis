@@ -87,7 +87,7 @@ export async function makePdfTexte(source, sujet) {
         const a = R(rects[0]), z = R(rects[rects.length - 1]);
         if (rects.length > 1 && Math.abs(a.y - z.y) > 2) { fin(); textes.push({ t: m[0], x: a.x, y: a.y, h: a.h, taille, gras, ital, col, larg: null, maj }); continue; } // mot coupé (rare)
         if (ligne && Math.abs(ligne.y - a.y) <= 2 && a.x >= ligne.x) { ligne.t += " " + m[0]; ligne.larg = z.x + z.w - ligne.x; }
-        else { fin(); ligne = { t: m[0], x: a.x, y: a.y, h: a.h, taille, gras, ital, col, larg: z.x + z.w - a.x, maj }; }
+        else { fin(); ligne = { t: m[0], x: a.x, y: a.y, h: a.h, taille, gras, ital, col, larg: z.x + z.w - a.x, maj, esp: m.index > 0 }; }
       }
       fin();
     }
@@ -127,6 +127,8 @@ export async function makePdfTexte(source, sujet) {
         const largeurTexte = morceaux.reduce((s, p) => s + (/^[²³¹]$/.test(p) ? pdf.getTextWidth("2") * 0.7 : pdf.getTextWidth(p)), 0);
         const hs = t.larg && largeurTexte > 0 ? Math.max(0.75, Math.min(1.25, mm(t.larg) / largeurTexte)) : 1;
         let cx = X(t.x);
+        // Espace qui sépare ce morceau du précédent (« <b>CFA</b> (123… ») : dessiné, pour que le texte copié garde l'espace.
+        if (t.esp && morceaux[0]) { cx -= pdf.getTextWidth(" ") * hs; morceaux[0] = " " + morceaux[0]; }
         for (const p of morceaux) {
           if (!p) continue;
           if (/^[²³¹]$/.test(p)) { pdf.setFontSize(pts * 0.7); const ch = p === "²" ? "2" : p === "³" ? "3" : "1"; pdf.text(ch, cx, base - mm(t.taille) * 0.33, { horizontalScale: hs }); cx += pdf.getTextWidth(ch) * hs; pdf.setFontSize(pts); }
