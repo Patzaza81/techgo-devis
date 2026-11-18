@@ -10,10 +10,16 @@ export const fmtD = (n) => (n === null || n === undefined ? "—" : Number(n).to
 const MOTS_UNITE = new Set(["jour", "heure", "sac", "pièce", "carton", "pot", "seau", "rouleau", "barre", "camion", "trajet", "mètre", "tonne", "litre", "paquet", "feuille", "lot", "unité", "point", "ensemble", "semaine", "voyage", "poste", "appareil", "bidon", "boîte", "flacon", "tube", "cartouche", "forfait"]);
 export function uniteAccord(u, q) {
   const s = String(u || ""), k = s.toLowerCase();
-  if (!(Number(q) >= 2) || !MOTS_UNITE.has(k)) return s;
-  return s + (/eau$/i.test(s) ? "x" : "s");
+  const comp = /^(journée|jour|heure)( d['’].+)$/.exec(k); // « journée d'ouvrier » → « journées d'ouvrier »
+  if (comp) return Number(q) >= 2 ? comp[1] + "s" + comp[2] : k;
+  if (!MOTS_UNITE.has(k)) return s;
+  // dans une phrase, une unité qui est un mot s'écrit en minuscules (« 3 pièces », pas « 3 Pièces »)
+  return Number(q) >= 2 ? k + (/eau$/.test(k) ? "x" : "s") : k;
 }
-export const fmtQ = (n) => (n === null || n === undefined ? "—" : Number.isInteger(n) ? fmtN(n) : fmtD(n));
+// Quantité et prix unitaire : affichés au millième près, exactement comme le calcul les prend (règle d'arrondi unique).
+const mil = (n) => Number(n).toLocaleString("fr-FR", { maximumFractionDigits: 3 });
+export const fmtQ = (n) => (n === null || n === undefined ? "—" : Number.isInteger(n) ? fmtN(n) : mil(n));
+export const fmtPU = (n) => (n === null || n === undefined ? "—" : Number.isInteger(n) ? fmtN(n) : mil(n));
 export const fmt = (n) => (n === null || n === undefined ? "—" : fmtN(n) + " FCFA");
 export const frDate = (iso) => (iso ? iso.slice(0, 10).split("-").reverse().join("/") : "");
 
@@ -65,7 +71,7 @@ function groupTable(lines) {
   return groups.map((g) => {
     const ls = lines.filter((l) => l.group === g);
     return `<tr class="sub"><td colspan="4">${esc(g)}</td></tr>` +
-      ls.map((l) => `<tr><td><b>${esc(l.label)}</b>${l.role ? `<div class="note">${esc(l.role)}</div>` : ""}</td><td class="n">${fmtQ(l.qty)} ${esc(l.unit)}</td><td class="n">${fmtN(l.price)}</td><td class="n">${fmtN(l.total)}</td></tr>`).join("") +
+      ls.map((l) => `<tr><td><b>${esc(l.label)}</b>${l.role ? `<div class="note">${esc(l.role)}</div>` : ""}</td><td class="n">${fmtQ(l.qty)} ${esc(l.unit)}</td><td class="n">${fmtPU(l.price)}</td><td class="n">${fmtN(l.total)}</td></tr>`).join("") +
       `<tr class="sub"><td colspan="3">Sous-total — ${esc(g)}</td><td class="n">${fmtN(ls.reduce((a, l) => a + (l.total ?? 0), 0))}</td></tr>`;
   }).join("");
 }
@@ -127,11 +133,11 @@ const optBox = (x) => (x.opt.length ? `<p>☐ Offre de base seule — <b>${fmt(x
 
 // Détail d'un poste résumé (main-d'œuvre, outils, transport) : ce que l'artisan a saisi reste visible du client.
 // Un forfait unique (1 ligne, quantité 1) garde la présentation des devis d'origine.
-const detailPoste = (ls) => (ls.length === 1 && ls[0].qty === 1 ? "" : `<div class="note">${ls.map((l) => `${esc(l.label)} : ${fmtQ(l.qty)} ${esc(uniteAccord(l.unit, l.qty))} × ${fmtN(l.price)} = ${fmtN(l.total)}`).join(" · ")}</div>`);
+const detailPoste = (ls) => (ls.length === 1 && ls[0].qty === 1 ? "" : `<div class="note">${ls.map((l) => `${esc(l.label)} : ${fmtQ(l.qty)} ${esc(uniteAccord(l.unit, l.qty))} × ${fmtPU(l.price)} = ${fmtN(l.total)}`).join(" · ")}</div>`);
 // Forme « Express » : une page, un seul tableau (modèle devis n° 1111)
 function techExpress(snap, { draft = false } = {}) {
   const x = tctx(snap, arguments[1] && arguments[1].ref), { q, c, t, vat } = x;
-  const rows = (ls) => ls.map((l) => `<tr><td><b>${esc(l.label)}</b>${l.role ? `<div class="note">${esc(l.role)}</div>` : ""}</td><td class="n">${fmtQ(l.qty)}</td><td>${esc(l.unit)}</td><td class="n">${fmtN(l.price)}</td><td class="n">${fmtN(l.total)}</td></tr>`).join("");
+  const rows = (ls) => ls.map((l) => `<tr><td><b>${esc(l.label)}</b>${l.role ? `<div class="note">${esc(l.role)}</div>` : ""}</td><td class="n">${fmtQ(l.qty)}</td><td>${esc(l.unit)}</td><td class="n">${fmtPU(l.price)}</td><td class="n">${fmtN(l.total)}</td></tr>`).join("");
   const grp = [["Main-d'œuvre", x.mo], ["Outils, machines et accès", x.out], ["Transport, logistique et divers", x.log]].filter(([, ls]) => ls.length);
   return `<div id="doc" class="tpl-${x.tpl} tf tf-express" style="--dc:${x.acc}">
     ${head(c, x.pres, draft)}
@@ -144,7 +150,8 @@ function techExpress(snap, { draft = false } = {}) {
     </div>
     <table><thead><tr><th>Désignation</th><th class="n">Qté</th><th>Unité</th><th class="n">P.U.</th><th class="n">Montant</th></tr></thead>
       ${rows(x.mat)}${x.opt.length ? `<tr class="sub"><td colspan="5">Option non obligatoire</td></tr>${rows(x.opt)}` : ""}
-      ${grp.map(([k, ls]) => `<tr class="sub"><td colspan="4">${k}${ls.length === 1 ? " — " + esc(ls[0].label) : ""}${detailPoste(ls)}</td><td class="n">${fmtN(x.sum(ls))}</td></tr>`).join("")}
+      ${grp.map(([k, ls]) => ls.length >= 4 ? `<tr class="sub"><td colspan="5">${k}</td></tr>${rows(ls)}<tr class="sub"><td colspan="4">Sous-total ${k.toLowerCase()}</td><td class="n">${fmtN(x.sum(ls))}</td></tr>`
+        : `<tr class="sub"><td colspan="4">${k}${ls.length === 1 ? " — " + esc(ls[0].label) : ""}${detailPoste(ls)}</td><td class="n">${fmtN(x.sum(ls))}</td></tr>`).join("")}
       ${t.discountBase ? `<tr><td colspan="4">Remise${q.discount.pct > 0 ? " (" + q.discount.pct + " %)" : ""}</td><td class="n">− ${fmtN(t.discountBase)}</td></tr>` : ""}
       <tr class="sub"><td colspan="4">TOTAL ${vat === null ? "(hors taxes)" : "HT"}</td><td class="n">${fmtN(t.base)}</td></tr>
       ${vat === null ? "" : `<tr><td colspan="4">TVA ${fmtD(vat)} %</td><td class="n">${fmtN(t.vatBase)}</td></tr><tr class="sub"><td colspan="4">TOTAL TTC</td><td class="n">${fmtN(t.ttcBase)}</td></tr>`}
@@ -158,8 +165,9 @@ function techExpress(snap, { draft = false } = {}) {
 // Forme « Chantier » : deux pages, fournitures puis synthèse et paiement (modèle ERCOG)
 function techChantier(snap, { draft = false } = {}) {
   const x = tctx(snap, arguments[1] && arguments[1].ref), { q, c, t, vat } = x;
-  const rows = (ls) => ls.map((l) => `<tr><td><b>${esc(l.label)}</b>${l.role ? `<div class="note">${esc(l.role)}</div>` : ""}</td><td class="n">${fmtQ(l.qty)} ${esc(l.unit)}</td><td class="n">${fmtN(l.price)}</td><td class="n">${fmtN(l.total)}</td></tr>`).join("");
+  const rows = (ls) => ls.map((l) => `<tr><td><b>${esc(l.label)}</b>${l.role ? `<div class="note">${esc(l.role)}</div>` : ""}</td><td class="n">${fmtQ(l.qty)} ${esc(l.unit)}</td><td class="n">${fmtPU(l.price)}</td><td class="n">${fmtN(l.total)}</td></tr>`).join("");
   const partiel = x.sum(x.mat) + x.sum(x.out) + x.sum(x.log);
+  const longs = [["Main-d'œuvre", x.mo], ["Outils, machines et accès", x.out], ["Transport, logistique et divers", x.log]].filter(([, ls]) => ls.length >= 4);
   const crew = q.terms.crew || {};
   return `<div id="doc" class="tpl-${x.tpl} tf tf-chantier" style="--dc:${x.acc}">
     ${head(c, x.pres, draft)}
@@ -171,18 +179,19 @@ function techChantier(snap, { draft = false } = {}) {
     <table><thead><tr><th>Désignation</th><th class="n">Quantité</th><th class="n">P.U. (FCFA)</th><th class="n">Montant (FCFA)</th></tr></thead>${rows(x.mat)}<tr class="sub"><td colspan="3">${hasOuv(x.mat) ? "SOUS-TOTAL FOURNITURES ET OUVRAGES" : "SOUS-TOTAL MATÉRIAUX"}</td><td class="n">${fmtN(x.sum(x.mat))}</td></tr></table>
     ${x.opt.length ? `<h3>Option non obligatoire</h3><table><tr><th>Désignation</th><th class="n">Quantité</th><th class="n">P.U. (FCFA)</th><th class="n">Montant (FCFA)</th></tr>${rows(x.opt)}<tr class="sub"><td colspan="3">SOUS-TOTAL OPTION</td><td class="n">${fmtN(x.sum(x.opt))}</td></tr></table>` : ""}
     <div class="gt"><div class="gl"><span>MONTANT TOTAL DU DEVIS${vat === null ? " (HT)" : " (TTC)"}<br><small>Transport et main-d'œuvre inclus — détail dans la synthèse financière</small></span><b class="gb">${fmt(x.grand)}</b></div></div>
-    <h3>2. Synthèse financière</h3>
+    ${longs.map(([k, ls], i) => `<h3>${2 + i}. ${k}</h3><table><thead><tr><th>Désignation</th><th class="n">Quantité</th><th class="n">P.U. (FCFA)</th><th class="n">Montant (FCFA)</th></tr></thead>${rows(ls)}<tr class="sub"><td colspan="3">SOUS-TOTAL ${k.toUpperCase()}</td><td class="n">${fmtN(x.sum(ls))}</td></tr></table>`).join("")}
+    <h3>${2 + longs.length}. Synthèse financière</h3>
     <table><tr><td>${hasOuv(x.mat) ? "Sous-total fournitures et ouvrages" : "Sous-total matériaux"}</td><td class="n">${fmt(x.sum(x.mat))}</td></tr>
-      ${x.out.length ? `<tr><td>Outils, machines et accès${detailPoste(x.out)}</td><td class="n">${fmt(x.sum(x.out))}</td></tr>` : ""}${x.log.length ? `<tr><td>Transport, logistique et divers${detailPoste(x.log)}</td><td class="n">${fmt(x.sum(x.log))}</td></tr>` : ""}
+      ${x.out.length ? `<tr><td>Outils, machines et accès${x.out.length >= 4 ? "" : detailPoste(x.out)}</td><td class="n">${fmt(x.sum(x.out))}</td></tr>` : ""}${x.log.length ? `<tr><td>Transport, logistique et divers${x.log.length >= 4 ? "" : detailPoste(x.log)}</td><td class="n">${fmt(x.sum(x.log))}</td></tr>` : ""}
       <tr class="sub"><td>Total partiel (coût des travaux)</td><td class="n">${fmt(partiel)}</td></tr>
-      ${x.mo.length ? `<tr><td>Main-d'œuvre${detailPoste(x.mo)}</td><td class="n">${fmt(x.sum(x.mo))}</td></tr>` : ""}
+      ${x.mo.length ? `<tr><td>Main-d'œuvre${x.mo.length >= 4 ? "" : detailPoste(x.mo)}</td><td class="n">${fmt(x.sum(x.mo))}</td></tr>` : ""}
       ${t.discountBase ? `<tr><td>Remise</td><td class="n">− ${fmt(t.discountBase)}</td></tr>` : ""}
       <tr class="sub"><td>TOTAL ${vat === null ? "GÉNÉRAL (hors taxes)" : "HT"}</td><td class="n">${fmt(t.base)}</td></tr>
       ${vat === null ? "" : `<tr><td>TVA ${fmtD(vat)} %</td><td class="n">${fmt(t.vatBase)}</td></tr><tr class="sub"><td>TOTAL TTC</td><td class="n">${fmt(t.ttcBase)}</td></tr>`}
       ${x.opt.length ? `<tr class="sub"><td>Total avec option (HT)</td><td class="n">${fmt(t.withOption)}</td></tr>` : ""}</table>
     <p class="note">Arrêté le présent devis à la somme de : <b>${toWordsFr(x.grand)} francs CFA</b>.</p>
     ${crew.workers > 0 || crew.extraDay > 0 ? `<p class="note"><b>Main-d'œuvre :</b> ${crew.workers > 0 ? `${crew.workers} ouvrier${crew.workers > 1 ? "s" : ""}${x.delay ? `, durée prévue ${x.delay}` : ""}. ` : ""}${crew.extraDay > 0 ? `Au-delà de la durée prévue, supplément de ${fmtN(crew.extraDay)} FCFA par jour, validé avec le client avant poursuite.` : ""}</p>` : ""}
-    <h3>3. Modalités de paiement</h3>
+    <h3>${3 + longs.length}. Modalités de paiement</h3>
     <table><tr><th>Échéance</th><th class="n">Montant</th><th>Déclenchement</th></tr>${x.pay.map((p) => `<tr><td>${p.name}</td><td class="n">${fmt(p.amt)}</td><td>${esc(p.trig)}</td></tr>`).join("")}</table>
     <h3>4. Conditions</h3>
     <ul class="note"><li>Validité : ${q.validityDays ?? "…"} jours calendaires à compter de la date d'émission du devis.</li><li>Durée des travaux : ${x.delay || "selon planning à convenir avec le client"}.</li><li>Observations : toute prestation non incluse dans le présent devis fera l'objet d'un avenant écrit.</li>${(snap.conditions || []).map((y) => `<li>${esc(y)}</li>`).join("")}${q.notes ? `<li>${esc(q.notes).replace(/\n/g, "<br>")}</li>` : ""}</ul>${optBox(x)}
@@ -201,9 +210,12 @@ function techDetaille(snap, { draft = false, ref = "" } = {}) {
   const ohOn = q.overhead && q.overhead.mode === "ligne" && q.overhead.pct > 0;
   const crew = q.terms.crew || {}, dMin = q.terms.delayMin, dMax = q.terms.delayMax;
   const sNet = effSurface(q.site);
-  const matRows = (ls) => ls.map((l) => `<tr><td><b>${esc(l.label)}</b>${l.role ? `<div class="note">${esc(l.role)}</div>` : ""}</td><td>${esc(l.unit)}</td><td class="n">${fmtQ(l.qty)}</td><td class="n">${fmtN(l.price)}</td><td class="n">${fmtN(l.total)}</td></tr>`).join("");
+  const matRows = (ls) => ls.map((l) => `<tr><td><b>${esc(l.label)}</b>${l.role ? `<div class="note">${esc(l.role)}</div>` : ""}</td><td>${esc(l.unit)}</td><td class="n">${fmtQ(l.qty)}</td><td class="n">${fmtPU(l.price)}</td><td class="n">${fmtN(l.total)}</td></tr>`).join("");
   const head5 = `<tr><th>Désignation</th><th>Unité</th><th class="n">Qté</th><th class="n">P.U. (FCFA)</th><th class="n">Total (FCFA)</th></tr>`;
-  const synth = [[hasOuv(mat) ? "Fournitures, matériaux et ouvrages" : "Fournitures et matériaux", sum(mat), ""], ["Main-d'œuvre", sum(mo), mo.length ? detailPoste(mo) : ""], ["Outils, machines et accès", sum(out), out.length ? detailPoste(out) : ""], ["Transport, logistique et divers", sum(log), log.length ? detailPoste(log) : ""]].filter((x) => x[1] > 0);
+  // Un poste de 4 lignes ou plus a son propre tableau (lisible, jamais un long paragraphe) ; sinon le détail tient sous la synthèse.
+  const LONG = 4, postes = [["Main-d'œuvre", mo], ["Outils, machines et accès", out], ["Transport, logistique et divers", log]].filter(([, ls]) => ls.length >= LONG);
+  const enTableau = (ls) => ls.length >= LONG;
+  const synth = [[hasOuv(mat) ? "Fournitures, matériaux et ouvrages" : "Fournitures et matériaux", sum(mat), ""], ["Main-d'œuvre", sum(mo), mo.length && !enTableau(mo) ? detailPoste(mo) : ""], ["Outils, machines et accès", sum(out), out.length && !enTableau(out) ? detailPoste(out) : ""], ["Transport, logistique et divers", sum(log), log.length && !enTableau(log) ? detailPoste(log) : ""]].filter((x) => x[1] > 0);
   const delay = dMin && dMax && dMin !== dMax ? `${dMin} à ${dMax} jours` : dMax || dMin ? `${dMax || dMin} jours maximum` : "";
   const crewTxt = [crew.workers > 0 ? `Ce poste couvre la mobilisation de ${crew.workers} ouvrier${crew.workers > 1 ? "s" : ""}${delay ? ` sur une durée prévisionnelle de ${delay}` : ""}, ainsi que la supervision et la coordination du chantier.` : "", crew.extraDay > 0 ? `Au-delà de la durée prévue, pour une cause non imputable à ${esc(c.name)}, un supplément journalier de ${fmtN(crew.extraDay)} FCFA sera appliqué et validé avec le client avant poursuite des travaux.` : ""].filter(Boolean).join(" ");
   return `<div id="doc" class="tpl-${tpl} tf tf-detaille" style="--dc:${acc}">
@@ -220,7 +232,8 @@ function techDetaille(snap, { draft = false, ref = "" } = {}) {
     <div class="gt"><div class="gl"><span>MONTANT TOTAL${vat === null ? " (hors taxes)" : " (HT)"}</span><b class="gb">${fmt(t.base)}</b></div>${vat === null ? "" : `<div class="gl"><span>Total TTC</span><b>${fmt(t.ttcBase)}</b></div>`}${opt.length ? `<div class="gl gold"><span>Avec option</span><b>${fmt(t.withOption)}</b></div>` : ""}</div>
     ${mat.length ? `<h3>1. ${hasOuv(mat) ? "Fournitures, matériaux et ouvrages" : "Fournitures et matériaux"}</h3><table><thead>${head5}</thead>${matRows(mat)}<tr class="sub"><td colspan="4">${hasOuv(mat) ? "SOUS-TOTAL FOURNITURES ET OUVRAGES" : "SOUS-TOTAL FOURNITURES"}</td><td class="n">${fmtN(sum(mat))}</td></tr></table>` : ""}
     ${opt.length ? `<h3>Option non obligatoire</h3><table><thead>${head5}</thead>${matRows(opt)}<tr class="sub"><td colspan="4">SOUS-TOTAL OPTION</td><td class="n">${fmtN(sum(opt))}</td></tr></table>` : ""}
-    <h3>${mat.length ? "2" : "1"}. Synthèse financière</h3>
+    ${postes.map(([titre, ls], i) => `<h3>${(mat.length ? 2 : 1) + i}. ${titre}</h3><table><thead>${head5}</thead>${matRows(ls)}<tr class="sub"><td colspan="4">SOUS-TOTAL ${titre.toUpperCase()}</td><td class="n">${fmtN(sum(ls))}</td></tr></table>`).join("")}
+    <h3>${(mat.length ? 2 : 1) + postes.length}. Synthèse financière</h3>
     <table>${synth.map(([k, v, d]) => `<tr><td>${k}${d}</td><td class="n">${fmt(v)}</td></tr>`).join("")}
       ${ohOn ? `<tr><td>Frais de fonctionnement (${q.overhead.pct} %)</td><td class="n">${fmt(t.overheadBase)}</td></tr>` : ""}
       ${t.discountBase ? `<tr><td>Remise${q.discount.pct > 0 ? " (" + q.discount.pct + " %)" : ""}</td><td class="n">− ${fmt(t.discountBase)}</td></tr>` : ""}
@@ -229,7 +242,7 @@ function techDetaille(snap, { draft = false, ref = "" } = {}) {
       ${opt.length ? `<tr><td>Option</td><td class="n">${fmt(t.withOption - t.base)}</td></tr><tr class="sub"><td>Total avec option (HT)</td><td class="n">${fmt(t.withOption)}</td></tr>` : ""}</table>
     <p class="note">Arrêté le présent devis à la somme de <b>${toWordsFr(vat === null ? t.base : t.ttcBase)} francs CFA</b> (${fmtN(vat === null ? t.base : t.ttcBase)} FCFA${vat === null ? " hors taxes" : " TTC"}).</p>
     ${crewTxt ? `<p class="note"><b>Précision sur la main-d'œuvre :</b> ${crewTxt}</p>` : ""}
-    <h3>${mat.length ? "3" : "2"}. Modalités de paiement</h3>
+    <h3>${(mat.length ? 3 : 2) + postes.length}. Modalités de paiement</h3>
     <table><tr><th>Échéance</th><th class="n">Montant (FCFA)</th><th>Déclenchement</th></tr>
       ${Array.from({ length: nPay }, (_, i) => `<tr><td>${i === 0 ? "Acompte" : i === nPay - 1 ? "Solde" : "Versement " + (i + 1)}${pc[i] !== undefined && pc.length === nPay ? ` (${pc[i]} %)` : ""}</td><td class="n">${fmtN(vat === null ? sc.base.combined[i] : sc.base.ttc[i])}</td><td>${esc(trig[i] || "")}</td></tr>`).join("")}</table>
     <h3>Conditions</h3>

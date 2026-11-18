@@ -27,15 +27,15 @@ const qteLigne = async (p, nom) => txt(p, `button.rowc[data-act="rowToggle"]:has
 // Un chantier d'essai par métier : mêmes nombres que test-metre.mjs (calculs écrits là-bas).
 const CHANTIERS = {
   peinture: { type: "p_piece", zone: "Salon", async saisir(p) { await V(p, "longueur", 4); await V(p, "largeur", 3); await V(p, "hauteur", 2.8); await plus(p, "ouv"); await V(p, "ouv.0.l", 0.9); await V(p, "ouv.0.h", 2.1); await plus(p, "ouv"); await V(p, "ouv.1.l", 1.2); await V(p, "ouv.1.h", 1.2); await coche(p, "plafond"); await plus(p, "prod", "Peinture acrylique"); await V(p, "prod.0.couches", 2); await V(p, "prod.0.couv", 40); await V(p, "perte", 5); await sel(p, "moMode", "ouvrier"); await V(p, "moRend", 25); await V(p, "moOuv", 2); },
-    calcul: ["47,87", "2 × (4 + 3) × 2,8 = 39,2 m²", "÷ 40 m² par pot = 2,51"], lignes: [["Peinture acrylique", "3 Pot", 25000], ["Travaux de peinture — 2 ouvriers", "4 journée d'ouvrier", 8000]], total: 107000 },
+    calcul: ["47,87", "2 × (4 + 3) × 2,8 = 39,2 m²", "÷ 40 m² par pot = 2,51"], lignes: [["Peinture acrylique", "3 pots", 25000], ["Travaux de peinture — 2 ouvriers", "4 journées d'ouvrier", 8000]], total: 107000 },
   carrelage: { type: "c_sol", zone: "Séjour", async saisir(p) { await V(p, "longueur", 5); await V(p, "largeur", 4); await V(p, "carreau", "Grès 60×60"); await V(p, "cA", 60); await V(p, "cB", 60); await V(p, "parCarton", 4); await V(p, "perte", 10); await V(p, "colle", 5); await V(p, "colleSac", 25); await V(p, "jointC", 0.5); await V(p, "jointSac", 5); await coche(p, "plinthes"); await V(p, "portes", 0.9); await V(p, "plinthe", 60); await V(p, "perteP", 10); await sel(p, "moMode", "tache"); },
-    calcul: ["5 × 4 = 20 m²", "÷ 1,44 m² par carton", "= 15,28"], lignes: [["Grès 60×60", "16 Carton", 12000], ["Colle à carrelage", "4 Sac", 6000], ["Joint de carrelage", "2 Sac", 3500], ["Plinthes", "32 Pièce", 800], ["Pose de carrelage", "20 m²", 3000]], total: 308600 },
+    calcul: ["5 × 4 = 20 m²", "÷ 1,44 m² par carton", "= 15,28"], lignes: [["Grès 60×60", "16 cartons", 12000], ["Colle à carrelage", "4 sacs", 6000], ["Joint de carrelage", "2 sacs", 3500], ["Plinthes", "32 pièces", 800], ["Pose de carrelage", "20 m²", 3000]], total: 308600 },
   maconnerie: { type: "m_mur", zone: "Clôture", async saisir(p) { await V(p, "longueur", 10); await V(p, "hauteur", 3); await V(p, "blocNom", "Parpaing de 15"); await V(p, "blocL", 40); await V(p, "blocH", 20); await V(p, "joint", 1); await V(p, "perte", 5); await coche(p, "mortier"); await V(p, "blocE", 15); await V(p, "ciment", 350); await V(p, "sac", 50); await V(p, "sable", 1); await sel(p, "moMode", "ouvrier"); await V(p, "moRend", 10); await V(p, "moOuv", 3); },
-    calcul: ["10 × 3 = 30 m²", "= 11,61 blocs par m²", "0,319 m³"], lignes: [["Parpaing de 15", "366 Pièce", 350], ["Ciment", "3 Sac", 5200], ["Sable", "0,32 m³", 15000], ["Élévation de mur — 3 ouvriers", "9 journée d'ouvrier", 6000]], total: 202500 },
+    calcul: ["10 × 3 = 30 m²", "= 11,61 blocs par m²", "0,319 m³"], lignes: [["Parpaing de 15", "366 pièces", 350], ["Ciment", "3 sacs", 5200], ["Sable", "0,32 m³", 15000], ["Élévation de mur — 3 ouvriers", "9 journées d'ouvrier", 6000]], total: 202500 },
   plomberie: { type: "pl_reseau", zone: "Salle de bain", async saisir(p) { await V(p, "tuyau", "Tube PVC Ø100"); await V(p, "longueur", 23); await V(p, "perte", 10); await V(p, "barre", 4); await plus(p, "art", "Coude"); await V(p, "art.0.n", 6); await V(p, "colEsp", 80); await sel(p, "moMode", "tache"); },
-    calcul: ["23 ml mesurés + 10 % de pertes = 25,3 ml", "÷ 4 m par barre = 6,33"], lignes: [["Tube PVC Ø100", "7 Barre", 4500], ["Colliers pour Tube PVC Ø100", "30 Pièce", 300], ["Coude", "6 Pièce", 1200], ["Pose de tuyauterie", "23 ml", 1000]], total: 70700 },
+    calcul: ["23 ml mesurés + 10 % de pertes = 25,3 ml", "÷ 4 m par barre = 6,33"], lignes: [["Tube PVC Ø100", "7 barres", 4500], ["Colliers pour Tube PVC Ø100", "30 pièces", 300], ["Coude", "6 pièces", 1200], ["Pose de tuyauterie", "23 ml", 1000]], total: 70700 },
   electricite: { type: "e_ligne", zone: "Rez-de-chaussée", async saisir(p) { await V(p, "cable", "Câble 3G2,5"); await V(p, "nombre", 2); await V(p, "longueur", 18); await V(p, "reserve", 0.3); await V(p, "racc", 6); await V(p, "perte", 10); await V(p, "rouleau", 100); await V(p, "conduit", "Gaine ICTA Ø20"); await V(p, "rouleauC", 25); await sel(p, "moMode", "tache"); },
-    calcul: ["= 43,56 ml", "÷ 100 m par rouleau = 0,44", "ne sont pas calculés"], lignes: [["Câble 3G2,5", "1 Rouleau", 45000], ["Gaine ICTA Ø20", "2 Rouleau", 9000], ["Tirage de câble", "36 ml", 500]], total: 81000 },
+    calcul: ["= 43,56 ml", "÷ 100 m par rouleau = 0,44", "ne sont pas calculés"], lignes: [["Câble 3G2,5", "1 rouleau", 45000], ["Gaine ICTA Ø20", "2 rouleaux", 9000], ["Tirage de câble", "36 ml", 500]], total: 81000 },
 };
 
 (async () => {
@@ -119,8 +119,8 @@ const CHANTIERS = {
       // 6. Cycle de vie complet (une fois par écran, en peinture) : envoi, Word, négociation, acceptation, facture, paiement
       if (met === "peinture") {
         const mk = p.locator('[data-act="mark"][data-to="pret"]'); if (await mk.count()) { await mk.click(); await pause(p, 400); }
-        await p.locator('[data-act="send"]').first().click(); await pause(p, 500);
-        ok(T + "version 1 envoyée (et figée)", (await txt(p, "#app")).includes("Version 1 envoyée"), (await txt(p, ".banner")).slice(0, 120));
+        await p.locator('[data-act="send"]').first().click(); await p.waitForSelector('[data-act="saveFile"]', { timeout: 60000 }).catch(() => null); await pause(p, 300);
+        ok(T + "version 1 terminée (figée) et son PDF prêt", (await txt(p, "#app")).includes("Version 1 terminée") && (await p.locator('[data-act="saveFile"]').count()) > 0, (await txt(p, ".banner")).slice(0, 120));
         const w = p.locator('[data-act="word"]').first();
         if (await w.count()) { await w.click(); await p.waitForSelector('[data-act="saveFile"]', { timeout: 30000 }); const [d2] = await Promise.all([p.waitForEvent("download", { timeout: 20000 }), p.locator('[data-act="saveFile"]').click()]); const f = `/tmp/metre-${met}-${largeur}.docx`; await d2.saveAs(f); ok(T + "Word créé (version figée)", fs.statSync(f).size > 5000, fs.statSync(f).size); } else ok(T + "bouton Word présent après l'envoi", false);
         await p.goto(base + "/1"); await pause(p, 400);
@@ -176,10 +176,10 @@ const CHANTIERS = {
     await V(p, "carreau", "grès 60×60");
     ok("mémoire · même carreau : son format est repris (60 × 60, 4 par carton)", (await val("cA")) === "60" && (await val("cB")) === "60" && (await val("parCarton")) === "4", `${await val("cA")}/${await val("parCarton")}`);
     await V(p, "carreau", "Grès 60×60");
-    ok("mémoire · tant que ce n'est pas confirmé : le devis garde 16 cartons", (await qteLigne(p, "Grès 60×60")).includes("16 Carton"), await qteLigne(p, "Grès 60×60"));
+    ok("mémoire · tant que ce n'est pas confirmé : le devis garde 16 cartons", (await qteLigne(p, "Grès 60×60")).includes("16 cartons"), await qteLigne(p, "Grès 60×60"));
     await p.locator('[data-act="metreConfirmer"]').tap(); await pause(p, 400);
     // 20 + 9 = 29 m² ; × 1,10 ÷ 1,44 = 22,15 → 23 cartons
-    ok("mémoire · après « Oui, je les garde » : 23 cartons (29 m²)", (await qteLigne(p, "Grès 60×60")).includes("23 Carton") && (await p.locator("#mconf").count()) === 0, await qteLigne(p, "Grès 60×60"));
+    ok("mémoire · après « Oui, je les garde » : 23 cartons (29 m²)", (await qteLigne(p, "Grès 60×60")).includes("23 cartons") && (await p.locator("#mconf").count()) === 0, await qteLigne(p, "Grès 60×60"));
     // troisième ouvrage : « Non, tout vider »
     await p.locator('.sheet.metre [data-act="metreOuv"]').click(); await pause(p, 250);
     await p.locator('[data-act="metreChoix"]').click(); await pause(p, 250); await p.locator('[data-act="metreOuvAdd"][data-t="c_sol"]').click(); await pause(p, 300);

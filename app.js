@@ -11,10 +11,10 @@ import * as Journal from "./journal.js";
 import { analyseCsv, exportCatalogueCsv, templateCsv, exportRowsCsv } from "./csv.js";
 const NEUTRAL_LOGO = "data:image/svg+xml;utf8," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><rect width="40" height="40" rx="9" fill="#e7ebed"/><path d="M12 9h12l6 6v16H12z" fill="none" stroke="#69787e" stroke-width="2.2" stroke-linejoin="round"/><path d="M16 21h10M16 26h10" stroke="#69787e" stroke-width="2.2" stroke-linecap="round"/></svg>');
 import { LISTES, METIERS, visibleIn, metierLabel } from "./metiers/listes.js";
-import { refOf, unitsOf } from "./metiers/ref.js";
+import { refOf, unitsOf, chercher } from "./metiers/ref.js";
 import { AJOUTS, unitesListe } from "./metiers/complements.js";
 import { vocab } from "./metiers/vocab.js";
-import { esc, fmt, fmtN, fmtQ, fmtD, frDate, renderDoc, renderInvoice, summaryText, uniteAccord } from "./ui-doc.js";
+import { esc, fmt, fmtN, fmtQ, fmtPU, fmtD, frDate, renderDoc, renderInvoice, summaryText, uniteAccord } from "./ui-doc.js";
 
 const $ = (s) => document.querySelector(s);
 const ICONS = {
@@ -74,7 +74,7 @@ const badge = (state, text) => `<span class="badge b-${state}">${esc(text)}</spa
 const stBadge = (s) => `<span class="st st-${s}">${esc(S.STATUS[s])}</span>`;
 // Nombre écrit par une personne : « 4,5 », « 4.5 », « 1 500 » (espaces ordinaires ou insécables). Tout autre texte (« 4m », « abc ») donne NaN :
 // on ne devine jamais une unité (60 cm lu comme 60 m serait une erreur silencieuse).
-const num = (v, z) => { const t = v === null || v === undefined ? "" : String(v).replace(/[\s\u00a0\u202f]/g, ""); if (t === "") return z ? 0 : null; return /^[+-]?(\d+([.,]\d*)?|[.,]\d+)$/.test(t) ? Number(t.replace(",", ".")) : NaN; };
+const num = (v, z) => { const t = v === null || v === undefined ? "" : String(v).replace(/[\s\u00a0\u202f]/g, ""); if (t === "") return z ? 0 : null; if (!/^[+-]?(\d+([.,]\d*)?|[.,]\d+)$/.test(t)) return NaN; const x = Number(t.replace(",", ".")); return Math.round(x * 1000) / 1000; }; // au millième : ce qui est enregistré = ce qui est affiché = ce qui est calculé
 const pctList = (s) => String(s).split("/").map((x) => x.trim()).filter((x) => x !== "").map((x) => Number(x.replace(",", ".")));
 const roots = () => ({ q: S.getQuote(ui.qid), db: S.state.db, it: ui.itemDraft, cl: ui.clientDraft, tmp: ui.tmp, ui });
 function setPath(o, path, v) { const k = path.split("."); for (let i = 0; i < k.length - 1; i++) { if (o[k[i]] === undefined || o[k[i]] === null) o[k[i]] = {}; o = o[k[i]]; } o[k[k.length - 1]] = v; }
@@ -219,6 +219,8 @@ const secOf = (met) => { const lb = refOf(met)?.labels || {}; return SEC0.map(([
 const UNITS_ROW = { ouvriers: ["forfait", "jour", "heure", "m²"], outils: ["forfait", "jour"], autres: ["forfait", "trajet", "jour"] };
 const composeLabel = (t) => `${(t.label || "").trim()}${(t.brand || "").trim() ? " " + t.brand.trim() : ""}${(t.cond || "").trim() ? " (" + t.cond.trim() + ")" : ""}`.trim();
 // Une ligne = un produit déjà proposé. On touche la ligne, la fiche s'ouvre, on remplit, le total se calcule tout seul.
+// Matériel d'usine (HTA, moteurs, ATEX, cimenteries) : montré au profil entreprise ; l'artisan le fait apparaître d'un toucher.
+const voirIndus = (q) => modeOf(q) === "entreprise" || !!ui.tmp.elec.indus;
 function sheetRows(q, ev, tab) {
   const db = S.state.db, met = metierOf(q), manIds = new Set(q.current.manual.map((m) => m.id));
   const lines = ev.result.lines.filter((l) => manIds.has(l.id) && !l.option && tabOf(l) === tab);
@@ -232,7 +234,7 @@ function sheetRows(q, ev, tab) {
   if (rf) {
     for (const r of rows) r.ref = rf.find(r.name) || null;
     const e = ui.tmp.elec;
-    for (const r of rf.rows(tab, e.dom, e.q)) { if (used.has(nz(r.name))) continue; used.add(nz(r.name)); rows.push({ key: nz(r.name), name: r.name, line: null, man: null, ref: r, fam: r.fam }); }
+    for (const r of rf.rows(tab, e.dom, e.q, { indus: voirIndus(q) })) { if (used.has(nz(r.name))) continue; used.add(nz(r.name)); rows.push({ key: nz(r.name), name: r.name, line: null, man: null, ref: r, fam: r.fam }); }
   }
   return rows.sort((x, y) => (y.line ? 1 : 0) - (x.line ? 1 : 0));
 }
@@ -336,25 +338,38 @@ function sheetForm(t, prod, rf, met) {
     ${dejaLa ? `<div class="banner warn" id="doublon"><b>« ${esc(t.label)} » est déjà dans le devis.</b> Si c'est le même produit, ferme cette fiche et change plutôt la quantité de la ligne existante. Sinon, précise le nom (ex. : la pièce).</div>` : ""}
     ${explMetre(t)}
     ${L("Unité")}<div class="unitesl">${puces}${selUnite}</div>
-    <div class="row"><div>${L("Quantité")}${I("tmp", "row.qty", t.qty, { type: "number", n: "n" })}</div><div>${L(ligneMetre(t) ? `Prix pour 1 ${esc(String(t.unit || "unité").toLowerCase())}` : "Prix unitaire")}${I("tmp", "row.price", t.price, { type: "number", n: "n" })}</div></div>
-    <div class="rowtot montantl">Montant de la ligne : <b>${tot === null ? "—" : fmt(tot)}</b></div>
+    <p class="hint" style="margin:-2px 0 8px">${t.tab === "ouvriers" ? "Comment tu factures ce travail : au m², au mètre, à la journée ou au forfait." : t.tab === "produits" ? (ligneMetre(t) && /carton|pot|sac|seau|barre|pièce|rouleau|couronne/i.test(t.unit || "") ? `Mesuré par le métré, acheté et facturé en ${esc(uniteAccord(t.unit, 2))} entier${/^(barre|pièce|couronne)$/i.test(t.unit) ? "e" : ""}s : le prix est celui d'un${/^(barre|pièce|couronne)$/i.test(t.unit) ? "e" : ""} ${esc(String(t.unit).toLowerCase())}.` : "Unité d'achat : celle dans laquelle tu achètes et factures ce produit. Le prix est celui d'une unité.") : "Le prix est celui d'une unité."}</p>
+    <div class="row"><div>${L("Quantité")}${I("tmp", "row.qty", t.qty, { type: "number", n: "n" })}</div><div>${L(t.unit ? `Prix pour 1 ${esc(uniteAccord(t.unit, 1))}` : "Prix unitaire")}${I("tmp", "row.price", t.price, { type: "number", n: "n" })}</div></div>
+    <div class="rowtot montantl"><span>${tot === null ? "Montant de la ligne" : `${fmtQ(Number(t.qty))} ${esc(uniteAccord(t.unit, Number(t.qty)))} × ${fmtPU(Number(t.price))} =`}</span><b>${tot === null ? "—" : fmt(tot)}</b></div>
     ${incomplet ? `<div class="banner warn" id="lignemanque"><b>Cette ligne n'est pas encore dans le devis.</b> Il manque : ${manq.join(", ")}.</div>` : ""}
     ${prod && !ligneMetre(t) && AIDE_QTE[met] ? `<button type="button" class="linkbtn" data-act="versMetre" style="margin:2px 0 6px">Calculer la quantité à partir d'une surface (métré)</button>` : ""}
     <details ${nbFac ? "open" : ""}><summary>Précisions écrites sur le devis (facultatif)${nbFac ? ` · ${nbFac}` : ""}</summary>${facultatif}${L("À quoi ça sert")}${I("tmp", "row.role", t.role, { ph: "Ex. : " + v.role })}</details>
     <div class="row" style="margin-top:8px"><button class="sec" data-act="rowClose">▲ Fermer</button>${ligneMetre(t) ? `<p class="hint" style="margin:0;align-self:center">Ligne du métré : pour la retirer, modifie le métré.</p>` : t.lineId ? `<button class="sec danger" data-act="rowRemove">Retirer du devis</button>` : `<p class="hint" style="margin:0;align-self:center">Remplis la quantité, l'unité et le prix : la ligne entre dans le devis.</p>`}</div></div>`;
 }
 // Électricité, plomberie : le matériel est rangé en sous-ensembles, puis en familles repliables (avec les points de vigilance du référentiel).
+// Peinture, carrelage : liste à plat, avec la même recherche que les autres métiers (début des mots, mots du chantier).
+// Les lignes déjà remplies restent toujours visibles.
+function listeAvecRecherche(rows, oneRow, met) {
+  const e = ui.tmp.elec, qq = String(e.q || "").trim();
+  const vus = qq ? new Set(chercher(rows.filter((r) => !r.line).map((r) => ({ name: r.name, spec: "", famLabel: "", r })), qq).map((x) => x.r)) : null;
+  const visibles = qq ? [...rows.filter((r) => r.line), ...rows.filter((r) => vus.has(r))] : rows;
+  return `<div class="elecbar">${L("Cherche un produit")}<input type="search" data-r="tmp" data-p="elec.q" value="${esc(e.q)}" placeholder="${met === "carrelage" ? "Ex. : colle, joint, plinthe" : "Ex. : enduit, sous-couche, diluant"}" autocomplete="off" enterkeyhint="search">
+    ${qq ? `<p class="hint" style="margin:6px 0">${visibles.length > rows.filter((r) => r.line).length ? "Produits qui correspondent :" : "Aucun produit trouvé. Tu peux l'ajouter à la main plus bas (« ＋ Ajouter un produit »)."}</p>` : ""}</div>${visibles.map(oneRow).join("")}`;
+}
 function refBrowser(q, k, rows, oneRow, dis, rf) {
   const e = ui.tmp.elec, searching = !!(e.q || "").trim();
-  if (!rf.domaines.some((d) => d[0] === e.dom)) e.dom = rf.firstDomain;
-  const top = rows.filter((r) => !r.fam), grp = {};
-  for (const r of rows) if (r.fam) (grp[r.fam] = grp[r.fam] || []).push(r);
+  const doms = voirIndus(q) ? rf.domaines : rf.domainesLogement, cachés = !voirIndus(q) && searching ? rf.industrielsTrouves(e.q) : 0;
+  if (!doms.some((d) => d[0] === e.dom)) e.dom = doms[0][0];
+  // Familles dans l'ordre des résultats (meilleur résultat d'abord). Un objet ne convient pas : ses clés numériques
+  // (« 1 », « 2 »…) seraient triées par numéro et la famille 1 passerait devant le meilleur résultat.
+  const top = rows.filter((r) => !r.fam), grp = {}, ordre = [];
+  for (const r of rows) if (r.fam) { if (!grp[r.fam]) { grp[r.fam] = []; ordre.push(r.fam); } grp[r.fam].push(r); }
   let head = "";
   if (k === "produits") {
     const d = rf.domaines.find((x) => x[0] === e.dom);
     head = `<div class="elecbar">${L("Cherche un matériel")}<input type="search" data-r="tmp" data-p="elec.q" value="${esc(e.q)}" placeholder="${rf.ph.search}" autocomplete="off" enterkeyhint="search">
-      ${searching ? `<p class="hint" style="margin:6px 0">${Object.values(grp).flat().length ? "Résultats (40 au plus). Affine ta recherche si besoin." : "Aucun matériel trouvé. Tu peux l'ajouter à la main plus bas (« ＋ Ajouter un produit »)."}</p>` : `<p class="hint" style="margin:8px 0 6px"><b>Ou choisis par type de matériel</b>, puis une famille.</p>
-      <div class="chips">${rf.domaines.map(([id, lab]) => `<button type="button" class="chip ${e.dom === id ? "on" : ""}" data-act="elecDom" data-d="${id}">${esc(lab)}</button>`).join("")}</div>
+      ${searching ? `<p class="hint" style="margin:6px 0">${Object.values(grp).flat().length ? "Résultats (40 au plus). Affine ta recherche si besoin." : "Aucun matériel trouvé. Tu peux l'ajouter à la main plus bas (« ＋ Ajouter un produit »)."}${cachés ? ` <button type="button" class="linkbtn" data-act="voirIndus">+ ${cachés} dans le matériel d'usine : les montrer</button>` : ""}</p>` : `<p class="hint" style="margin:8px 0 6px"><b>Ou choisis par type de matériel</b>, puis une famille.</p>
+      <div class="chips">${doms.map(([id, lab]) => `<button type="button" class="chip ${e.dom === id ? "on" : ""}" data-act="elecDom" data-d="${id}">${esc(lab)}</button>`).join("")}${modeOf(q) === "technicien" && rf.domaines.length > rf.domainesLogement.length ? `<button type="button" class="chip" data-act="voirIndus">${e.indus ? "Cacher le matériel d'usine" : "+ Matériel d'usine (industrie)"}</button>` : ""}</div>
       ${d ? `<p class="hint" style="margin:6px 0">${esc(d[2])}</p>` : ""}`}
       <details><summary>Normes et méthode de comptage (facultatif)</summary>
       ${Chk("q", "current.showNorms", q.current.showNorms, "Écrire la norme de référence sous chaque matériel du devis", { dis })}
@@ -362,11 +377,14 @@ function refBrowser(q, k, rows, oneRow, dis, rf) {
       ${rf.guide ? `<p class="hint" style="margin:6px 0 2px"><b>Comment compter (unités de métré)</b></p><ul class="guide">${rf.guide.metre.map(([fam, u, r]) => `<li><b>${esc(fam)}</b> : ${esc(u)}${r ? ". " + esc(r) : ""}</li>`).join("")}</ul>` : ""}
       ${rf.guide && rf.guide.formules ? `<p class="hint" style="margin:6px 0 2px"><b>Formules de métré du document</b></p><ul class="guide">${rf.guide.formules.map((x) => `<li>${esc(x)}</li>`).join("")}</ul><p class="hint">Les dimensions viennent des plans. Ces formules ne remplacent ni une étude ni un dimensionnement.</p>` : ""}</details></div>`;
   }
-  const groups = Object.keys(grp).map((f) => {
+  const groups = ordre.map((f) => {
     const open = searching || e.open[f] || grp[f].some((r) => ui.tmp.row.open === r.key && ui.tmp.row.tab === k);
     const note = open && !searching && rf.note(f) ? `<div class="famnote">${esc(rf.note(f))}</div>` : "";
     return `<button type="button" class="famh ${open ? "open" : ""}" data-act="elecFam" data-f="${esc(f)}"><span>${esc(rf.famLabel(f))}</span><small>${grp[f].length}</small><i>${open ? "▲" : "▼"}</i></button>${note}${open ? grp[f].map(oneRow).join("") : ""}`;
   }).join("");
+  // Pendant une recherche, un article hors référentiel ne passe devant les résultats que si son nom commence par le mot cherché
+  // (« câble » : les câbles d'abord, « Sortie de câble » après).
+  if (searching) { const debut = (r) => nz(r.name).startsWith(nz(e.q).split(" ")[0]); return head + top.filter(debut).map(oneRow).join("") + groups + top.filter((r) => !debut(r)).map(oneRow).join(""); }
   return head + top.map(oneRow).join("") + groups;
 }
 function stepTravauxS(q, ev, dis) {
@@ -379,11 +397,11 @@ function stepTravauxS(q, ev, dis) {
     const oneRow = (r) => {
       const open = t.open === r.key && t.tab === k, l = r.line, unk = l && (l.price === null || l.qty === null);
       const head = `<button type="button" class="rowc ${l ? "ok" : "empty"} ${unk ? "warn" : ""} ${open ? "open" : ""}" data-act="rowToggle" data-key="${esc(r.key)}" data-tab="${k}" ${dis || (r.man && r.man.mode === "equip") ? "disabled" : ""}>
-        ${l ? `<em class="tick ${unk ? "w" : ""}">${unk ? "!" : "✓"}</em>` : ""}<span class="rn"><b>${esc(r.name)}</b><small>${l ? `${l.qty === null ? "quantité ?" : fmtQ(l.qty) + " " + esc(uniteAccord(l.unit, l.qty))} × ${l.price === null ? "prix ?" : fmtN(l.price)}` : "Toucher pour remplir"}</small></span>
+        ${l ? `<em class="tick ${unk ? "w" : ""}">${unk ? "!" : "✓"}</em>` : ""}<span class="rn"><b>${esc(r.name)}</b><small>${l ? `${l.qty === null ? "quantité ?" : fmtQ(l.qty) + " " + esc(uniteAccord(l.unit, l.qty))} × ${l.price === null ? "prix ?" : fmtPU(l.price)}` : "Toucher pour remplir"}</small></span>
         <span class="rt">${l ? (l.total === null ? "prix manquant" : fmtN(l.total)) : ""}<i>${open ? "▲" : "▼"}</i></span></button>`;
       return head + (open ? sheetForm(t, k === "produits", rf, met) : "");
     };
-    const rowHtml = rf ? refBrowser(q, k, rows, oneRow, dis, rf) : rows.map(oneRow).join("");
+    const rowHtml = rf ? refBrowser(q, k, rows, oneRow, dis, rf) : k === "produits" ? listeAvecRecherche(rows, oneRow, met) : rows.map(oneRow).join("");
     const custom = t.open === "new:" + k && t.tab === k ? sheetForm(t, k === "produits", rf, met) : dis ? "" : `<button type="button" class="addrow" data-act="rowToggle" data-key="new:${k}" data-tab="${k}">＋ ${add}</button>`;
     return `<div class="card sec"><button type="button" class="sech" data-act="secToggle" data-tab="${k}"><b>${filled.length ? '<em class="tick sm">✓</em>' : ""}${title}${filled.length ? ` · ${filled.length}` : ""}</b><span>${filled.length ? fmt(sum) : ""} <i>${isOpen ? "▲" : "▼"}</i></span></button>
       ${isOpen ? rowHtml + custom : ""}</div>`;
@@ -457,7 +475,7 @@ function lineCard(l, q, dis) {
   const mf = (f, label, val, o = {}) => `<div>${L(label)}<input data-on="mf" data-id="${esc(l.id)}" data-f="${f}" type="text" inputmode="decimal" autocomplete="off" enterkeyhint="next" value="${esc(val ?? "")}" ${dis ? "disabled" : ""}></div>`;
   return `<div class="lcard ${l.flags.length ? "warn" : ""}"><div class="lt"><b>${esc(l.label)}</b>${l.option ? '<span class="tag">option</span>' : ""}${l.overridden ? '<span class="tag t2">corrigé</span>' : ""}</div>
     ${l.role ? `<div class="note">${esc(l.role)}</div>` : ""}<div class="lcalc">${esc(l.calc)}</div>
-    <div class="lnums"><span>${l.qty === null ? "quantité inconnue" : fmtQ(l.qty) + " " + esc(l.unit)}</span><span>× ${l.mode === "equip" ? (l.total === 0 ? "non facturé" : "forfait") : l.price === null ? "prix inconnu" : fmtN(l.price)}</span><b>${l.total === null ? "—" : fmt(l.total)}</b></div>
+    <div class="lnums"><span>${l.qty === null ? "quantité inconnue" : fmtQ(l.qty) + " " + esc(l.unit)}</span><span>× ${l.mode === "equip" ? (l.total === 0 ? "non facturé" : "forfait") : l.price === null ? "prix inconnu" : fmtPU(l.price)}</span><b>${l.total === null ? "—" : fmt(l.total)}</b></div>
     ${!dis && l.flags.includes("prix_inconnu") && l.mode !== "equip" ? (q.current.pricing.method === "cout_plus_marge"
       ? `<div class="miss">${ic("warn", 18)} <b>Il manque le prix d'achat de ${esc(l.label)}.</b>${L("Prix d'achat par " + esc(l.unit) + " (FCFA)")}<input data-on="adj" data-id="${esc(l.id)}" data-f="cost" type="text" inputmode="decimal" autocomplete="off" enterkeyhint="next" value="${esc(adj.costOverride ?? "")}"></div>`
       : `<div class="miss">${ic("warn", 18)} <b>Il manque le prix de ${esc(l.label)}.</b>${L("Prix par " + esc(l.unit) + " (FCFA)")}<input data-on="adj" data-id="${esc(l.id)}" data-f="price" type="text" inputmode="decimal" autocomplete="off" enterkeyhint="next" value="${esc(adj.priceOverride ?? "")}"></div>`) : ""}
@@ -634,14 +652,14 @@ function stepApercu(q, ev, dis) {
   const wa = `https://wa.me/?text=${encodeURIComponent(summaryText(snap, q.ref))}`;
   const blocked = ev.checks.status === "bloque";
   return `${top}<div class="noprint">${draft ? `<div class="banner info">Brouillon : tu peux encore tout changer. Il devient le devis officiel quand tu l'envoies.</div>` : `<div class="banner info">Version ${snap.n} envoyée — elle ne change plus. Code de contrôle : ${snap.hash}</div>`}
-    <div class="row"><button data-act="pdf" ${(draft && blocked) || ui.busy ? "disabled" : ""}>${ui.busy === "pdf" ? "PDF en préparation…" : "Créer le PDF"}</button><button class="sec" data-act="word" data-n="${draft ? "draft" : snap.n}" ${draft && blocked ? "disabled" : ""}>Créer le Word (.docx)</button></div>
-    ${ui.file ? `<div class="banner info"><b>${esc(ui.file.name)}</b> est prêt.<div class="row"><button class="gold" data-act="saveFile">Enregistrer / envoyer le fichier</button></div></div>` : ""}
+    <div class="row"><button data-act="pdf" ${(draft && blocked) || ui.busy ? "disabled" : ""}>${ui.busy === "pdf" ? "PDF en préparation…" : draft ? "PDF brouillon (pour relire)" : `Créer le PDF (version ${snap.n})`}</button><button class="sec" data-act="word" data-n="${draft ? "draft" : snap.n}" ${draft && blocked ? "disabled" : ""}>${draft ? "Word brouillon" : `Créer le Word (version ${snap.n})`}</button></div>
+    ${ui.file ? `<div class="banner info"><b>${esc(ui.file.name)}</b> est prêt.<div class="row"><button class="gold" data-act="saveFile">${peutPartager(ui.file) ? (/\.pdf$/.test(ui.file.name) ? "Envoyer le PDF (WhatsApp, e-mail…)" : "Envoyer le fichier Word (WhatsApp, e-mail…)") : "Télécharger le fichier"}</button></div></div>` : ""}
     <div class="row"><button class="sec" data-act="print" ${draft && blocked ? "disabled" : ""}>Imprimer</button>
-    <button class="gold" data-act="send" ${canSend && !blocked ? "" : "disabled"}>Envoyer au client (version ${q.versions.length + 1})</button></div>
-    ${canSend && !blocked && draft ? `<p class="hint">Après l'envoi, cette version ne change plus. Si tu modifies le devis ensuite, l'application crée la version ${q.versions.length + 2}.</p>` : ""}
+    <button class="gold" data-act="send" ${canSend && !blocked && !ui.busy ? "" : "disabled"}>${ui.busy === "send" ? "PDF en préparation…" : `Terminer le devis et créer le PDF à envoyer (version ${q.versions.length + 1})`}</button></div>
+    ${canSend && !blocked && draft ? `<p class="hint">Après ce bouton, la version ${q.versions.length + 1} ne change plus et le devis passe à « Envoyé ». Tu l'envoies ensuite au client avec le bouton « Envoyer le PDF ». Une modification plus tard crée la version ${q.versions.length + 2}.</p>` : ""}
     ${canSend ? "" : draft ? `<p class="hint">Pour envoyer : marque d'abord le devis « Prêt à envoyer » (bloc Vérifier, plus haut).</p>` : ""}
     ${blocked && draft ? `<p class="hint">Corrige ce qui manque (bloc Vérifier, plus haut) pour générer le PDF.</p>` : ""}
-    ${!draft ? `<div class="row"><a class="btn sec" href="${wa}" target="_blank" rel="noopener">Partager sur WhatsApp</a><button class="sec" data-act="copy" data-t="${esc(summaryText(snap, q.ref))}">Copier le message</button></div><p class="hint">WhatsApp reçoit le message de synthèse ; joins ensuite le PDF créé ci-dessus.</p>` : ""}</div>
+    ${!draft ? `<div class="row"><a class="btn sec" href="${wa}" target="_blank" rel="noopener">Message WhatsApp (résumé en texte)</a><button class="sec" data-act="copy" data-t="${esc(summaryText(snap, q.ref))}">Copier le message</button></div><p class="hint">WhatsApp reçoit le message de synthèse ; joins ensuite le PDF créé ci-dessus.</p>` : ""}</div>
     ${renderDoc(snap, { draft, ref: q.ref })}`;
 }
 function internal(snap, q) {
@@ -655,7 +673,7 @@ function internal(snap, q) {
 
 function stepVersions(q, ev) {
   const last = S.lastVersion(q), st = S.effectiveStatus(q), t = ui.tmp;
-  const vers = q.versions.map((v) => { const ok = S.verifyVersion(v).ok; return `<div class="chk"><div class="dot d-${ok ? "ok" : "bloque"}">${ok ? "✓" : "✕"}</div><div style="flex:1"><b>V${v.n}</b> — ${frDate(v.at)} — ${fmt(v.result.totals.base)} HT<div class="note">Empreinte ${v.hash} · ${ok ? "intégrité vérifiée par recalcul" : "INTÉGRITÉ NON VÉRIFIÉE"}</div></div><a class="btn sec" href="#/devis/${q.id}/${lastOf(q)}" data-act="seeVer" data-n="${v.n}">Voir</a></div>`; }).join("");
+  const vers = q.versions.map((v) => { const vv = S.verifyVersion(v), ok = vv.ok; return `<div class="chk"><div class="dot d-${ok ? "ok" : "bloque"}">${ok ? "✓" : "✕"}</div><div style="flex:1"><b>V${v.n}</b> — ${frDate(v.at)} — ${fmt(v.result.totals.base)} HT<div class="note">Code de contrôle ${v.hash} · ${ok ? (vv.notes.length ? esc(vv.notes.join(" ")) : "contenu vérifié par recalcul") : "CONTENU NON VÉRIFIÉ"}</div></div><a class="btn sec" href="#/devis/${q.id}/${lastOf(q)}" data-act="seeVer" data-n="${v.n}">Voir</a></div>`; }).join("");
   const actions = [];
   if (["envoye", "refuse", "expire"].includes(q.status)) actions.push(`<button data-act="startNeg">Préparer V${q.versions.length + 1}${q.status === "expire" ? " (renouveler)" : ""}</button>`);
   if (q.status === "negociation") actions.push(`<button class="sec" data-act="discardNeg">Abandonner le brouillon de V${q.versions.length + 1}</button>`);
@@ -892,8 +910,24 @@ function processLogo(file) {
     rd.readAsDataURL(file);
   });
 }
+// PDF de la version affichée (brouillon ou version terminée), prêt dans ui.file. Faux si la création échoue.
+async function creerPdfFichier(q) {
+  try {
+    const el = document.getElementById("doc"); if (!el) throw new Error("Aperçu introuvable");
+    const { creerPdf } = await import("./pdf-texte.js");
+    const snapNow = snapFor(q, S.evaluate(q)).snap;
+    const { data } = await creerPdf(el, "TGDQ1:" + encPayload(S.quotePayload(q, snapNow.quote)));
+    const v = snapNow.n;
+    ui.file = { name: `${q.ref}${v ? "-V" + v : "-brouillon"}.pdf`, mime: "application/pdf", data: new Uint8Array(data) };
+    sortieFaite(q); return true;
+  } catch (err) { ui.flash = { type: "err", text: "PDF impossible : " + err.message + ". Utilise « Imprimer »." }; return false; }
+}
 const encPayload = (o) => btoa(unescape(encodeURIComponent(JSON.stringify(o))));
 const decPayload = (b64) => JSON.parse(decodeURIComponent(escape(atob(b64))));
+// Le téléphone sait-il ouvrir le menu « Partager » avec un fichier (iPhone, Android) ? Sinon : téléchargement.
+function peutPartager(f) {
+  try { return !!(f && navigator.canShare && navigator.canShare({ files: [new File([""], f.name, { type: f.mime })] })); } catch { return false; }
+}
 function saveFile() {
   const f = ui.file; if (!f) return;
   const blob = new Blob([f.data], { type: f.mime });
@@ -1157,7 +1191,16 @@ const actions = {
   mark(b) { const q = S.getQuote(ui.qid); S.setStatus(q, b.dataset.to); ui.flash = { type: "ok", text: "Statut : " + S.STATUS[q.status] }; },
   view(b) { ui.view = b.dataset.v; },
   print() { const q = S.getQuote(ui.qid); sortieAutorisee(q); window.print(); sortieFaite(q); },
-  send() { const q = S.getQuote(ui.qid); sortieAutorisee(q); if (modeOf(q) === "technicien" && ["brouillon", "a_verifier"].includes(q.status)) S.setStatus(q, "pret"); const v = S.freezeVersion(q); sortieFaite(q); ui.ver = String(v.n); ui.view = "client"; ui.flash = { type: "ok", text: `Version ${v.n} envoyée : elle ne change plus. Partage maintenant le PDF ou le message WhatsApp.` }; },
+  async send() {
+    const q = S.getQuote(ui.qid);
+    try { sortieAutorisee(q); if (modeOf(q) === "technicien" && ["brouillon", "a_verifier"].includes(q.status)) S.setStatus(q, "pret"); }
+    catch (err) { ui.flash = { type: "err", text: err.message }; rerender(); return "skip"; }
+    const v = S.freezeVersion(q); sortieFaite(q); ui.ver = String(v.n); ui.view = "client"; ui.busy = "send"; rerender();
+    const ok = await creerPdfFichier(q);
+    ui.flash = ok ? { type: "ok", text: `Version ${v.n} terminée : elle ne change plus. Touche « ${peutPartager(ui.file) ? "Envoyer le PDF" : "Télécharger le fichier"} » pour la transmettre au client.` }
+      : { type: "err", text: `Version ${v.n} terminée, mais le PDF n'a pas pu être créé. Touche « Créer le PDF » ou « Imprimer ».` };
+    ui.busy = ""; rerender(); return "skip";
+  },
   seeVer(b) { ui.file = null; ui.ver = b.dataset.n; ui.view = "client"; },
   copy(b) { const t = b.dataset.t; const ok = () => { ui.flash = { type: "ok", text: "Message copié." }; rerender(); }; if (navigator.clipboard) navigator.clipboard.writeText(t).then(ok).catch(() => { ui.flash = { type: "err", text: "Copie impossible : sélectionne le texte manuellement." }; rerender(); }); else ok(); return "skip"; },
   startNeg() { const q = S.getQuote(ui.qid); S.startNegotiation(q); ui.ver = "draft"; ui.flash = { type: "ok", text: `Brouillon de V${q.versions.length + 1} prêt : modifie puis envoie.` }; go(`#/devis/${q.id}/0`); },
@@ -1191,17 +1234,8 @@ const actions = {
   async pdf() {
     const q = S.getQuote(ui.qid);
     try { sortieAutorisee(q); } catch (err) { ui.flash = { type: "err", text: err.message }; rerender(); return; }
-    const el = document.getElementById("doc"); if (!el) throw new Error("Aperçu introuvable.");
-    ui.busy = "pdf"; rerender();
-    try {
-      const { creerPdf } = await import("./pdf-texte.js");
-      const snapNow = snapFor(q, S.evaluate(q)).snap;
-      const { data } = await creerPdf(document.getElementById("doc"), "TGDQ1:" + encPayload(S.quotePayload(q, snapNow.quote)));
-      const v = (snapFor(q, S.evaluate(q)).snap || {}).n;
-      ui.file = { name: `${q.ref}${v ? "-V" + v : "-brouillon"}.pdf`, mime: "application/pdf", data: new Uint8Array(data) };
-      sortieFaite(q);
-      ui.flash = { type: "ok", text: "PDF créé. Touche « Enregistrer / envoyer le fichier »." };
-    } catch (err) { ui.flash = { type: "err", text: "PDF impossible : " + err.message + ". Utilise « Imprimer »." }; }
+    ui.busy = "pdf"; ui.file = null; rerender();
+    if (await creerPdfFichier(q)) ui.flash = { type: "ok", text: `PDF créé. Touche « ${peutPartager(ui.file) ? "Envoyer le PDF" : "Télécharger le fichier"} ».` };
     ui.busy = ""; rerender();
     return "skip";
   },
@@ -1209,6 +1243,7 @@ const actions = {
   journalCsv() { download(`journal-essai-${S.today()}.csv`, "text/csv;charset=utf-8", Journal.csv()); ui.flash = { type: "ok", text: "Journal d'essai exporté (CSV)." }; },
   journalEffacer() { Journal.effacer(); ui.flash = { type: "ok", text: "Journal d'essai effacé." }; },
   journalStop() { Journal.arreter(); ui.flash = { type: "ok", text: "Journal d'essai arrêté sur ce téléphone." }; },
+  voirIndus() { const e = ui.tmp.elec; e.indus = !e.indus; if (!e.indus) { const rf = refOf(metierOf(S.getQuote(ui.qid))); if (rf && !rf.domainesLogement.some((d) => d[0] === e.dom)) e.dom = rf.domainesLogement[0][0]; } },
   csvExport() { download(`catalogue-${S.today()}.csv`, "text/csv;charset=utf-8", exportCatalogueCsv(S.state.db.catalogue)); ui.flash = { type: "ok", text: "Catalogue exporté (CSV)." }; },
   csvTemplate() { download("modele-catalogue.csv", "text/csv;charset=utf-8", templateCsv()); },
   csvApply() { const ok = ui.csv.rows.filter((r) => r.status !== "error").map((r) => r.item); S.saveItems(ok, "import CSV"); ui.flash = { type: "ok", text: `${ok.length} article(s) importé(s).` }; ui.csv = null; },

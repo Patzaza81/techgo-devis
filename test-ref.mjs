@@ -10,7 +10,7 @@ const eq = (name, got, want) => { const ok = JSON.stringify(got) === JSON.string
 // --- contenu du référentiel électricité
 const R = { printableNorm: M.printableNorm, unitsOf: M.unitsOf };
 const E = M.refOf("electricite"), P = M.refOf("plomberie");
-eq("électricité : 571 fiches (487 matériels + 77 accessoires + 7 compléments v41 sourcés)", E.count, 571);
+eq("électricité : 577 fiches (487 matériels + 77 accessoires + 13 compléments v41 sourcés)", E.count, 577);
 eq("électricité : 8 sous-ensembles", E.domaines.length, 8);
 eq("électricité : chaque famille du document est rangée dans un sous-ensemble", ["1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16.1","16.8","17","18"].every((f) => E.domaines.some((d) => d[3].includes(f))), true);
 eq("électricité : contrôles (19) hors sous-ensembles, dans « divers »", [E.domaines.some((d) => d[3].includes("19")), E.rows("autres", "", "").length], [false, 21]);
@@ -43,7 +43,7 @@ eq("fiche électricité : alerte HTA / ATEX, pas pour BT", [E.fiche.warn({ alim:
 
 // --- maçonnerie : document organisé en matériaux + ouvrages (bordereau), pas en catalogue de matériel
 const MA = M.refOf("maconnerie");
-eq("maçonnerie : 167 fiches (161 du document + 6 compléments v41 sourcés)", MA.count, 167);
+eq("maçonnerie : 170 fiches (161 du document + 9 compléments v41 sourcés)", MA.count, 170);
 eq("maçonnerie : 6 sous-ensembles de matériaux", MA.domaines.length, 6);
 eq("maçonnerie : les 45 postes du bordereau sont dans « Ouvrages » (+15 ouvrages industriels)", MA.rows("ouvriers", "", "").length, 60);
 eq("maçonnerie : aucun ouvrage dans les sous-ensembles de matériaux", MA.domaines.every((d) => MA.rows("produits", d[0], "").every((r) => r.tab === "produits")), true);
@@ -57,7 +57,7 @@ eq("maçonnerie : Installation de chantier = forfait", MA.find("Installation de 
 eq("maçonnerie : acier Ø 12 mm = 0,889 kg/m (tableau du document)", /0,889 kg\/m/.test(MA.find("Acier d'armature Ø 12 mm").spec), true);
 eq("maçonnerie : aucun prix, aucune quantité, aucun rendement", MA.rows("ouvriers", "", "").every((r) => !("price" in r) && !("qty" in r) && !("yield" in r)), true);
 eq("maçonnerie : recherche « linteau » trouve le matériau préfabriqué", MA.rows("produits", "liants", "linteau").some((r) => r.name === "Linteau préfabriqué"), true);
-eq("maçonnerie : noms uniques", new Set(["produits", "ouvriers", "autres", "outils"].flatMap((t) => (t === "produits" ? MA.domaines.flatMap((d) => MA.rows(t, d[0], "")) : MA.rows(t, "", ""))).map((r) => r.name.toLowerCase())).size, 167);
+eq("maçonnerie : noms uniques", new Set(["produits", "ouvriers", "autres", "outils"].flatMap((t) => (t === "produits" ? MA.domaines.flatMap((d) => MA.rows(t, d[0], "")) : MA.rows(t, "", ""))).map((r) => r.name.toLowerCase())).size, 170);
 eq("maçonnerie : notes de vigilance sur le ciment", /ne compense pas un mauvais dosage/.test(MA.note("M1")), true);
 eq("maçonnerie : aides = 7 rubriques, 17 erreurs, 14 lots, 6 documents", [MA.guide.sections.length, MA.guide.erreurs.length, MA.guide.travaux.length, MA.guide.plans.length], [7, 17, 14, 6]);
 eq("maçonnerie : titres de l'onglet renommés", [MA.labels.ouvriers[0], MA.calc], ["Ouvrages et main-d'œuvre", true]);
@@ -162,6 +162,22 @@ for (const form of ["express", "detaille", "chantier"]) {
   eq("toutes les fiches produits d'électricité ont au moins une unité proposée", el.domaines.flatMap((d) => el.rows("produits", d[0], "")).every((r) => r.unites.length > 0), true);
   eq("une fiche qui a son unité dans le document la garde (pas de « lot » ajouté)", el.domaines.flatMap((d) => el.rows("produits", d[0], "")).filter((r) => r.unit && !String(r.fam).startsWith("A:")).every((r) => !r.unites.includes("lot") || /lot/i.test(r.unit)), true);
   eq("« Pièce » n'est pas proposé au mètre", C.unitesAccessoire("Câbles"), ["mètre", "rouleau"]);
+}
+// Recherche : trait d'union, ordre des résultats ; matériel d'usine séparé du logement (v41)
+{ const R = await import("./metiers/ref.js"); const L = [{ name: "Sous-couche", spec: "", famLabel: "" }, { name: "Couche de fond", spec: "", famLabel: "" }, { name: "Diluant", spec: "", famLabel: "" }];
+  for (const q of ["sous couche", "sous-couche", "souscouche"]) eq(`« ${q} » trouve « Sous-couche »`, R.chercher(L, q)[0]?.name, "Sous-couche");
+  eq("« diluer » ne trouve pas « Diluant » (début de mot exigé : dilu-er ≠ dilu-ant)", R.chercher(L, "diluer").length, 0);
+  eq("« couche » : les deux, sans ordre imposé", R.chercher(L, "couche").length, 2);
+  const el = R.refOf("electricite"), pl = R.refOf("plomberie");
+  eq("électricité : le logement ne montre pas « Industrie » ni « ATEX »", el.domainesLogement.some((d) => /Industrie|ATEX/.test(d[1])), false);
+  eq("électricité : recherche « disjoncteur » côté logement sans disjoncteur de puissance d'usine", el.rows("produits", "", "disjoncteur", { indus: false }).some((r) => el.estIndustriel(r)), false);
+  eq("électricité : les disjoncteurs d'usine restent trouvables sur demande", el.industrielsTrouves("disjoncteur") > 0 && el.rows("produits", "", "disjoncteur").some((r) => el.estIndustriel(r)), true);
+  eq("électricité : accessoires HTA/ATEX cachés au logement", el.rows("produits", "acc", "", { indus: false }).some((r) => /^A:(HTA|ATEX)/.test(r.fam)), false);
+  eq("plomberie : « Cimenteries » et « Industrie » hors du logement", pl.domainesLogement.some((d) => /Cimenteries|Industrie/.test(d[1])), false);
+  for (const [q, att] of [["prise", "Prise de courant domestique"], ["câble", /^Câble /], ["disjoncteur", "Disjoncteur modulaire"], ["mélangeur", /^Robinet mélangeur/], ["stabilisateur", "Régulateur de tension (stabilisateur)"], ["wago", "Borne de connexion (domino)"]]) {
+    const met = /mélangeur/.test(q) ? pl : el, n = met.rows("produits", "", q, { indus: false })[0]?.name || "";
+    eq(`logement : « ${q} » → ${att} en premier`, typeof att === "string" ? n === att : att.test(n), true); }
+  eq("maçonnerie : rien de caché (pas de matériel d'usine)", R.refOf("maconnerie").domainesLogement.length, R.refOf("maconnerie").domaines.length);
 }
 
 console.log(`\n${pass} réussis, ${fail} échoués`); process.exit(fail ? 1 : 0);

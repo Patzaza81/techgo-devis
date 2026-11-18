@@ -1,7 +1,7 @@
 import { annexe } from "./metiers/metre.js";
 // Export Word (.docx) d'un devis FIGÉ. Aucun calcul ici : tous les montants viennent de snap.result (le même objet que le PDF).
 // Le fichier est produit sans dépendance : un zip « stocké » écrit à la main, au contenu déterministe (mêmes données → mêmes octets).
-import { fmt, fmtN, fmtQ, fmtD, frDate, toWordsFr, exclusions, legalLine } from "./ui-doc.js";
+import { fmt, fmtN, fmtQ, fmtPU, fmtD, frDate, toWordsFr, exclusions, legalLine } from "./ui-doc.js";
 import { effSurface, surfaceSource } from "./packs.js";
 
 export const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
@@ -40,10 +40,11 @@ const para = (inner, o = {}) => `<w:p><w:pPr><w:spacing w:before="${o.before ?? 
 const txt = (t, o = {}) => para(run(t, o), o);
 const h3 = (t, acc) => para(run(t.toUpperCase(), { b: 1, color: acc, sz: 22 }), { before: 240, after: 80 });
 const cell = (inner, w, o = {}) => `<w:tc><w:tcPr><w:tcW w:w="${w}" w:type="dxa"/>${o.fill ? `<w:shd w:val="clear" w:color="auto" w:fill="${o.fill}"/>` : ""}${o.span ? `<w:gridSpan w:val="${o.span}"/>` : ""}</w:tcPr>${inner}</w:tc>`;
-const row = (cells) => `<w:tr>${[].concat(cells).join("")}</w:tr>`; // un tableau de cellules ne doit jamais devenir « cellule,cellule » (texte interdit dans une ligne de tableau Word)
+// Une ligne de tableau ne se coupe jamais entre deux pages (cantSplit) ; les lignes d'en-tête se répètent en haut de chaque page (tblHeader).
+const row = (cells, entete = false) => `<w:tr><w:trPr><w:cantSplit/>${entete ? "<w:tblHeader/>" : ""}</w:trPr>${[].concat(cells).join("")}</w:tr>`; // un tableau de cellules ne doit jamais devenir « cellule,cellule » (texte interdit dans une ligne de tableau Word)
 const table = (rows, widths) => `<w:tbl><w:tblPr><w:tblW w:w="${widths.reduce((a, b) => a + b, 0)}" w:type="dxa"/><w:tblBorders>${["top", "left", "bottom", "right", "insideH", "insideV"].map((s) => `<w:${s} w:val="single" w:sz="4" w:space="0" w:color="BBBBBB"/>`).join("")}</w:tblBorders><w:tblLayout w:type="fixed"/></w:tblPr><w:tblGrid>${widths.map((w) => `<w:gridCol w:w="${w}"/>`).join("")}</w:tblGrid>${rows.join("")}</w:tbl>` + para("", { before: 0, after: 0 });
 const WIDTHS = [4600, 1700, 1600, 1738]; // désignation, quantité, P.U., total
-const headRow = (acc, labels = ["Désignation", "Quantité", "P.U. (FCFA)", "Total HT"]) => row(labels.map((l, i) => cell(para(run(l, { b: 1, color: "FFFFFF", sz: 18 }), { jc: i ? "right" : "left" }), WIDTHS[i], { fill: acc })));
+const headRow = (acc, labels = ["Désignation", "Quantité", "P.U. (FCFA)", "Total HT"]) => row(labels.map((l, i) => cell(para(run(l, { b: 1, color: "FFFFFF", sz: 18 }), { jc: i ? "right" : "left" }), WIDTHS[i], { fill: acc })), true);
 const lineRow = (cells) => row(cells.map((c, i) => cell(c, WIDTHS[i])));
 const subRow = (label, amount, acc) => row([cell(para(run(label, { b: 1, sz: 18 }), {}), WIDTHS[0] + WIDTHS[1] + WIDTHS[2], { fill: "EEEEEE", span: 3 }), cell(para(run(amount, { b: 1, sz: 18 }), { jc: "right" }), WIDTHS[3], { fill: "EEEEEE" })]);
 const plainRow = (label, amount) => row([cell(para(run(label, { sz: 18 })), WIDTHS[0] + WIDTHS[1] + WIDTHS[2], { span: 3 }), cell(para(run(amount, { sz: 18 }), { jc: "right" }), WIDTHS[3])]);
@@ -55,7 +56,7 @@ function groupRows(lines, acc) {
     out.push(row([cell(para(run(g, { b: 1, sz: 18 })), WIDTHS.reduce((a, b) => a + b, 0), { fill: "F3F3F3", span: 4 })]));
     for (const l of ls) out.push(lineRow([
       para(run(l.label, { b: 1, sz: 18 }), { before: 20, after: 0 }) + (l.role ? para(run(l.role, { sz: 15, color: "666666" }), { before: 0, after: 20 }) : ""),
-      para(run(`${fmtQ(l.qty)} ${l.unit}`, { sz: 18 }), { jc: "right" }), para(run(fmtN(l.price), { sz: 18 }), { jc: "right" }), para(run(fmtN(l.total), { sz: 18 }), { jc: "right" })]));
+      para(run(`${fmtQ(l.qty)} ${l.unit}`, { sz: 18 }), { jc: "right" }), para(run(fmtPU(l.price), { sz: 18 }), { jc: "right" }), para(run(fmtN(l.total), { sz: 18 }), { jc: "right" })]));
     out.push(subRow(`Sous-total — ${g}`, fmtN(ls.reduce((a, l) => a + (l.total ?? 0), 0)), acc));
   }
   return out;
@@ -133,7 +134,7 @@ export function buildDocx(snap, ref = "") {
     const an = annexe(q.metre, q.metier || undefined);
     if (an.length) {
       body.push(h3("Détail du métré", acc)); const WM = [2900, 4838, 1900];
-      const rows = [row(["Zone et ouvrage", "Calcul", "Résultat"].map((l, i) => cell(para(run(l, { b: 1, color: "FFFFFF", sz: 18 }), { jc: i === 2 ? "right" : "left" }), WM[i], { fill: acc })))];
+      const rows = [row(["Zone et ouvrage", "Calcul", "Résultat"].map((l, i) => cell(para(run(l, { b: 1, color: "FFFFFF", sz: 18 }), { jc: i === 2 ? "right" : "left" }), WM[i], { fill: acc })), true)];
       for (const z of an) { rows.push(row([cell(para(run(z.zone, { b: 1, sz: 18 })), WM[0] + WM[1] + WM[2], { fill: "EEEEEE", span: 3 })])); for (const l of z.lignes) rows.push(row([cell(para(run(l.ouvrage, { b: 1, sz: 17 })) + para(run(l.mesure, { sz: 15, color: "666666" })), WM[0]), cell(para(run(l.detail, { sz: 16 })), WM[1]), cell(para(run(`${fmtD(Math.round(l.val * 100) / 100)} ${l.unite}`, { sz: 17 }), { jc: "right" }), WM[2])])); }
       body.push(table(rows, WM));
     }

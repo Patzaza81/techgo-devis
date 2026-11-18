@@ -27,6 +27,16 @@ const v1 = S.freezeVersion(q);
 eq("statut envoyé", q.status, "envoye");
 eq("V1 figée avec empreinte", [v1.n, v1.hash.length], [1, 27]);
 eq("intégrité V1", S.verifyVersion(v1).ok, true);
+{ // Version figée par un moteur antérieur (règle d'arrondi d'avant le 18/11) : montants d'origine gardés, pas de fausse alerte
+  const { fingerprint } = await import("./engine.js"); const cl = (o) => JSON.parse(JSON.stringify(o));
+  const vieux = cl(v1); vieux.result.engineVersion = "2.0.0"; vieux.result.totals.base += 1; vieux.hash = fingerprint({ quote: vieux.quote, items: vieux.items, result: vieux.result });
+  const r1 = S.verifyVersion(vieux);
+  eq("version d'un ancien moteur, recalcul différent : contenu valide + note", [r1.ok, r1.notes.length], [true, 1]);
+  const triche = cl(vieux); triche.result.totals.base += 5;
+  eq("version d'un ancien moteur modifiée après coup : refusée (empreinte)", S.verifyVersion(triche).ok, false);
+  const actuel = cl(v1); actuel.result.totals.base += 1; actuel.hash = fingerprint({ quote: actuel.quote, items: actuel.items, result: actuel.result });
+  eq("version du moteur actuel dont le recalcul diffère : refusée", S.verifyVersion(actuel).ok, false);
+}
 throws("V1 immuable (modification refusée)", () => { v1.quote.site.surface = 1; });
 throws("V1 immuable (résultat)", () => { v1.result.totals.base = 1; });
 eq("devis non modifiable une fois envoyé", S.editable(q), false);

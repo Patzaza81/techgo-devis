@@ -1,6 +1,63 @@
 // Scénarios de l'audit v40. Chaque valeur attendue est calculée ICI, à la main, indépendamment de l'application.
 module.exports = ({ scenario, nonTeste, METIERS, montant, contient, nombre, norm }) => [
 
+  // ---------------------------------------------------------------- FICHE DE LIGNE (v41) : plusieurs produits, unités, modifications répétées, suppressions
+  ...[["Peinture", "PEI", ["Peinture acrylique", "Enduit de lissage", "Sous-couche"]], ["Carrelage", "CAR", ["Carreaux", "Colle à carrelage", "Joint de carrelage"]],
+      ["Maçonnerie", "MAC", ["ciment", "hourdis", "sable"]], ["Plomberie", "PLO", ["PPR", "siphon", "vanne"]], ["Électricité", "ELE", ["câble", "disjoncteur", "douille"]]]
+   .map(([met, code, P]) => () => scenario(code + "-LIG", met, "Fiche de ligne : 3 produits, unités différentes, modifications répétées, décimales, suppressions — ce qu'on achète, facture et paie", async (A, p, ok, note) => {
+    await A.demarrer(met); await A.client(); await A.continuer();
+    const attendu = {}; // calcul indépendant : quantité au millième × prix, arrondi au franc
+    const ligne = (q, pu) => Math.floor((Math.round(q * 1000) * Math.round(pu * 1000) * 2 + 1e6) / 2e6);
+    const somme = () => Object.values(attendu).reduce((a, b) => a + b, 0);
+    const noms = [];
+    for (const [i, cle] of P.entries()) { // nom réel : liste à plat ou premier résultat de la recherche
+      let nom = cle; if (await A.rechercher(cle)) { const v = await A.nomsVisibles(); nom = v[0]; ok(!!nom, `Recherche « ${cle} » : un produit trouvé`, v.slice(0, 4).join(" ; "));
+        const sansAcc = (x) => String(x || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+        ok(sansAcc(nom).split(/[^a-z0-9]+/).some((m) => m.startsWith(sansAcc(cle))), `Recherche « ${cle} » : le 1er résultat contient le mot cherché`, nom); }
+      await A.ouvrirLigne(nom); noms.push(nom);
+      // unités proposées pour CE produit : on prend la 1re pour le 1er produit, la 2e (si elle existe) pour le 2e…
+      const puces = await p.locator(".chips.unites .chip:visible").allInnerTexts(); note(`Unités proposées pour « ${nom} »`, puces.join(", ") || "(liste « Choisir »)");
+      let unite;
+      if (puces.length) { unite = puces[Math.min(i, puces.length - 1)].trim(); await A.toucher(p.locator(".chips.unites .chip:visible").filter({ hasText: new RegExp("^\\s*" + unite.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\s*$") }).first(), unite); }
+      else { const sel = A.champ(/^Unité$/); const v = await sel.locator("option").evaluateAll((os) => os.map((o) => o.value).filter(Boolean)); unite = v[0]; await sel.selectOption(unite); await p.waitForTimeout(250); }
+      const q = [3, 2.5, 0.75][i], pu = [2500, 7150, 1333][i];
+      await A.remplirLigne({ qty: q, price: pu });
+      const prixLib = await p.locator("label:visible").filter({ hasText: /^Prix / }).first().innerText();
+      ok(prixLib.trim().toLowerCase() === `Prix pour 1 ${unite}`.toLowerCase(), `« ${nom} » : le prix se lit « Prix pour 1 ${unite} »`, prixLib);
+      attendu[nom] = ligne(q, pu);
+      const calc = norm(await p.locator(".montantl").first().innerText());
+      ok(calc.includes(montant(attendu[nom])) && calc.includes("×"), `« ${nom} » : la fiche écrit le calcul ${q} × ${pu} = ${attendu[nom]}`, calc);
+      await A.fermerLigne();
+      ok((await A.total()) === somme(), `Après « ${nom} » : total ${somme()}`, await A.total());
+    }
+    const L = await A.lignes(); note("Lignes", L.map((l) => `${l.nom} | ${l.detail} | ${l.total}`).join(" ‖ "));
+    ok(L.every((l) => /×/.test(l.detail || "")), "Chaque ligne résume « quantité unité × prix »", L.map((l) => l.detail).join(" | "));
+    // modifications répétées sur la même ligne
+    const n0 = noms[0];
+    for (const [q, pu] of [[3.5, 2500], [12, 2500], [12, 2499.5], [0.125, 18000]]) {
+      await A.ouvrirLigne(n0); await A.remplirLigne({ qty: q, price: pu }); await A.fermerLigne(); attendu[n0] = ligne(q, pu);
+      ok((await A.total()) === somme(), `Modification ${q} × ${pu} : ligne ${attendu[n0]}, total ${somme()}`, await A.total());
+    }
+    // décimales au-delà du millième : ramenées au millième, et le calcul affiché correspond
+    await A.ouvrirLigne(n0); await A.remplirLigne({ qty: "1,2345", price: 1000 }); const c4 = norm(await p.locator(".montantl").first().innerText()); await A.fermerLigne();
+    attendu[n0] = ligne(1.235, 1000);
+    ok(c4.includes("1,235") && (await A.total()) === somme(), "Quantité 1,2345 : gardée et affichée 1,235 ; montant 1 235", c4);
+    // changement d'unité sur une ligne déjà remplie : le prix reste celui saisi, son libellé suit la nouvelle unité
+    await A.ouvrirLigne(noms[1]); const opts = await A.champ(/^Unité$/).locator("option").evaluateAll((os) => os.map((o) => o.value).filter(Boolean));
+    const autre = opts.find((u) => u && !/^Prix pour 1 /.test(u)) ; const avant = await A.champ(/^Unité$/).inputValue(); const nouv = opts.find((u) => u !== avant);
+    if (nouv) { await A.champ(/^Unité$/).selectOption(nouv); await p.waitForTimeout(300);
+      const lib = await p.locator("label:visible").filter({ hasText: /^Prix / }).first().innerText(); ok(lib.trim().toLowerCase() === `Prix pour 1 ${nouv}`.toLowerCase(), `Unité changée ${avant} → ${nouv} : le libellé du prix suit`, lib); }
+    await A.fermerLigne(); ok((await A.total()) === somme(), "Changement d'unité : montant inchangé (quantité et prix inchangés)", await A.total());
+    // suppressions successives
+    for (const nom of [noms[2], noms[1]]) {
+      await A.ouvrirLigne(nom); await A.toucher(A.bouton(/Retirer du devis/), "Retirer du devis"); delete attendu[nom];
+      ok(!(await A.lignes()).some((l) => l.nom === nom) && (await A.total()) === somme(), `« ${nom} » retiré : total ${somme()}`, await A.total());
+    }
+    // l'aperçu dit la même chose
+    await A.allerEtape3(); const ap = await A.apercu();
+    ok(contient(ap, attendu[n0]) && contient(ap, somme()) && !noms.slice(1).some((n) => ap.includes(n)), "Aperçu : la ligne restante, son montant et le total ; les lignes retirées absentes");
+  })),
+
   // ---------------------------------------------------------------- CATALOGUE : cycle complet par métier
   ...[["Peinture", "PEI", { a: "Ciment ordinaire", b: "Sous-couche", c: "Multiprim" }], ["Carrelage", "CAR", { a: "Colle à carrelage", b: "Joint de carrelage", c: "Croisillons" }],
       ["Maçonnerie", "MAC", { ra: "ciment", rb: "sable", rc: "gravier" }], ["Plomberie", "PLO", { ra: "PER", rb: "siphon", rc: "robinet" }], ["Électricité", "ELE", { ra: "disjoncteur", rb: "prise", rc: "interrupteur" }]]
@@ -234,8 +291,15 @@ module.exports = ({ scenario, nonTeste, METIERS, montant, contient, nombre, norm
   () => scenario("PEI-V1", "peinture", "Figer V1, modifier ensuite (V2), V1 inchangée ; rouvrir le devis depuis son PDF sur un autre téléphone", async (A, p, ok, note) => {
     await A.demarrer("Peinture"); await A.client("M. Tchoua"); await A.continuer(); await A.ajouter("Ciment ordinaire", { qty: 12, unit: "sac", price: 6500 }); await A.allerEtape3();
     ok(!(await A.bouton(/Marquer « Prêt à envoyer »/).count()), "Technicien : pas d'étape « Marquer prêt » avant l'envoi");
-    await A.toucher(A.bouton(/Envoyer au client \(version 1\)/), "Envoyer au client (version 1)");
-    ok(/Version 1 envoyée/.test(await A.lire()), "Message « Version 1 envoyée »");
+    ok(!(await A.bouton(/^\s*Envoyer au client/).count()), "Aucun bouton ne prétend envoyer sans envoyer");
+    await A.toucher(A.bouton(/Terminer le devis et créer le PDF à envoyer \(version 1\)/), "Terminer le devis et créer le PDF à envoyer (version 1)");
+    await p.waitForSelector('[data-act="saveFile"]', { timeout: 60000 }).catch(() => null);
+    ok(/Version 1 terminée/.test(await A.lire()), "Message « Version 1 terminée »");
+    const sf = p.locator('[data-act="saveFile"]').first(); const lib = (await sf.count()) ? await sf.innerText() : "";
+    ok(/Télécharger le fichier|Envoyer le PDF/.test(lib), "Le bouton suivant dit ce qu'il fait (sur ce navigateur : partage impossible → « Télécharger »)", lib);
+    if (await sf.count()) { const [d0] = await Promise.all([p.waitForEvent("download", { timeout: 20000 }).catch(() => null), sf.tap()]);
+      ok(d0 && /-V1\.pdf$/.test(d0.suggestedFilename()), "Le fichier remis est le PDF de la version 1", d0 && d0.suggestedFilename()); }
+    ok(/Envoyé/.test(await A.lire()), "Statut du devis : Envoyé");
     const pdf1 = await A.exporter("pdf"); ok(pdf1.ok && contient(pdf1.texte, 78000), "PDF de V1 : 78 000");
     // modification après envoi : passer par le suivi du devis
     const suivi = p.locator("a.btn").filter({ hasText: /Suivi du devis/ }).first(); await A.toucher(suivi, "Suivi du devis");

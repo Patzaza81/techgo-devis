@@ -15,7 +15,14 @@ export const SOURCES = {
   nezMarche: "Générateur de prix Cameroun (cameroun.prix-construction.info) : nez de marche au mètre",
   bricoDepot: "Brico Dépôt : ragréage et mortier-colle en sac de 25 kg",
   williams: "Williams Éclairage, Yaoundé (annuaire Maligah) : plafonniers, ampoules LED, gaines ICTA, appareillage",
-  domomat: "Domomat (catalogue électricité) : douilles, appliques et hublots, plafonniers, réglettes, télérupteurs, bornes de connexion",
+  domomat: "Domomat (catalogue électricité) : douilles, appliques et hublots, plafonniers, réglettes, télérupteurs, bornes de connexion, brasseurs d'air, contacteurs, prises de télécommunication, compteurs d'énergie",
+  inoda: "INODA Industries, Douala (fiche technique INOSATIN) : peinture antirouille",
+  mrBricolage: "Mr Bricolage (rayons peinture) : peinture façade, crépi façade, peinture anti-rouille, peintures sol, vernis",
+  tollens: "Catalogue professionnel Tollens : impressions, fixateurs, hydrofuge de façade",
+  regulTension: "Glotelho et NowTech Center (Cameroun) : régulateurs / stabilisateurs de tension vendus à l'unité (1 000 à 60 000 VA)",
+  regulCharge: "Glotelho (Cameroun) : régulateur de charge solaire MPPT, vendu à l'unité",
+  cimentBlanc: "Camer.be — Cimencam lance « Sublim », ciment blanc fabriqué au Cameroun",
+  chauxLaterite: "Thèse ENSET Ebolowa (dicames) : graveleux latéritiques et stabilisation à la chaux au Cameroun",
 };
 
 // Produits ajoutés. dom : sous-ensemble du référentiel où ils s'affichent (maçonnerie, électricité) ; liste : onglet de la liste à plat (carrelage).
@@ -27,6 +34,9 @@ export const AJOUTS = {
     { dom: "acier", fam: "Bois de coffrage et de charpente", nom: "Latte", unites: ["pièce"], src: ["latte"] },
     { dom: "acier", fam: "Bois de coffrage et de charpente", nom: "Pointes", unites: ["kg", "carton"], src: ["devisMendzana"] },
     { dom: "dall", fam: "Dallage et protection", nom: "Film polyane", unites: ["m", "rouleau"], src: ["devisMendzana"] },
+    { dom: "liants", fam: "Liants et terres", nom: "Chaux", unites: ["sac", "kg"], src: ["chauxLaterite"] },
+    { dom: "liants", fam: "Liants et terres", nom: "Latérite (remblai)", unites: ["m³", "camion"], src: ["chauxLaterite"] },
+    { dom: "adj", fam: "Imperméabilisation", nom: "Hydrofuge de masse", unites: ["litre", "bidon"], src: ["devisMendzana", "tollens"] },
   ],
   electricite: [
     { dom: "bat", fam: "Éclairage du logement", nom: "Ampoule (lampe à culot)", unites: ["pièce"], src: ["williams", "domomat"] },
@@ -36,6 +46,12 @@ export const AJOUTS = {
     { dom: "bat", fam: "Éclairage du logement", nom: "Hublot (applique étanche)", unites: ["pièce"], src: ["domomat"] },
     { dom: "bat", fam: "Commande et raccordement", nom: "Télérupteur", unites: ["pièce"], src: ["domomat"] },
     { dom: "bat", fam: "Commande et raccordement", nom: "Borne de connexion (domino)", unites: ["pièce", "boîte"], src: ["domomat"] },
+    { dom: "bat", fam: "Commande et raccordement", nom: "Contacteur modulaire", unites: ["pièce"], src: ["domomat"] },
+    { dom: "bat", fam: "Commande et raccordement", nom: "Compteur d'énergie divisionnaire", unites: ["pièce"], src: ["domomat"] },
+    { dom: "bat", fam: "Éclairage du logement", nom: "Brasseur d'air (ventilateur de plafond)", unites: ["pièce"], src: ["domomat"] },
+    { dom: "fai", fam: "Prises de communication", nom: "Prise TV (télécommunication)", unites: ["pièce"], src: ["domomat"] },
+    { dom: "sec", fam: "Tension et solaire", nom: "Régulateur de tension (stabilisateur)", unites: ["pièce"], src: ["regulTension"] },
+    { dom: "sec", fam: "Tension et solaire", nom: "Régulateur de charge solaire", unites: ["pièce"], src: ["regulCharge"] },
   ],
   carrelage: [
     { liste: "produits", nom: "Primaire d'accrochage", unites: ["litre", "bidon"], src: ["chausson"] },
@@ -44,6 +60,15 @@ export const AJOUTS = {
     { liste: "produits", nom: "Nez de marche", unites: ["ml", "pièce"], src: ["nezMarche", "chausson"] },
     { liste: "produits", nom: "Natte d'étanchéité", unites: ["m²", "rouleau"], src: ["chausson"] },
     { liste: "produits", nom: "Silicone sanitaire", unites: ["cartouche"], src: ["chausson"] },
+    { liste: "produits", nom: "Ciment blanc", unites: ["sac"], src: ["cimentBlanc"] },
+  ],
+  peinture: [
+    { liste: "produits", nom: "Peinture antirouille", unites: ["pot", "seau", "kg"], src: ["inoda", "mrBricolage"] },
+    { liste: "produits", nom: "Peinture de sol", unites: ["pot", "seau", "kg"], src: ["mrBricolage"] },
+    { liste: "produits", nom: "Vernis", unites: ["pot", "litre"], src: ["mrBricolage"] },
+    { liste: "produits", nom: "Fixateur (impression)", unites: ["litre", "bidon"], src: ["tollens"] },
+    { liste: "produits", nom: "Hydrofuge de façade", unites: ["litre", "bidon"], src: ["tollens"] },
+    { liste: "produits", nom: "Crépi", unites: ["sac", "kg"], src: ["mrBricolage"] },
   ],
 };
 
@@ -76,4 +101,7 @@ export const UNITES_LISTE = {
   peinture: [[/^Peinture|Sous-couche|Multiprim|Soytex|Pancoat|Flintkote/i, ["pot", "seau", "litre", "kg"]], [/Stucco|Mastic|Enduit/i, ["sac", "pot", "kg"]], [/Ciment/i, ["sac"]], [/Diluant/i, ["litre"]], [/Colorant/i, ["flacon", "litre"]], [/Papier abrasif/i, ["rouleau", "paquet", "feuille"]], [/Bandes adhésives/i, ["rouleau"]], [/Rouleaux et pinceaux/i, ["pièce", "lot"]], [/Bâche/i, ["pièce", "m²"]]],
   carrelage: [[/^Carreaux/i, ["m²", "carton"]], [/Colle à carrelage|Mortier-colle|Joint de carrelage|Ragréage/i, ["sac", "kg"]], [/Plinthes/i, ["ml", "pièce", "carton"]], [/Croisillons/i, ["paquet"]], [/^Ciment/i, ["sac"]], [/^Sable/i, ["m³", "camion", "tonne"]], [/Primaire/i, ["litre", "bidon"]], [/Profilé|Nez de marche/i, ["pièce", "ml"]], [/Natte/i, ["m²", "rouleau"]], [/Silicone/i, ["cartouche"]]],
 };
-export function unitesListe(met, nom) { const t = UNITES_LISTE[met] || []; const x = t.find(([re]) => re.test(String(nom || ""))); return x ? x[1] : null; }
+export function unitesListe(met, nom) {
+  const a = (AJOUTS[met] || []).find((p) => p.liste && p.nom === nom); if (a) return a.unites; // produit ajouté : ses unités sourcées
+  const t = UNITES_LISTE[met] || []; const x = t.find(([re]) => re.test(String(nom || ""))); return x ? x[1] : null;
+}

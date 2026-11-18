@@ -6,13 +6,16 @@
 //  - échéancier : chaque part arrondie 0,5 vers le haut, la dernière = reste (somme exacte).
 // Un prix, un coût, un rendement ou une quantité manquants valent « inconnu » (null), jamais zéro.
 
-export const ENGINE_VERSION = "2.0.0";
+export const ENGINE_VERSION = "2.1.0"; // 2.1.0 (18/11/2026) : règle d'arrondi unique, pourcentages exacts, location refacturée = jours × prix par jour
 
 const SC = 1000;
 const isNum = (x) => typeof x === "number" && isFinite(x);
 const sc = (x) => { if (!isNum(x)) throw new Error("Nombre invalide : " + x); return Math.round(x * SC); };
 const ceilDiv = (a, b) => { if (!(b > 0)) throw new Error("Division invalide"); return Math.floor((a + b - 1) / b); };
 const roundDiv = (n, d) => Math.floor((2 * n + d) / (2 * d));
+// Pourcentage d'un montant entier (remise, frais, TVA, tranche) arrondi au franc, 0,5 → au-dessus,
+// en calcul entier exact quelle que soit la taille du montant (BigInt : pas de perte au-delà de 2^53).
+const pctDe = (x, p) => { const n = BigInt(Math.round(x)) * BigInt(sc(p)), d = BigInt(100 * SC); const q = (2n * n + d) / (2n * d); return Number(2n * n + d < 0n && (2n * n + d) % (2n * d) !== 0n ? q - 1n : q); };
 // RÈGLE D'ARRONDI UNIQUE (décision de Patrick, 18/11/2026) : chaque montant de ligne est arrondi au franc le plus proche
 // (0,5 vers le haut) ; les totaux sont la somme des lignes ; frais, remise et TVA sont calculés sur le total HT puis arrondis
 // au franc de la même façon ; TTC = HT + TVA. Le produit est calculé en nombres entiers : 0,35 × 1 350 = 472,5 → 473
@@ -40,7 +43,7 @@ export function schedule(amount, percents) {
   const out = []; let acc = 0;
   percents.forEach((p, i) => {
     if (i === percents.length - 1) out.push(amount - acc);
-    else { const part = roundDiv(amount * sc(p), 100 * SC); out.push(part); acc += part; }
+    else { const part = pctDe(amount, p); out.push(part); acc += part; }
   });
   return out;
 }
@@ -48,7 +51,7 @@ const splitProportional = (total, parts) => { // parts: tableau de poids, somme 
   const w = parts.reduce((a, b) => a + b, 0);
   if (!w) return parts.map(() => 0);
   const out = []; let acc = 0;
-  parts.forEach((p, i) => { if (i === parts.length - 1) out.push(total - acc); else { const v = roundDiv(total * p, w); out.push(v); acc += v; } });
+  parts.forEach((p, i) => { if (i === parts.length - 1) out.push(total - acc); else { const n2 = 2n * BigInt(Math.round(total)) * BigInt(Math.round(p)) + BigInt(Math.round(w)), d2 = 2n * BigInt(Math.round(w)); const v = Number(n2 >= 0n ? n2 / d2 : -((-n2 + d2 - 1n) / d2)); out.push(v); acc += v; } });
   return out;
 };
 
@@ -129,7 +132,9 @@ export function computeQuote(inp) {
 
     if (isEquip) {
       if (L.bill === "refacture") {
-        if (cost !== null && isNum(L.markupPct)) { total = montantLigne(cost, 1 + L.markupPct / 100); unitPrice = qty ? Math.round(total / qty) : null; }
+        if (cost !== null && isNum(L.markupPct)) { total = montantLigne(cost, 1 + L.markupPct / 100);
+          // prix par jour arrondi au franc, puis montant = jours × prix par jour (même règle que toutes les lignes : ce qui est écrit se recalcule)
+          if (qty) { unitPrice = Math.floor(total / qty + 0.5); total = montantLigne(qty, unitPrice); } else unitPrice = null; }
         else flags.push("prix_inconnu");
       } else { total = 0; unitPrice = 0; calc += " — non facturé séparément (absorbé)"; }
     } else {
@@ -164,19 +169,19 @@ export function computeQuote(inp) {
 
   // frais généraux : soit ligne séparée facturée, soit inclus dans les prix (jamais les deux)
   const oh = inp.overhead || { pct: 0, mode: "inclus" };
-  const ohLine = (sub) => (oh.mode === "ligne" && oh.pct > 0 ? roundDiv(sub * sc(oh.pct), 100 * SC) : 0);
+  const ohLine = (sub) => (oh.mode === "ligne" && oh.pct > 0 ? pctDe(sub, oh.pct) : 0);
   const sub0 = mat0 + svc0, sub1 = mat1 + svc1;
   const ohB = ohLine(sub0), ohO = ohLine(sub1);
 
   const d = inp.discount || {};
   const disc = (sub) => {
-    if (isNum(d.pct) && d.pct > 0) return roundDiv(sub * sc(d.pct), 100 * SC);
+    if (isNum(d.pct) && d.pct > 0) return pctDe(sub, d.pct);
     if (isNum(d.amount) && d.amount > 0) return Math.min(d.amount, sub);
     return 0;
   };
   const dB = disc(sub0 + ohB), dO = disc(sub1 + ohO);
   const netB = sub0 + ohB - dB, netO = sub1 + ohO - dO;
-  const vat = (x) => (isNum(inp.vatPct) ? roundDiv(x * sc(inp.vatPct), 100 * SC) : null);
+  const vat = (x) => (isNum(inp.vatPct) ? pctDe(x, inp.vatPct) : null);
   const vB = vat(netB), vO = vat(netO);
 
   // échéanciers (remise répartie proportionnellement matériel / services)
@@ -198,7 +203,7 @@ export function computeQuote(inp) {
   if (costKnown) {
     const direct0 = out.filter((l) => !l.option).reduce((a, l) => a + l.cost, 0);
     const direct1 = out.reduce((a, l) => a + l.cost, 0);
-    const ohCost = (x) => (oh.pct > 0 ? roundDiv(x * sc(oh.pct), 100 * SC) : 0);
+    const ohCost = (x) => (oh.pct > 0 ? pctDe(x, oh.pct) : 0);
     const mk = (direct, net) => { const c = direct + ohCost(direct); return { cost: c, profit: net - c, markupPct: c ? ((net - c) / c) * 100 : null, marginRatePct: net ? ((net - c) / net) * 100 : null }; };
     margin = { base: mk(direct0, netB), option: mk(direct1, netO) };
   }

@@ -59,5 +59,13 @@ eq("ancien devis sans profil = entreprise", renderDoc({ ...snapOf(q4), quote: { 
     eq(`forme ${f} : total de la main-d'œuvre 69 000`, h9.includes("69 000"), true); }
   eq("devis v4 : forfait unique de main-d'œuvre sans détail ajouté", html.includes("Main-d'œuvre technique (équipe TechGo) : 1"), false);
 }
+// Poste de 4 lignes ou plus : son propre tableau (une ligne par personne), plus de long paragraphe ; moins de 4 : détail en une phrase
+{ const q10 = S.createQuote(); q10.current.profil = "technicien"; line(q10, item("Ciment ordinaire", "materiaux", "sac", 6500), 10);
+  for (const [nom, pu] of [["Maçon", 15000], ["Aide-maçon", 8000], ["Ferrailleur", 12000], ["Manœuvre", 6000]]) line(q10, item(nom, "main_oeuvre", "jour", pu), 3);
+  for (const f of ["detaille", "express", "chantier"]) { q10.current.form = f; const h = renderDoc(snapOf(q10), { draft: true, ref: q10.ref }).replace(/[  ]/g, " ");
+    eq(`forme ${f} : 4 ouvriers → plus de phrase « Maçon : 3 jours × … »`, h.includes("Maçon : 3 jours ×"), false);
+    eq(`forme ${f} : 4 ouvriers → chacun sur sa ligne avec son montant (Ferrailleur 36 000)`, /<td><b>Ferrailleur<\/b>[\s\S]{0,200}36 000/.test(h), true);
+    eq(`forme ${f} : total main-d'œuvre 123 000 toujours écrit`, h.includes("123 000"), true); }
+}
 
 console.log(`\n${pass} réussis, ${fail} échoués`); process.exit(fail ? 1 : 0);

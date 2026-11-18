@@ -253,14 +253,19 @@ export function freezeVersion(q) {
 }
 // Recalcule une version figée à partir de ses seules données et compare au résultat enregistré.
 export function verifyVersion(v) {
-  const reasons = [];
+  const reasons = [], notes = [];
   try {
     const inp = buildInput(v.quote, Object.values(v.items), { minMarginPct: v.minMarginPct });
-    const again = computeQuote(inp);
-    if (fingerprint(again) !== fingerprint(v.result)) reasons.push("Le recalcul ne redonne pas le résultat enregistré.");
+    const again = computeQuote(inp), ancien = (v.result.engineVersion || "") !== ENGINE_VERSION;
+    // Une version figée avec un moteur antérieur garde ses montants (ils sont ceux envoyés au client) ;
+    // seul le contenu est contrôlé par l'empreinte, un écart de recalcul est seulement signalé.
+    if (fingerprint({ ...again, engineVersion: v.result.engineVersion }) !== fingerprint(v.result)) {
+      if (ancien) notes.push(`Calculée avec l'ancienne règle de calcul (moteur ${v.result.engineVersion || "?"}) : montants d'origine conservés.`);
+      else reasons.push("Le recalcul ne redonne pas le résultat enregistré.");
+    }
   } catch (e) { reasons.push("Recalcul impossible : " + e.message); }
   if (fingerprint({ quote: v.quote, items: v.items, result: v.result }) !== v.hash) reasons.push("L'empreinte de contrôle ne correspond plus.");
-  return { ok: reasons.length === 0, reasons };
+  return { ok: reasons.length === 0, reasons, notes };
 }
 export function startNegotiation(q) {
   if (!["envoye", "refuse", "expire"].includes(q.status)) throw new Error("Une nouvelle version se prépare à partir d'un devis envoyé, refusé ou expiré.");
