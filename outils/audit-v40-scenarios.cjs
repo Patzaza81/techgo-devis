@@ -153,8 +153,8 @@ module.exports = ({ scenario, nonTeste, METIERS, montant, contient, nombre, norm
     await A.allerEtape3(); const ap = await A.apercu(); ok(contient(ap, attendu), "Aperçu : total");
     const manquants = []; for (let i = 1; i <= 30; i++) if (!ap.includes(`Article ${String(i).padStart(2, "0")}`)) manquants.push(i); ok(!manquants.length, "Aperçu : les 30 lignes présentes", manquants.join(","));
     const pdf = await A.exporter("pdf"); ok(pdf.ok, "PDF créé");
-    if (pdf.ok) { const pages = Number((require("child_process").execFileSync("pdfinfo", [pdf.f]).toString().match(/Pages:\s+(\d+)/) || [])[1]); note("Pages du PDF", pages); ok(pages >= 2, "Le PDF passe sur plusieurs pages", pages); ok(contient(pdf.texte, attendu), "PDF : total (lecture OCR)");
-      const vus = []; for (let i = 1; i <= 30; i++) if (new RegExp(`Article ${String(i).padStart(2, "0")}`).test(pdf.texte)) vus.push(i); ok(vus.length >= 28, "PDF : les lignes se retrouvent par OCR (≥ 28/30, l'OCR peut en rater)", `${vus.length}/30`); }
+    if (pdf.ok) { const pages = Number((require("child_process").execFileSync("pdfinfo", [pdf.f]).toString().match(/Pages:\s+(\d+)/) || [])[1]); note("Pages du PDF", pages); ok(pages >= 2, "Le PDF passe sur plusieurs pages", pages); ok(!/^\[OCR\]/.test(pdf.texte), "PDF lu comme texte (sans reconnaissance de caractères)"); ok(contient(pdf.texte, attendu), "PDF : total");
+      const vus = []; for (let i = 1; i <= 30; i++) if (new RegExp(`Article ${String(i).padStart(2, "0")}`).test(pdf.texte)) vus.push(i); ok(vus.length === 30, "PDF : les 30 lignes présentes", `${vus.length}/30`); }
     const w = await A.exporter("word"); if (w.ok) { const m = []; for (let i = 1; i <= 30; i++) if (!w.texte.includes(`Article ${String(i).padStart(2, "0")}`)) m.push(i); ok(!m.length, "Word : les 30 lignes présentes", m.join(",")); ok(contient(w.texte, attendu), "Word : total"); }
   }),
 

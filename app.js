@@ -7,6 +7,7 @@ import * as Mt from "./metiers/metre.js";
 import * as UM from "./ui-metre.js";
 import { lireSaisie } from "./saisie.js";
 import { montantLigne } from "./engine.js";
+import * as Journal from "./journal.js";
 import { analyseCsv, exportCatalogueCsv, templateCsv, exportRowsCsv } from "./csv.js";
 const NEUTRAL_LOGO = "data:image/svg+xml;utf8," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><rect width="40" height="40" rx="9" fill="#e7ebed"/><path d="M12 9h12l6 6v16H12z" fill="none" stroke="#69787e" stroke-width="2.2" stroke-linejoin="round"/><path d="M16 21h10M16 26h10" stroke="#69787e" stroke-width="2.2" stroke-linecap="round"/></svg>');
 import { LISTES, METIERS, visibleIn, metierLabel } from "./metiers/listes.js";
@@ -789,6 +790,8 @@ function viewReglages() {
       <button data-act="export">Exporter une sauvegarde complète (.json)</button> <button class="sec" data-act="quotesCsv">Exporter la liste des devis (CSV)</button>
       ${L("Restaurer depuis un fichier (testé avant d'être appliqué)")}<input type="file" accept=".json,application/json" data-on="backupFile">
       ${b ? `<div class="banner ${b.ok ? "info" : "bad"}">${b.ok ? `Sauvegarde valide : ${b.summary.devis} devis, ${b.summary.clients} clients, ${b.summary.articles} articles, ${b.summary.commandes} commandes. Toutes les versions de devis passent le contrôle d'intégrité.` : b.errors.map(esc).join("<br>")}</div>${b.ok ? `<button class="gold" data-act="restore">Restaurer comme nouvelle entreprise</button><p class="hint">La restauration crée un nouvel espace : tes données actuelles ne sont pas écrasées.</p>` : ""}` : ""}</div>
+    ${Journal.actif() ? `<div class="card" id="journal"><b>Journal d'essai</b><p class="hint">Actif sur ce téléphone (lien d'essai). ${Journal.entrees().length} événement(s) noté(s) : écrans, boutons, erreurs — jamais ce qui est écrit (ni nom, ni téléphone, ni prix).</p>
+      <div class="row"><button data-act="journalCsv">Exporter (CSV)</button><button class="sec" data-act="journalEffacer">Effacer</button></div><button class="sec" data-act="journalStop" style="margin-top:8px">Arrêter le journal sur ce téléphone</button></div>` : ""}
     <div class="card"><b>Repartir de zéro</b><p class="hint">Supprime les devis commencés mais jamais envoyés. Les devis envoyés ou acceptés ne sont jamais supprimés. Fais d'abord une sauvegarde ci-dessus si tu hésites.</p>
       <button class="sec" data-act="delDrafts" ${S.deletableQuotes().length ? "" : "disabled"}>Supprimer mes brouillons (${S.deletableQuotes().length})</button></div>
     <div class="card"><b>Journal d'audit</b><p class="hint">Les 40 dernières actions (création, envoi, statut, prix, paiements).</p>${db.audit.slice(-40).reverse().map((a) => `<div class="chk"><div style="flex:1"><b>${esc(a.action)}</b><div class="note">${esc(a.detail)}</div></div><span class="note">${frDate(a.at)}</span></div>`).join("") || `<p class="hint">Vide.</p>`}</div>
@@ -1203,6 +1206,9 @@ const actions = {
     return "skip";
   },
   saveFile() { return saveFile(); },
+  journalCsv() { download(`journal-essai-${S.today()}.csv`, "text/csv;charset=utf-8", Journal.csv()); ui.flash = { type: "ok", text: "Journal d'essai exporté (CSV)." }; },
+  journalEffacer() { Journal.effacer(); ui.flash = { type: "ok", text: "Journal d'essai effacé." }; },
+  journalStop() { Journal.arreter(); ui.flash = { type: "ok", text: "Journal d'essai arrêté sur ce téléphone." }; },
   csvExport() { download(`catalogue-${S.today()}.csv`, "text/csv;charset=utf-8", exportCatalogueCsv(S.state.db.catalogue)); ui.flash = { type: "ok", text: "Catalogue exporté (CSV)." }; },
   csvTemplate() { download("modele-catalogue.csv", "text/csv;charset=utf-8", templateCsv()); },
   csvApply() { const ok = ui.csv.rows.filter((r) => r.status !== "error").map((r) => r.item); S.saveItems(ok, "import CSV"); ui.flash = { type: "ok", text: `${ok.length} article(s) importé(s).` }; ui.csv = null; },
@@ -1247,4 +1253,5 @@ if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
   }).catch(() => {});
 }
 S.init({ blank: true });
+Journal.brancher();
 render();
