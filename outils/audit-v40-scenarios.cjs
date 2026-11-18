@@ -106,6 +106,157 @@ module.exports = ({ scenario, nonTeste, METIERS, montant, contient, nombre, norm
     if (w.ok) { ok(contient(w.texte, 123000), "Word : 123 000 HT"); ok(contient(w.texte, ttc || 146678), "Word : TTC identique à l'aperçu"); ok(!/…\s*jours/.test(w.texte), "Word : pas de « … jours »"); ok(new RegExp(ouv).test(w.texte), "Word : main-d'œuvre détaillée"); }
   })),
 
+
+  // ---------------------------------------------------------------- CHIFFRAGE TECHNICIEN AVEC REMISE ET TVA, par métier
+  ...[["Peinture", "PEI", "Peinture acrylique", "Sous-couche"], ["Carrelage", "CAR", "Carreaux", "Colle à carrelage"], ["Maçonnerie", "MAC", "@ciment", "@sable"], ["Plomberie", "PLO", "@PVC", "@coude"], ["Électricité", "ELE", "@câble", "@disjoncteur"]]
+   .map(([met, code, a, b]) => () => scenario(code + "-K2", met, "Chiffrage avec remise 10 % et TVA 19,25 % : écran, aperçu, PDF, Word", async (A, p, ok, note) => {
+    await A.demarrer(met); await A.client(); await A.continuer();
+    const nom = async (x) => { if (!x.startsWith("@")) return x; await A.rechercher(x.slice(1)); const n = (await A.nomsVisibles())[0]; return n; };
+    const n1 = await nom(a); await A.ajouter(n1, { qty: 5, unit: "auto", price: 12000 }); await A.rechercher("");
+    const n2 = await nom(b); await A.ajouter(n2, { qty: "2,5", unit: "auto", price: 6000 }); await A.rechercher("");
+    await A.ouvrirSection(/Main-d'œuvre|Ouvrages et main-d'œuvre/); await A.ajouterLibre(/Ajouter (la main-d'œuvre|un ouvrage ou de la main-d'œuvre)/, { nom: "Main-d'œuvre de pose", qty: 2, unit: "jour", price: 20000 });
+    // calcul indépendant : 60 000 + 15 000 + 40 000 = 115 000 ; remise 10 % = 11 500 ; HT 103 500 ; TVA 19,25 % = 19 923,75 ; TTC 123 423,75
+    ok((await A.total()) === 115000, "Total avant remise : 5 × 12 000 + 2,5 × 6 000 + 2 × 20 000 = 115 000", await A.total());
+    await A.allerEtape3();
+    await A.toucher(p.locator("details.reglages > summary").filter({ hasText: /Conditions, présentation/ }).first(), "Conditions, présentation et paiement");
+    await A.taper(/^Remise en %/, 10); await A.taper(/^TVA \(%\)/, "19,25");
+    const t = await A.lire(); const ap = await A.apercu(); await A.capture("apercu");
+    ok(contient(ap, 103500), "Aperçu : HT après remise 103 500", (ap.match(/[\d ]{5,} FCFA/g) || []).slice(0, 8).join(" | "));
+    ok(contient(ap, 11500), "Aperçu : remise 11 500 écrite");
+    const ttc = [123424, 123423].find((v) => contient(ap, v)); ok(ttc, "Aperçu : TTC 123 423,75 arrondi");
+    ok(contient(t, ttc || 123424), "Écran : « Avec TVA » égal au TTC de l'aperçu");
+    const pdf = await A.exporter("pdf"); ok(pdf.ok, "PDF créé", pdf.raison);
+    if (pdf.ok) { for (const v of [103500, ttc || 123424]) ok(contient(pdf.texte, v), `PDF contient ${montant(v)}`); ok(/Remise \(10 ?%\)/.test(pdf.texte), "PDF : ligne « Remise (10 %) » (le montant − 11 500 est vérifié sur l'image : l'OCR lit mal le signe moins)"); }
+    const w = await A.exporter("word"); ok(w.ok, "Word créé", w.raison);
+    if (w.ok) for (const v of [103500, 11500, ttc || 123424]) ok(contient(w.texte, v), `Word contient ${montant(v)}`);
+    if (w.ok) ok(new RegExp(n1.split(" ")[0]).test(w.texte) && /Main-d'œuvre de pose/.test(w.texte), "Word : désignations présentes");
+  })),
+
+  // ---------------------------------------------------------------- GRANDS MONTANTS, DEVIS LONG, NOMS LONGS
+  () => scenario("PEI-K3", "peinture", "Grands montants : 1 500 × 125 000 = 187 500 000, montant en lettres", async (A, p, ok, note) => {
+    await A.demarrer("Peinture"); await A.client(); await A.continuer();
+    await A.ajouter("Peinture extérieure", { qty: "1 500", unit: "auto", price: "125 000" });
+    ok((await A.total()) === 187500000, "« 1 500 » × « 125 000 » (espaces) = 187 500 000", await A.total());
+    await A.allerEtape3(); const ap = await A.apercu();
+    ok(contient(ap, 187500000), "Aperçu : 187 500 000"); ok(/cent quatre-vingt-sept millions cinq cent mille/i.test(ap), "Aperçu : montant en lettres exact", (ap.match(/somme de[^(]*/) || [""])[0]);
+    const pdf = await A.exporter("pdf"); ok(pdf.ok && contient(pdf.texte, 187500000), "PDF : 187 500 000");
+    const w = await A.exporter("word"); ok(w.ok && contient(w.texte, 187500000) && /cent quatre-vingt-sept millions cinq cent mille/i.test(w.texte), "Word : montant et lettres");
+    await A.capture("apercu");
+  }),
+  () => scenario("PEI-L1", "peinture", "Devis long : 30 lignes aux noms longs, saut de page, rien de perdu", async (A, p, ok, note) => {
+    await A.demarrer("Peinture"); await A.client(); await A.continuer();
+    let attendu = 0;
+    for (let i = 1; i <= 30; i++) { const nom = `Article ${String(i).padStart(2, "0")} — peinture acrylique satinée lessivable teinte spéciale réf. ${1000 + i}`; await A.ouvrirSection(/Produits/);
+      await A.ajouterLibre(/Ajouter un produit/, { nom, qty: i, unit: "auto", price: 1000 + i * 10 }); attendu += i * (1000 + i * 10); }
+    ok((await A.total()) === attendu, `Total des 30 lignes = ${montant(attendu)} (calculé à part)`, await A.total());
+    ok(!(await p.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)), "Pas de défilement horizontal à l'écran avec des noms longs");
+    await A.allerEtape3(); const ap = await A.apercu(); ok(contient(ap, attendu), "Aperçu : total");
+    const manquants = []; for (let i = 1; i <= 30; i++) if (!ap.includes(`Article ${String(i).padStart(2, "0")}`)) manquants.push(i); ok(!manquants.length, "Aperçu : les 30 lignes présentes", manquants.join(","));
+    const pdf = await A.exporter("pdf"); ok(pdf.ok, "PDF créé");
+    if (pdf.ok) { const pages = Number((require("child_process").execFileSync("pdfinfo", [pdf.f]).toString().match(/Pages:\s+(\d+)/) || [])[1]); note("Pages du PDF", pages); ok(pages >= 2, "Le PDF passe sur plusieurs pages", pages); ok(contient(pdf.texte, attendu), "PDF : total (lecture OCR)");
+      const vus = []; for (let i = 1; i <= 30; i++) if (new RegExp(`Article ${String(i).padStart(2, "0")}`).test(pdf.texte)) vus.push(i); ok(vus.length >= 28, "PDF : les lignes se retrouvent par OCR (≥ 28/30, l'OCR peut en rater)", `${vus.length}/30`); }
+    const w = await A.exporter("word"); if (w.ok) { const m = []; for (let i = 1; i <= 30; i++) if (!w.texte.includes(`Article ${String(i).padStart(2, "0")}`)) m.push(i); ok(!m.length, "Word : les 30 lignes présentes", m.join(",")); ok(contient(w.texte, attendu), "Word : total"); }
+  }),
+
+
+  // ---------------------------------------------------------------- RÉSISTANCE
+  () => scenario("PEI-R1", "peinture", "Double toucher sur « Créer le PDF », export répété : un seul fichier prêt, montants identiques", async (A, p, ok, note) => {
+    await A.demarrer("Peinture"); await A.client(); await A.continuer(); await A.ajouter("Ciment ordinaire", { qty: 12, unit: "sac", price: 6500 }); await A.allerEtape3();
+    const b = p.locator('[data-act="pdf"]').first(); await b.scrollIntoViewIfNeeded(); await b.tap(); await b.tap({ force: true }).catch(() => {}); await p.waitForSelector('[data-act="saveFile"]', { timeout: 60000 }); await p.waitForTimeout(1500);
+    ok((await p.locator('[data-act="saveFile"]').count()) === 1, "Un seul bouton « Enregistrer » après deux touchers"); ok(!(await p.locator(".banner.bad").count()), "Aucun message d'erreur", (await p.locator(".banner.bad").allInnerTexts()).join(" | "));
+    const e1 = await A.exporter("pdf"), e2 = await A.exporter("pdf"); ok(e1.ok && e2.ok, "Deux exports PDF successifs réussis");
+    if (e1.ok && e2.ok) ok(contient(e1.texte, 78000) && contient(e2.texte, 78000), "Les deux PDF portent 78 000");
+    const w1 = await A.exporter("word"), w2 = await A.exporter("word"); ok(w1.ok && w2.ok && w1.texte === w2.texte, "Deux Word identiques");
+  }),
+  () => scenario("PEI-R2", "peinture", "Client incomplet : pas de nom ni de téléphone", async (A, p, ok, note) => {
+    await A.demarrer("Peinture"); await A.continuer(); await A.ajouter("Ciment ordinaire", { qty: 12, unit: "sac", price: 6500 }); await A.allerEtape3();
+    const t = await A.lire(); const ap = await A.apercu();
+    note("Ce que montre l'aperçu à la place du nom", (ap.match(/CLIENT\s*([^|]{0,40})/) || [])[1]);
+    ok(/nom du client/i.test((await p.locator(".chk b").allInnerTexts()).join(" | ")), "« Vérifier » signale le nom du client manquant", (await p.locator(".chk b").allInnerTexts()).join(" | "));
+    await A.capture("verifier");
+  }),
+  () => scenario("PEI-R3", "peinture", "Fermeture du navigateur puis retour : le devis est retrouvé et modifiable", async (A, p, ok, note) => {
+    await A.demarrer("Peinture"); await A.client("Mme Ngo Bassa"); await A.continuer(); await A.ajouter("Ciment ordinaire", { qty: 12, unit: "sac", price: 6500 });
+    await p.close(); const p2 = await A.ctx.newPage(); await p2.goto(process.env.URL || "http://localhost:8123/index.html"); await p2.waitForTimeout(800);
+    const t = (await p2.locator("#app").innerText()); ok(/Ngo Bassa/.test(t), "La liste des devis montre le devis de Mme Ngo Bassa", t.slice(0, 200).replace(/\n/g, " | "));
+    await p2.locator("#app").getByText(/Ngo Bassa/).first().tap(); await p2.waitForTimeout(500);
+    for (let k = 0; k < 3 && !(await p2.locator(".total .big").count()); k++) { const c = p2.locator("button:visible").filter({ hasText: /^\s*Continuer/ }).first(); if (await c.count()) { await c.tap(); await p2.waitForTimeout(300); } }
+    const tot = Number((await p2.locator(".total .big").first().innerText()).replace(/\D/g, "")); ok(tot === 78000, "Total retrouvé : 78 000", tot);
+  }),
+  () => scenario("PEI-R4", "peinture", "Hors connexion : l'application se rouvre sans réseau (après une première visite)", async (A, p, ok, note) => {
+    await p.goto(process.env.URL || "http://localhost:8123/index.html"); await p.waitForTimeout(800);
+    const sw = await p.evaluate(async () => { if (!navigator.serviceWorker) return "absent"; const r = await Promise.race([navigator.serviceWorker.ready.then(() => "prêt"), new Promise((res) => setTimeout(() => res("délai"), 8000))]); return r; });
+    note("Service worker", sw); await p.waitForTimeout(1500);
+    await A.ctx.setOffline(true); await p.reload().catch((e) => note("Rechargement", e.message.split("\n")[0])); await p.waitForTimeout(1200);
+    const t = await p.locator("body").innerText().catch(() => ""); ok(/Quel est ton métier|Mes devis|TechGo Devis/.test(t), "L'application s'affiche hors connexion", t.slice(0, 120).replace(/\n/g, " | "));
+    await A.ctx.setOffline(false);
+  }),
+
+
+  // ---------------------------------------------------------------- MÉTRÉ → DEVIS → DOCUMENTS (calcul indépendant)
+  () => scenario("PEI-M1", "peinture", "Métré : 50 m², 2 couches, 10 m² par pot → 10 pots ; prix saisis → devis, PDF, Word", async (A, p, ok, note) => {
+    await A.demarrer("Peinture"); await A.client(); await A.continuer();
+    await A.toucher(A.bouton(/Ajouter une zone/), "Ajouter une zone");
+    await A.toucher(p.locator("button:visible").filter({ hasText: /^\s*(＋\s*)?Surface déjà mesurée\s*$/ }).first(), "Surface déjà mesurée");
+    await A.taper(/^Surface à peindre \(m²\)/, 50);
+    await A.toucher(p.locator("button:visible").filter({ hasText: /＋\s*Peinture acrylique/ }).first(), "＋ Peinture acrylique");
+    await A.taper(/^m² couverts/, 10); await A.taper(/^Couches$/, 2);
+    const moSel = p.locator(".mzone select:visible").filter({ has: p.locator("option", { hasText: /tâche/i }) }).first(); ok(await moSel.count(), "Choix « Comment tu la factures » présent");
+    note("Mode de main-d'œuvre proposé par défaut", await moSel.locator("option:checked").innerText().catch(() => "?"));
+    if (await moSel.count()) { const o = (await moSel.locator("option").allInnerTexts()).find((x) => /tâche/i.test(x)); await moSel.selectOption({ label: o }); await p.waitForTimeout(300); }
+    let t = await A.lire(); await A.capture("metre"); note("Textes « Il manque » / « à compléter »", t.split("\n").filter((x) => /Il manque|compléter|choisis|Choisis/.test(x)).join(" // "));
+    ok(/50 m² × 2 couches = 100 m² à couvrir ÷ 10 m² par pot = 10/.test(t), "Le calcul est montré en clair : 50 m² × 2 couches = 100 m² ÷ 10 = 10", (t.match(/50 m²[^|]{0,90}/) || [])[0]);
+    const L = await A.lignes(); note("Lignes après le métré", L.map((l) => `${l.nom} : ${l.detail}`).join(" | "));
+    const lp = (await p.locator("button.rowc").filter({ hasText: /Peinture acrylique/ }).first().innerText()).replace(/\s+/g, " "); ok(/10 Pot/i.test(lp), "La ligne « Peinture acrylique » porte 10 pots", lp);
+    await A.ouvrirLigne("Peinture acrylique"); await A.remplirLigne({ price: 12000 }); await A.fermerLigne();
+    await A.ouvrirSection(/Main-d'œuvre/); const mo = p.locator("button.rowc").filter({ hasText: /Travaux de peinture/ }).first(); ok(await mo.count(), "Ligne de main-d'œuvre « Travaux de peinture » créée par le métré");
+    if (await mo.count()) { await A.toucher(mo, "Travaux de peinture"); await A.remplirLigne({ price: 1500 }); await A.fermerLigne(); }
+    ok((await A.total()) === 195000, "Total : 10 × 12 000 + 50 × 1 500 = 195 000 (calcul indépendant)", await A.total());
+    await A.allerEtape3(); const ap = await A.apercu(); ok(contient(ap, 195000) && contient(ap, 120000) && contient(ap, 75000), "Aperçu : 120 000, 75 000, 195 000");
+    ok(/50 m²/.test(ap), "Aperçu : le détail du métré (50 m²) est joint");
+    const pdf = await A.exporter("pdf"); ok(pdf.ok && contient(pdf.texte, 195000), "PDF : 195 000");
+    const w = await A.exporter("word"); ok(w.ok && contient(w.texte, 195000) && /Mesurée sur place : 50 m²/.test(w.texte), "Word : 195 000 et détail du métré (50 m²)"); ok(w.ok && !/Zone sans nom/.test(w.texte), "Word : pas de « Zone sans nom »");
+  }),
+
+
+  // ---------------------------------------------------------------- ARTISAN PRESSÉ : le chemin le plus court jusqu'au PDF
+  ...[["Peinture", "PEI", "Peinture acrylique"], ["Carrelage", "CAR", "Carreaux"], ["Maçonnerie", "MAC", "@ciment"], ["Plomberie", "PLO", "@robinet"], ["Électricité", "ELE", "@prise"]]
+   .map(([met, code, prod]) => () => scenario(code + "-P1", met, "Artisan pressé : 1 client, 1 produit, PDF — nombre de gestes", async (A, p, ok, note) => {
+    const S0 = Date.now();
+    await A.demarrer(met); await A.taper(/Nom du client/, "M. Ekane"); await A.continuer();
+    let n = prod; if (prod.startsWith("@")) { await A.rechercher(prod.slice(1)); n = (await A.nomsVisibles())[0]; }
+    await A.ajouter(n, { qty: 4, unit: "auto", price: 2500 }); await A.allerEtape3();
+    const pdf = await A.exporter("pdf"); ok(pdf.ok && contient(pdf.texte, 10000), "PDF obtenu avec 4 × 2 500 = 10 000");
+  })),
+
+
+  // ---------------------------------------------------------------- ENVOI, VERSIONS, REPRISE D'UN DEVIS DEPUIS SON PDF
+  () => scenario("PEI-V1", "peinture", "Figer V1, modifier ensuite (V2), V1 inchangée ; rouvrir le devis depuis son PDF sur un autre téléphone", async (A, p, ok, note) => {
+    await A.demarrer("Peinture"); await A.client("M. Tchoua"); await A.continuer(); await A.ajouter("Ciment ordinaire", { qty: 12, unit: "sac", price: 6500 }); await A.allerEtape3();
+    await A.toucher(A.bouton(/Marquer « Prêt à envoyer »/), "Marquer « Prêt à envoyer »");
+    await A.toucher(A.bouton(/Envoyer : figer V1/), "Envoyer : figer V1");
+    ok(/V1 figée/.test(await A.lire()), "Message « V1 figée et envoyée »");
+    const pdf1 = await A.exporter("pdf"); ok(pdf1.ok && contient(pdf1.texte, 78000), "PDF de V1 : 78 000");
+    // modification après envoi : passer par le suivi du devis
+    const suivi = p.locator("a.btn").filter({ hasText: /Suivi du devis/ }).first(); await A.toucher(suivi, "Suivi du devis");
+    const prep = A.bouton(/Préparer V2/); ok(await prep.count(), "Bouton « Préparer V2 » trouvé dans le suivi", (await A.lire()).slice(0, 300));
+    if (await prep.count()) { await A.toucher(prep, "Préparer V2");
+      for (let k = 0; k < 4 && !(await p.locator("button.rowc").count()); k++) await A.precedent();
+      if (!(await p.locator("button.rowc").count())) await p.goto(p.url().replace(/\/\d+$/, "/1")); await p.waitForTimeout(500);
+      await A.ouvrirLigne("Ciment ordinaire"); await A.remplirLigne({ qty: 10 }); await A.fermerLigne();
+      ok((await A.total()) === 65000, "V2 en préparation : 10 sacs → 65 000", await A.total());
+      await A.allerEtape3(); const sel = A.champ(/Version affichée/); const opts = await sel.locator("option").allInnerTexts(); note("Versions proposées", opts.join(" | "));
+      const v1 = opts.find((o) => /^V1/.test(o)); if (v1) { await sel.selectOption({ label: v1 }); await p.waitForTimeout(400); const ap = await A.apercu(); ok(contient(ap, 78000) && !contient(ap, 65000), "La V1 envoyée garde 78 000 (non modifiée)"); } else ok(false, "V1 sélectionnable dans « Version affichée »", opts.join(" | "));
+    }
+    // reprise : un autre téléphone (navigateur vierge) rouvre le PDF de V1
+    if (pdf1.ok) { const ctx2 = await p.context().browser().newContext({ viewport: { width: 360, height: 760 }, isMobile: true, hasTouch: true }); const p2 = await ctx2.newPage();
+      await p2.goto(process.env.URL || "http://localhost:8123/index.html"); await p2.waitForTimeout(500);
+      await p2.getByRole("button", { name: /^\s*Peinture\s*$/ }).first().tap(); await p2.getByText(/Je suis technicien/).first().tap(); await p2.waitForTimeout(400);
+      await p2.locator('input[type=file][data-on="importQuote"]').setInputFiles(pdf1.f); await p2.waitForTimeout(1500);
+      const t2 = await p2.locator("#app").innerText(); const nomRepris = await p2.locator('input[data-p="current.client.name"]').inputValue().catch(() => ""); ok(/Tchoua/.test(nomRepris), "PDF rouvert sur un autre téléphone : le devis de M. Tchoua revient", t2.slice(0, 200).replace(/\n/g, " | "));
+      ok(/78.000/.test(t2.replace(/[  ]/g, " ")), "Montant 78 000 retrouvé"); await ctx2.close(); }
+  }),
+
   // ---------------------------------------------------------------- CHIFFRAGE DE BOUT EN BOUT
   () => scenario("PEI-K1", "peinture", "Chiffrage connu : écran = aperçu = PDF = Word, puis modification", async (A, p, ok, note) => {
     await A.demarrer("Peinture"); await A.client(); await A.continuer();

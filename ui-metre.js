@@ -66,7 +66,7 @@ export function carte(q, dis, sync) {
     }).join("");
     const choix = s.add === z.id ? `<div class="chips">${types.map((t) => `<button type="button" class="chip" data-act="metreOuvAdd" data-z="${zi}" data-t="${t.id}">${esc(t.nom)}</button>`).join("")}</div>` : dis ? "" : `<button type="button" class="addrow" data-act="metreChoix" data-z="${z.id}">＋ Ajouter un ouvrage dans ${esc(z.nom || "cette zone")}</button>`;
     const nb = (z.ouvrages || []).length;
-    return `<div class="mzone"><button type="button" class="sech" data-act="metreZone" data-z="${z.id}"><b>${esc(z.nom || "Zone sans nom")}${nb ? ` · ${nb}` : ""}</b><span><i>${openZ ? "▲" : "▼"}</i></span></button>
+    return `<div class="mzone"><button type="button" class="sech" data-act="metreZone" data-z="${z.id}"><b>${esc(z.nom || `Zone ${zi + 1}`)}${nb ? ` · ${nb}` : ""}</b><span><i>${openZ ? "▲" : "▼"}</i></span></button>
       ${openZ ? `${H.L("Nom de la zone (pièce, étage, bâtiment, lot)")}${H.I("q", `current.metre.zones.${zi}.nom`, z.nom, { dis, ph: "Ex. : Salon, Étage 1, Bâtiment B" })}${ouvr}${choix}
         ${dis ? "" : `<div class="row" style="margin-top:8px"><button type="button" class="sec" data-act="metreZoneCopie" data-z="${zi}">Copier cette zone</button>${s.del === z.id ? `<button type="button" class="sec danger" data-act="metreZoneDel" data-z="${zi}">Confirmer : supprimer</button>` : `<button type="button" class="sec danger" data-act="metreAsk" data-id="${z.id}">Supprimer la zone</button>`}</div>`}` : ""}</div>`;
   }).join("");

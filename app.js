@@ -257,6 +257,9 @@ function explMetre(t) {
 }
 const metreManuel = (q) => q.current.manual.map((m) => ({ id: m.id, metre: m.metre, metreQty: m.metreQty, qty: m.qty, nom: m.nom ?? m.label, detail: m.detail }));
 // État du devis par rapport au métré (sans rien modifier) : sert à afficher les écarts.
+// Ce qui change l'affichage hors du champ en cours : ouvrage complet ou non, lignes du devis et leurs quantités.
+// Quand cela change, l'écran est redessiné (curseur gardé) ; sinon seul le calcul de l'ouvrage est mis à jour.
+function signatureMetre(q) { const c = Mt.calculer(q.current.metre || { zones: [] }, metierOf(q)); return JSON.stringify([c.manques.map((m) => m.zone + m.ouvrage + (m.besoin || "") + m.quoi.join()), c.lignes.map((l) => l.nom + ":" + l.qty)]); }
 function etatMetre(q) {
   if (!q.current.metre) return null;
   const lignes = Mt.calculer(q.current.metre, metierOf(q)).lignes, plan = Mt.planSync(metreManuel(q), lignes);
@@ -419,7 +422,7 @@ function stepEnvoiS(q, ev, dis) {
     ${miss ? `<div class="banner warn">Il manque ${miss} prix. <a href="#/devis/${q.id}/1">Retourne au travail et au matériel</a> pour les remplir.</div>` : ""}
     ${UM.controle(q, dis, etatMetre(q))}${carteOublis(q, ev, dis)}${carteIdentite(dis)}
     ${stepVerifier(q, ev, dis)}
-    <details class="card reglages"><summary><b>Conditions, présentation et paiement</b><small class="hint" style="display:block;margin:2px 0 0">Déjà remplis avec des valeurs courantes. Touche pour les changer.</small></summary>
+    <details class="card reglages" data-k="reglages" ${(ui.ouvert || {}).reglages ? "open" : ""}><summary><b>Conditions, présentation et paiement</b><small class="hint" style="display:block;margin:2px 0 0">Déjà remplis avec des valeurs courantes. Touche pour les changer.</small></summary>
     <div class="card"><b>Conditions</b>
     <div class="row"><div>${L("TVA (%) — laisse vide si pas de TVA")}${I("q", "current.terms.vatPct", cur.terms.vatPct, { type: "number", n: "n", dis })}</div><div>${L("Le devis reste valable (jours)")}${I("q", "current.validityDays", cur.validityDays, { type: "number", n: "n", dis })}</div></div>
     <div class="row"><div>${L("Remise en % (facultatif)")}${I("q", "current.discount.pct", cur.discount.pct, { type: "number", n: "n", dis })}</div><div>${L("ou remise en FCFA")}${I("q", "current.discount.amount", cur.discount.amount, { type: "number", n: "n", dis })}</div></div>
@@ -602,6 +605,7 @@ function stepControle(q, ev, dis) {
   return `<h2>Vérifier avant d'envoyer</h2><div class="card"><div style="display:flex;justify-content:space-between;align-items:center"><b>Résultat</b>${badge(ck.status, STATE_LABEL[ck.status])}</div>
     <p class="hint">Prêt : tout est en ordre. À vérifier : un point reste à confirmer. Il manque quelque chose : corrige-le avant d'envoyer.</p>
     ${sansIdentite() && !dis ? `<div class="chk"><div class="dot d-verifier">!</div><div><b>Ton nom n'est pas sur le devis</b><div class="hint">Le devis porte « Mon entreprise »${String(S.state.db.company.phone || "").trim() ? "" : " et aucun téléphone"} : ton client ne saura pas qui l'envoie.</div>${modeOf(q) === "technicien" ? `<button type="button" class="fixlink linkbtn" data-act="voirIdentite">Corriger : écrire mon nom et mon téléphone</button>` : `<a class="fixlink" href="#/reglages">Corriger : aller dans Réglages</a>`}</div></div>` : ""}
+    ${!String(q.current.client.name || "").trim() && !dis ? `<div class="chk"><div class="dot d-verifier">!</div><div><b>Le nom du client n'est pas écrit</b><div class="hint">Le devis portera une ligne en pointillés à la place du nom.</div><a class="fixlink" href="#/devis/${q.id}/0">Corriger : aller à « ${esc(stepsOf(q)[0])} »</a></div></div>` : ""}
     ${ck.items.map((r) => { const to = r.state === "ok" || dis ? null : etapeDuPoint(q, r.label); return `<div class="chk"><div class="dot d-${r.state}">${r.state === "ok" ? "✓" : r.state === "verifier" ? "!" : "✕"}</div><div><b>${esc(r.label)}</b>${r.hint ? `<div class="hint">${esc(r.hint)}</div>` : ""}${to !== null ? `<a class="fixlink" href="#/devis/${q.id}/${to}">Corriger : aller à « ${esc(stepsOf(q)[to])} »</a>` : ""}</div></div>`; }).join("")}</div>
     ${r_warn(ev)}${dis ? "" : `<div class="row">${acts.join("")}</div>`}`;
 }
@@ -966,6 +970,8 @@ document.addEventListener("pointerup", () => setTimeout(() => { if (tapping) flu
 let changed = null; // dernier champ modifié : si le curseur y est encore (Entrée, « OK »), on redessine normalement
 const later = (full, quiet = () => {}) => { if (tapping) deferred = { full, quiet }; else { const chg = changed; setTimeout(() => { if (inField() && document.activeElement !== chg) { quiet(); liveTotals(); } else keepFocus(full); }, 0); } };
 // Calcul automatique : le montant de la fiche se met à jour à chaque chiffre tapé
+// Un bloc repliable marqué data-k garde son état ouvert/fermé quand l'écran se redessine.
+document.addEventListener("toggle", (e) => { const d = e.target; if (d && d.tagName === "DETAILS" && d.dataset && d.dataset.k) { ui.ouvert = ui.ouvert || {}; ui.ouvert[d.dataset.k] = d.open; } }, true);
 let rechercheT = null;
 document.addEventListener("input", (e) => {
   const el = e.target;
@@ -1003,7 +1009,7 @@ document.addEventListener("change", (e) => {
       // case à cocher, liste ou nom de produit : d'autres champs peuvent apparaître ou se remplir, on redessine tout de suite
       if (redessiner || el.type === "checkbox" || el.tagName === "SELECT") { if (el.tagName === "INPUT" && el.type !== "checkbox") later(() => touchQuote(o), () => keepFocus(() => touchQuote(o))); else touchQuote(o); return; }
     }
-    later(() => { if (root === "q") touchQuote(o); else if (root === "db") { S.commit(); rerender(); } else rerender(); }, () => { if (root === "q") { touchQuote(o, true); if (/^current\.metre\./.test(el.dataset.p)) { UM.majResultat(o); refreshTotals(); } } else if (root === "db") S.commit(); else refreshTotals(); });
+    later(() => { if (root === "q") touchQuote(o); else if (root === "db") { S.commit(); rerender(); } else rerender(); }, () => { if (root === "q") { if (/^current\.(terms|discount|validityDays|notes|overhead|pricing)/.test(el.dataset.p) && document.getElementById("doc")) { keepFocus(() => touchQuote(o)); return; } touchQuote(o, true); if (/^current\.metre\./.test(el.dataset.p)) { UM.majResultat(o); refreshTotals(); const sig = signatureMetre(o); if (sig !== ui.sigMetre) { ui.sigMetre = sig; keepFocus(() => touchQuote(o)); } } } else if (root === "db") S.commit(); else refreshTotals(); });
   } catch (err) { ui.flash = { type: "err", text: err.message }; rerender(); }
 });
 
@@ -1221,7 +1227,7 @@ document.addEventListener("click", (e) => {
 window.addEventListener("hashchange", () => { ui.file = null; render(); window.scrollTo(0, 0); });
 window.addEventListener("beforeprint", () => document.body.classList.add("printing"));
 window.addEventListener("afterprint", () => document.body.classList.remove("printing"));
-export const BUILD = "39";
+export const BUILD = "40";
 // Mise à jour automatique : quand une nouvelle version est publiée, l'application la prend toute seule
 // (au retour sur l'application, ou dès que la personne n'est plus en train de taper). Les données ne sont jamais touchées.
 if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {

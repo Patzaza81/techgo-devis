@@ -25,7 +25,7 @@ function texteWord(f) { const x = execFileSync("unzip", ["-p", f, "word/document
 const RES = [];
 async function scenario(id, metier, titre, fn) {
   if (FILTRE && !FILTRE.test(id)) return;
-  const S = { id, metier, titre, statut: "RÉUSSI", constats: [], preuves: [], debut: Date.now() };
+  const S = { id, metier, titre, statut: "RÉUSSI", constats: [], preuves: [], debut: Date.now(), gestes: 0 };
   const ok = (cond, quoi, detail = "") => { S.constats.push({ ok: !!cond, quoi, detail: String(detail).slice(0, 400) }); if (!cond) S.statut = "ÉCHOUÉ"; return !!cond; };
   const note = (quoi, detail = "") => S.constats.push({ ok: null, quoi, detail: String(detail).slice(0, 600) });
   const b = await chromium.launch();
@@ -52,7 +52,7 @@ function outils(p, S, ok, note, ctx) {
     async lire() { return norm(await p.locator("#app").innerText()); },
     async attendre(ms = 250) { await p.waitForTimeout(ms); },
     bouton(re) { return p.locator("button:visible, a.btn:visible").filter({ hasText: re }).first(); },
-    async toucher(loc, quoi) { await loc.scrollIntoViewIfNeeded().catch(() => {}); if (!(await loc.count())) throw new Error(`« ${quoi} » introuvable à l'écran`); await loc.tap({ timeout: 5000 }); await p.waitForTimeout(250); },
+    async toucher(loc, quoi) { await loc.scrollIntoViewIfNeeded().catch(() => {}); if (!(await loc.count())) throw new Error(`« ${quoi} » introuvable à l'écran`); S.gestes++; await loc.tap({ timeout: 5000 }); await p.waitForTimeout(250); },
     async demarrer(metier, profil = "technicien") {
       await p.goto(URL); await p.waitForTimeout(500);
       await A.toucher(p.getByRole("button", { name: new RegExp("^\\s*" + metier + "\\s*$") }).first(), metier);
@@ -60,10 +60,11 @@ function outils(p, S, ok, note, ctx) {
       await A.toucher(A.bouton(/Faire un devis|Nouveau devis/), "Faire un devis");
     },
     champ(re, n = 0) { return p.locator("label:visible").filter({ hasText: re }).nth(n).locator("xpath=following-sibling::*[self::input or self::select or self::textarea][1]"); },
-    async taper(re, valeur, n = 0) { const f = A.champ(re, n); await f.scrollIntoViewIfNeeded().catch(() => {}); if (!(await f.count())) throw new Error(`Champ « ${re.source} » introuvable`); await f.tap(); await f.fill(""); await f.pressSequentially(String(valeur), { delay: 5 }); await f.press("Tab"); await p.waitForTimeout(250); return f; },
+    async taper(re, valeur, n = 0) { const f = A.champ(re, n); await f.scrollIntoViewIfNeeded().catch(() => {}); if (!(await f.count())) throw new Error(`Champ « ${re.source} » introuvable`); S.gestes++; await f.tap(); await f.fill(""); await f.pressSequentially(String(valeur), { delay: 5 }); await f.press("Tab"); await p.waitForTimeout(250); return f; },
     async choisir(re, valeur, n = 0) { const f = A.champ(re, n); await f.scrollIntoViewIfNeeded().catch(() => {}); await f.selectOption({ label: valeur }).catch(async () => f.selectOption(valeur)); await p.waitForTimeout(250); },
     async client(nom = "M. Mbarga Jean", tel = "6 77 12 34 56", lieu = "Bonamoussadi, Douala") { await A.taper(/Nom du client/, nom); if (tel) await A.taper(/Téléphone du client/, tel); if (lieu) await A.taper(/Quartier ou adresse|Adresse du chantier|Lieu/, lieu).catch(() => {}); },
-    async continuer() { await A.toucher(p.locator("button:visible").filter({ hasText: /^\s*Continuer/ }).first(), "Continuer"); await p.waitForTimeout(300); },
+    async debord(ou) { const d = await p.evaluate(() => { const w = window.innerWidth; const b = [...document.querySelectorAll("#app *")].filter((e) => { const r = e.getBoundingClientRect(); return r.width && r.right > w + 1 && getComputedStyle(e).position !== "fixed"; }).slice(0, 3).map((e) => e.tagName + "." + e.className + " " + (e.innerText || "").slice(0, 30)); return { sw: document.documentElement.scrollWidth, w, b }; }); if (d.sw > d.w + 1 || d.b.length) ok(false, `Débordement horizontal (${ou})`, JSON.stringify(d)); },
+    async continuer() { await A.debord("avant Continuer"); await A.toucher(p.locator("button:visible").filter({ hasText: /^\s*Continuer/ }).first(), "Continuer"); await p.waitForTimeout(300); await A.debord("après Continuer"); },
     async precedent() { const b = p.locator("button:visible, a:visible").filter({ hasText: /Précédent|^\s*‹\s*$|^\s*<\s*$/ }).first(); if (await b.count()) await A.toucher(b, "Précédent"); else await p.goBack(); await p.waitForTimeout(300); },
     async total() { return nombre(await p.locator(".total .big").first().innerText()); },
     async lignes() { return p.locator("button.rowc.ok").evaluateAll((bs) => bs.map((b) => ({ nom: b.querySelector(".rn b")?.innerText.trim(), detail: b.querySelector(".rn small")?.innerText.trim(), total: b.querySelector(".rt")?.innerText.replace(/[▲▼]/g, "").trim() }))); },

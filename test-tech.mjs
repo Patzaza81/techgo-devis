@@ -47,6 +47,8 @@ const q3 = S.createQuote(); line(q3, item("Sable ", "materiaux", "m³", null), 2
 const h3 = renderDoc(snapOf(q3), { draft: true, ref: q3.ref });
 eq("prix inconnu : jamais compté à zéro, affiché « — »", h3.includes(">—<") && S.evaluate(q3).result.totals.base === 0, true);
 S.state.db.settings.profil = "entreprise"; const q4 = S.createQuote();
+eq("devis entreprise sans surface : ni « — m² » ni base de calcul (audit v40)", /— m²|Base de calcul des quantités/.test(renderDoc(snapOf(q4), { draft: true, ref: q4.ref })), false);
+q4.current.site.surface = 50; // avec une surface : modèle complet
 eq("devis entreprise : modèle complet conservé", renderDoc(snapOf(q4), { draft: true, ref: q4.ref }).includes("Base de calcul des quantités"), true);
 eq("devis entreprise : profil entreprise", q4.current.profil, "entreprise");
 eq("ancien devis sans profil = entreprise", renderDoc({ ...snapOf(q4), quote: { ...q4.current, profil: undefined } }, {}).includes("Base de calcul des quantités"), true);

@@ -81,11 +81,11 @@ export function buildDocx(snap, ref = "") {
   const logo = parseDataUrl(pres.logo);
   const sNet = effSurface(q.site);
   const tail = (sub, oh, disc, net, v, ttc) => [
-    subRow("Sous-total HT", fmtN(sub), acc),
+    ...(ohLabel || disc ? [subRow("Sous-total HT", fmtN(sub), acc)] : []),
     ...(ohLabel ? [plainRow(`Frais généraux (${q.overhead.pct} %)`, fmtN(oh))] : []),
     ...(disc ? [plainRow(`Remise${q.discount.pct > 0 ? " (" + q.discount.pct + " %)" : ""}`, "− " + fmtN(disc))] : []),
     subRow("TOTAL HT", fmtN(net), acc),
-    ...(v === null ? [] : [plainRow(`TVA ${vat} %`, fmtN(v)), subRow("TOTAL TTC", fmtN(ttc), acc)]),
+    ...(v === null ? [] : [plainRow(`TVA ${fmtD(vat)} %`, fmtN(v)), subRow("TOTAL TTC", fmtN(ttc), acc)]),
   ];
   const body = [];
   // en-tête
@@ -112,15 +112,15 @@ export function buildDocx(snap, ref = "") {
     body.push(table([headRow(acc), ...groupRows(opt, acc), subRow("SOUS-TOTAL OPTION", fmtN(t.matOpt + t.svcOpt), acc), ...tail(t.subOption, t.overheadOption, t.discountOption, t.withOption, t.vatOption, t.ttcOption)], WIDTHS));
   }
   body.push(h3("Synthèse financière", acc));
-  body.push(table([plainRow(`Fournitures et consommables${hasOpt ? " (offre de base)" : ""}`, fmt(t.matBase)), plainRow(`Main-d'œuvre, équipements et services${hasOpt ? " (offre de base)" : ""}`, fmt(t.svcBase)), subRow(`Total${hasOpt ? " offre de base" : ""} (HT)`, fmt(t.base), acc),
+  body.push(table([plainRow(`Fournitures et consommables${hasOpt ? " (offre de base)" : ""}`, fmt(t.matBase)), plainRow(`Main-d'œuvre, équipements et services${hasOpt ? " (offre de base)" : ""}`, fmt(t.svcBase)), ...(ohLabel ? [plainRow(`Frais généraux (${q.overhead.pct} %)`, fmt(t.overheadBase))] : []), ...(t.discountBase ? [plainRow(`Remise${q.discount.pct > 0 ? " (" + fmtD(q.discount.pct) + " %)" : ""}`, "− " + fmt(t.discountBase))] : []), subRow(`Total${hasOpt ? " offre de base" : ""} (HT)`, fmt(t.base), acc),
     ...(hasOpt ? [plainRow("Option (HT)", fmt(t.withOption - t.base)), subRow("Total offre de base + option (HT)", fmt(t.withOption), acc)] : [])], WIDTHS));
-  body.push(txt(`Arrêté le présent devis${hasOpt ? ", offre de base," : ""} à la somme de ${toWordsFr(t.base)} (${fmtN(t.base)}) francs CFA hors taxes${hasOpt ? `; avec option, à la somme de ${toWordsFr(t.withOption)} (${fmtN(t.withOption)}) francs CFA hors taxes` : ""}.`, { sz: 17 }));
+  body.push(txt(`Arrêté le présent devis${hasOpt ? ", offre de base," : ""} à la somme de ${toWordsFr(vat === null ? t.base : t.ttcBase)} (${fmtN(vat === null ? t.base : t.ttcBase)}) francs CFA ${vat === null ? "hors taxes" : "toutes taxes comprises"}${hasOpt ? `; avec option, à la somme de ${toWordsFr(t.withOption)} (${fmtN(t.withOption)}) francs CFA hors taxes` : ""}.`, { sz: 17 }));
   const excl = exclusions(q.decisions);
   if (excl.length || q.notes) { body.push(h3("Périmètre, hypothèses et exclusions", acc)); excl.forEach((e) => body.push(txt("• " + e, { sz: 17 }))); if (q.notes) body.push(txt("• " + q.notes, { sz: 17 })); }
   { const a = q.terms.delayMin, b = q.terms.delayMax; const d = a && b && a !== b ? `${a} à ${b} jours` : a || b ? `${b || a} jours maximum` : ""; // pas de « … jours » sur un document envoyé au client
     if (d) { body.push(h3("Délai", acc)); body.push(txt(`${d}, à compter du démarrage effectif des travaux sur site.`, { sz: 17 })); } }
   body.push(h3("Modalités de paiement", acc));
-  const cols = ["Versement", "Offre de base (HT)", ...(hasOpt ? ["Avec option (HT)"] : []), ...(vat === null ? [] : ["Base TTC"]), "Déclenchement"];
+  const cols = ["Versement", hasOpt ? "Offre de base (HT)" : "Montant (HT)", ...(hasOpt ? ["Avec option (HT)"] : []), ...(vat === null ? [] : ["Base TTC"]), "Déclenchement"];
   const used = cols.length, tot = 9638, fixed = 1100, per = Math.floor((tot - fixed - 2600) / Math.max(1, used - 2)); const W2 = cols.map((_, i) => (i === 0 ? fixed : i === used - 1 ? 2600 : per));
   W2[used - 1] += tot - W2.reduce((a, b) => a + b, 0);
   const prow = (vals, o = {}) => row(vals.map((v, i) => cell(para(run(v, { sz: 18, b: o.b }), { jc: i && i < used - 1 ? "right" : "left" }), W2[i], o.fill ? { fill: o.fill } : {})));

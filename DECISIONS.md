@@ -77,3 +77,11 @@ Format : quoi · pourquoi · date.
 - **Mortier d'un mur** : calculé seulement si l'artisan le demande (case à cocher).
 - **Carrelage** : vente au carton ou au m² ; coupes de plinthes séparées de la casse des carreaux.
 - **Contrôle indépendant** : `validation/controle.py` et `VALIDATION.md`.
+
+## v40 — audit de l'expérience utilisateur (18/11/2026, branche audit/ux-v40)
+- Recherche du référentiel : en direct, par mots (ordre libre, début de mot, tirets ignorés) ; quelques mots du chantier renvoient au terme du référentiel (agglo → parpaing, ampoule → lampe, téflon → PTFE…). Aucun produit créé.
+- Documents : un bloc n'est écrit que s'il a un contenu (pas de « … jours », « — m² », base de calcul sans surface, choix d'option sans option). Main-d'œuvre, outils et transport détaillés sous leur poste dans les 3 formes technicien (forfait unique inchangé).
+- Avec une TVA, l'arrêté en lettres porte le montant TTC (modèle entreprise et Word, comme le modèle technicien). À valider par Patrick.
+- La surface de base ne bloque un devis entreprise que si un travail est calculé à partir d'elle.
+- « Vérifier » signale (sans bloquer) : nom de l'entreprise absent, nom du client absent, produit en double.
+- Rapport complet : audit-v40/RAPPORT.md. Aucun test humain réalisé.

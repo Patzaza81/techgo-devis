@@ -91,4 +91,19 @@ await new Promise((r) => setTimeout(r, 20));
   eq("Word : le responsable signe quand il existe", /M\. Test — Signature/.test(w1.text), true);
 }
 
+// Arrêté du devis : sur le montant à payer (TTC) quand une TVA est appliquée, sinon hors taxes (audit v40)
+{ const d2 = JSON.parse(JSON.stringify(ref)); d2.terms.vatPct = 19.25; const s2 = snapOf(d2, pres); const w2 = buildDocx(s2, d2.ref), h2 = renderDoc(s2, { ref: d2.ref });
+  eq("Word avec TVA : arrêté « toutes taxes comprises »", /Arrêté[^\n]*toutes taxes comprises/.test(w2.text), true);
+  eq("Aperçu avec TVA : arrêté « toutes taxes comprises »", /toutes taxes comprises/.test(h2), true);
+  eq("Word avec TVA : TVA écrite « 19,25 % »", /TVA 19,25 %/.test(w2.text), true);
+  eq("Word sans TVA : arrêté hors taxes", /Arrêté[^\n]*hors taxes/.test(w.text) && !/toutes taxes comprises/.test(w.text), true);
+}
+
+// Synthèse : les lignes s'additionnent jusqu'au total (la remise y figure) — audit v40
+{ const d3 = JSON.parse(JSON.stringify(ref)); d3.discount = { pct: 10, amount: null }; const s3 = snapOf(d3, pres); const w3 = buildDocx(s3, d3.ref), h3 = renderDoc(s3, { ref: d3.ref });
+  const t3 = s3.result.totals; eq("Synthèse : fournitures + services − remise = total", t3.matBase + t3.svcBase + (t3.overheadBase || 0) - t3.discountBase === t3.base, true);
+  const syn = w3.text.slice(w3.text.indexOf("SYNTHÈSE") >= 0 ? w3.text.indexOf("SYNTHÈSE") : w3.text.indexOf("Synthèse")); eq("Word : la remise est dans la synthèse", /Remise/.test(syn.slice(0, 600)), true);
+  const hs = h3.slice(h3.indexOf("Synthèse financière")); eq("Aperçu : la remise est dans la synthèse", /Remise/.test(hs.slice(0, 1500)), true);
+}
+
 console.log(`\n${pass} réussis, ${fail} échoués`); process.exit(fail ? 1 : 0);
