@@ -195,9 +195,11 @@ function ficheMetier(cur, dis, rf) {
   const field = (x) => x.multi
     ? `${L(x.label)}<div class="chips">${x.opts.map((o) => `<button type="button" class="chip ${(f[x.k] || []).includes(o) ? "on" : ""}" data-act="ficheToggle" data-k="${x.k}" data-v="${esc(o)}" ${dis ? "disabled" : ""}>${esc(o)}</button>`).join("")}</div>`
     : `${L(x.label)}${Sel("q", "current.fiche." + x.k, f[x.k], [["", "—"], ...x.opts.map((o) => [o, o])], { dis })}`;
-  return `<div class="card"><b>Ce que tu dois savoir avant de chiffrer</b><p class="hint">Facultatif. Ces réponses sont écrites sur le devis, sous l'objet du chantier.</p>
+  // Repliée par défaut : 20 à 40 choix facultatifs ne doivent pas allonger le premier écran d'un devis rapide.
+  const nb = Object.values(f).reduce((a, v) => a + (Array.isArray(v) ? v.length : v ? 1 : 0), 0);
+  return `<details class="card reglages" ${nb ? "open" : ""}><summary><b>Précisions sur le chantier (facultatif)</b><small class="hint" style="display:block;margin:2px 0 0">${nb ? `${nb} précision${nb > 1 ? "s" : ""} écrite${nb > 1 ? "s" : ""} sur le devis.` : "Type de travaux, pose, contraintes. Écrites sur le devis si tu les remplis."}</small></summary>
     ${rf.fiche.fields.map(field).join("")}
-    ${rf.fiche.warn(f) ? `<div class="banner warn">${esc(rf.fiche.warnText)}</div>` : ""}</div>`;
+    ${rf.fiche.warn(f) ? `<div class="banner warn">${esc(rf.fiche.warnText)}</div>` : ""}</details>`;
 }
 // Aide de métier au moment d'envoyer (plomberie : vérifications, ce que le devis doit distinguer, erreurs fréquentes)
 function guideCard(met) {
@@ -313,6 +315,7 @@ function apresMetre(q, chemin) {
 function sheetForm(t, prod, rf, met) {
   const elec = !!rf, v = vocab(met);
   const manq = manqueLigne(t), incomplet = !t.lineId && aDesDonnees(t) && manq.length > 0;
+  const qd = S.getQuote(ui.qid), dejaLa = qd && String(t.label || "").trim() ? qd.current.manual.find((m) => m.id !== t.lineId && !m.metre && nz(m.nom ?? m.label ?? "") === nz(t.label)) : null;
   const tot = t.qty > 0 && t.price > 0 ? t.qty * t.price : null;
   const ref = rf ? rf.find(t.label) : null;
   const base = rf ? [...unitsOf(ref?.unit), ...(t.tab === "produits" ? [] : UNITS_ROW[t.tab] || []), ...rf.units] : t.tab === "produits" ? v.unitsP : UNITS_ROW[t.tab] || [];
@@ -328,6 +331,7 @@ function sheetForm(t, prod, rf, met) {
     ${explMetre(t)}${prod && !ligneMetre(t) ? aideQuantite(t, met) : ""}
     <div class="row"><div>${L("Quantité")}${I("tmp", "row.qty", t.qty, { type: "number", n: "n" })}</div><div>${L("Unité")}${Sel("tmp", "row.unit", t.unit, opts)}</div></div>
     <div class="row"><div>${L(ligneMetre(t) ? `Prix pour 1 ${esc(String(t.unit || "unité").toLowerCase())} (FCFA)` : "Prix unitaire (FCFA)")}${I("tmp", "row.price", t.price, { type: "number", n: "n" })}</div><div>${L("Montant")}<div class="rowtot"><b>${tot === null ? "—" : fmt(tot)}</b></div></div></div>
+    ${dejaLa ? `<div class="banner warn" id="doublon"><b>« ${esc(t.label)} » est déjà dans le devis.</b> Si c'est le même produit, ferme cette fiche et change plutôt la quantité de la ligne existante. Sinon, précise le nom (ex. : la pièce).</div>` : ""}
     ${incomplet ? `<div class="banner warn" id="lignemanque"><b>Cette ligne n'est pas encore dans le devis.</b> Il manque : ${manq.join(", ")}.</div>` : ""}
     <details><summary>Écrire à quoi ça sert (facultatif)</summary>${I("tmp", "row.role", t.role, { ph: "Ex. : " + v.role })}</details>
     <div class="row" style="margin-top:8px"><button class="sec" data-act="rowClose">▲ Fermer</button>${ligneMetre(t) ? `<p class="hint" style="margin:0;align-self:center">Ligne du métré : pour la retirer, modifie le métré.</p>` : t.lineId ? `<button class="sec danger" data-act="rowRemove">Retirer du devis</button>` : `<p class="hint" style="margin:0;align-self:center">Remplis la quantité, l'unité et le prix : la ligne entre dans le devis.</p>`}</div></div>`;
@@ -341,15 +345,15 @@ function refBrowser(q, k, rows, oneRow, dis, rf) {
   let head = "";
   if (k === "produits") {
     const d = rf.domaines.find((x) => x[0] === e.dom);
-    head = `<div class="elecbar"><p class="hint" style="margin:0 0 6px"><b>Quel type de matériel ?</b> Touche un sous-ensemble, puis une famille.</p>
-      <div class="chips">${rf.domaines.map(([id, lab]) => `<button type="button" class="chip ${!searching && e.dom === id ? "on" : ""}" data-act="elecDom" data-d="${id}">${esc(lab)}</button>`).join("")}</div>
-      ${d && !searching ? `<p class="hint" style="margin:6px 0">${esc(d[2])}</p>` : ""}
-      ${L("Ou cherche un matériel dans tout le référentiel")}<input type="search" data-r="tmp" data-p="elec.q" value="${esc(e.q)}" placeholder="${rf.ph.search}" autocomplete="off">
-      ${searching ? `<p class="hint" style="margin:6px 0">${Object.values(grp).flat().length ? "Résultats (40 au plus). Affine ta recherche si besoin." : "Aucun matériel trouvé. Tu peux l'ajouter à la main plus bas."}</p>` : ""}
+    head = `<div class="elecbar">${L("Cherche un matériel")}<input type="search" data-r="tmp" data-p="elec.q" value="${esc(e.q)}" placeholder="${rf.ph.search}" autocomplete="off" enterkeyhint="search">
+      ${searching ? `<p class="hint" style="margin:6px 0">${Object.values(grp).flat().length ? "Résultats (40 au plus). Affine ta recherche si besoin." : "Aucun matériel trouvé. Tu peux l'ajouter à la main plus bas (« ＋ Ajouter un produit »)."}</p>` : `<p class="hint" style="margin:8px 0 6px"><b>Ou choisis par type de matériel</b>, puis une famille.</p>
+      <div class="chips">${rf.domaines.map(([id, lab]) => `<button type="button" class="chip ${e.dom === id ? "on" : ""}" data-act="elecDom" data-d="${id}">${esc(lab)}</button>`).join("")}</div>
+      ${d ? `<p class="hint" style="margin:6px 0">${esc(d[2])}</p>` : ""}`}
+      <details><summary>Normes et méthode de comptage (facultatif)</summary>
       ${Chk("q", "current.showNorms", q.current.showNorms, "Écrire la norme de référence sous chaque matériel du devis", { dis })}
       <p class="hint" style="margin:0 0 6px">Une norme citée est un repère. Elle ne prouve pas que le produit est conforme, ni qu'elle est obligatoire au Cameroun : vérifie-la avant de l'engager dans un contrat.</p>
-      ${rf.guide ? `<details><summary>Comment compter (unités de métré)</summary><ul class="guide">${rf.guide.metre.map(([fam, u, r]) => `<li><b>${esc(fam)}</b> : ${esc(u)}${r ? ". " + esc(r) : ""}</li>`).join("")}</ul></details>` : ""}
-      ${rf.guide && rf.guide.formules ? `<details><summary>Formules de métré du document</summary><ul class="guide">${rf.guide.formules.map((x) => `<li>${esc(x)}</li>`).join("")}</ul><p class="hint">Les dimensions viennent des plans. Ces formules ne remplacent ni une étude ni un dimensionnement.</p></details>` : ""}</div>`;
+      ${rf.guide ? `<p class="hint" style="margin:6px 0 2px"><b>Comment compter (unités de métré)</b></p><ul class="guide">${rf.guide.metre.map(([fam, u, r]) => `<li><b>${esc(fam)}</b> : ${esc(u)}${r ? ". " + esc(r) : ""}</li>`).join("")}</ul>` : ""}
+      ${rf.guide && rf.guide.formules ? `<p class="hint" style="margin:6px 0 2px"><b>Formules de métré du document</b></p><ul class="guide">${rf.guide.formules.map((x) => `<li>${esc(x)}</li>`).join("")}</ul><p class="hint">Les dimensions viennent des plans. Ces formules ne remplacent ni une étude ni un dimensionnement.</p>` : ""}</details></div>`;
   }
   const groups = Object.keys(grp).map((f) => {
     const open = searching || e.open[f] || grp[f].some((r) => ui.tmp.row.open === r.key && ui.tmp.row.tab === k);
@@ -400,6 +404,7 @@ function carteOublis(q, ev, dis) {
     ${ignores.length && !dis ? `<button type="button" class="linkbtn" data-act="oubliReset">Réafficher les ${ignores.length} rappel${ignores.length > 1 ? "s" : ""} écarté${ignores.length > 1 ? "s" : ""}</button>` : ""}</div>`;
 }
 // Identité de l'entreprise : demandée ici tant qu'elle manque, car elle s'imprime en haut de chaque devis.
+const sansIdentite = () => { const c = S.state.db.company; return !String(c.name || "").trim() || c.name === "Mon entreprise"; };
 function carteIdentite(dis) {
   const c = S.state.db.company, sansNom = !String(c.name || "").trim() || c.name === "Mon entreprise", sansTel = !String(c.phone || "").trim();
   if (dis || (!sansNom && !sansTel)) return "";
@@ -596,6 +601,7 @@ function stepControle(q, ev, dis) {
   if (["a_verifier", "pret"].includes(q.status)) acts.push(`<button class="sec" data-act="mark" data-to="brouillon">Repasser en brouillon</button>`);
   return `<h2>Vérifier avant d'envoyer</h2><div class="card"><div style="display:flex;justify-content:space-between;align-items:center"><b>Résultat</b>${badge(ck.status, STATE_LABEL[ck.status])}</div>
     <p class="hint">Prêt : tout est en ordre. À vérifier : un point reste à confirmer. Il manque quelque chose : corrige-le avant d'envoyer.</p>
+    ${sansIdentite() && !dis ? `<div class="chk"><div class="dot d-verifier">!</div><div><b>Ton nom n'est pas sur le devis</b><div class="hint">Le devis porte « Mon entreprise »${String(S.state.db.company.phone || "").trim() ? "" : " et aucun téléphone"} : ton client ne saura pas qui l'envoie.</div>${modeOf(q) === "technicien" ? `<button type="button" class="fixlink linkbtn" data-act="voirIdentite">Corriger : écrire mon nom et mon téléphone</button>` : `<a class="fixlink" href="#/reglages">Corriger : aller dans Réglages</a>`}</div></div>` : ""}
     ${ck.items.map((r) => { const to = r.state === "ok" || dis ? null : etapeDuPoint(q, r.label); return `<div class="chk"><div class="dot d-${r.state}">${r.state === "ok" ? "✓" : r.state === "verifier" ? "!" : "✕"}</div><div><b>${esc(r.label)}</b>${r.hint ? `<div class="hint">${esc(r.hint)}</div>` : ""}${to !== null ? `<a class="fixlink" href="#/devis/${q.id}/${to}">Corriger : aller à « ${esc(stepsOf(q)[to])} »</a>` : ""}</div></div>`; }).join("")}</div>
     ${r_warn(ev)}${dis ? "" : `<div class="row">${acts.join("")}</div>`}`;
 }
@@ -960,8 +966,12 @@ document.addEventListener("pointerup", () => setTimeout(() => { if (tapping) flu
 let changed = null; // dernier champ modifié : si le curseur y est encore (Entrée, « OK »), on redessine normalement
 const later = (full, quiet = () => {}) => { if (tapping) deferred = { full, quiet }; else { const chg = changed; setTimeout(() => { if (inField() && document.activeElement !== chg) { quiet(); liveTotals(); } else keepFocus(full); }, 0); } };
 // Calcul automatique : le montant de la fiche se met à jour à chaque chiffre tapé
+let rechercheT = null;
 document.addEventListener("input", (e) => {
-  const el = e.target; if (!el.dataset || el.dataset.r !== "tmp" || !/^row\.(qty|price)$/.test(el.dataset.p || "")) return;
+  const el = e.target;
+  // Recherche dans le référentiel : les résultats suivent la frappe (sans attendre « Entrée »), le curseur reste dans le champ.
+  if (el.dataset && el.dataset.r === "tmp" && el.dataset.p === "elec.q") { clearTimeout(rechercheT); rechercheT = setTimeout(() => { if (ui.tmp.elec.q === el.value) return; ui.tmp.elec.q = el.value; keepFocus(() => rerender()); }, 250); return; }
+  if (!el.dataset || el.dataset.r !== "tmp" || !/^row\.(qty|price)$/.test(el.dataset.p || "")) return;
   const v = parseFloat(String(el.value).replace(",", ".")); ui.tmp.row[el.dataset.p.slice(4)] = isNaN(v) ? null : v; liveTotals();
 });
 // Message juste sous le champ (la personne voit ce qu'elle a tapé) ; rien n'est enregistré tant que ce n'est pas un nombre.
@@ -987,7 +997,7 @@ document.addEventListener("change", (e) => {
     setPath(o, el.dataset.p, parseValue(el));
     // Le premier nom d'entreprise saisi remplace aussi « Mon entreprise » dans le bandeau de l'application.
     if (root === "db" && el.dataset.p === "company.name" && String(el.value).trim()) { const w = S.listWorkspaces().find((x) => x.id === S.state.ws); if (w && w.name === "Mon entreprise") S.renameWorkspace(w.id, String(el.value).trim()); }
-    if (root === "tmp" && /^row\./.test(el.dataset.p)) { if (!commitRow()) dropIfEmpty(); }
+    if (root === "tmp" && /^row\./.test(el.dataset.p)) { if (!commitRow()) dropIfEmpty(); if (el.dataset.p === "row.label") avertirDoublon(el); }
     if (root === "q" && /^current\.metre\./.test(el.dataset.p)) {
       const redessiner = apresMetre(o, el.dataset.p);
       // case à cocher, liste ou nom de produit : d'autres champs peuvent apparaître ou se remplir, on redessine tout de suite
@@ -997,6 +1007,15 @@ document.addEventListener("change", (e) => {
   } catch (err) { ui.flash = { type: "err", text: err.message }; rerender(); }
 });
 
+// Doublon : dès que le nom est saisi, la fiche dit si ce produit est déjà dans le devis (sans attendre un redessin).
+function avertirDoublon(el) {
+  const q = S.getQuote(ui.qid), t = ui.tmp.row; if (!q || !t) return;
+  const d = String(t.label || "").trim() ? q.current.manual.find((m) => m.id !== t.lineId && !m.metre && nz(m.nom ?? m.label ?? "") === nz(t.label)) : null;
+  const sheet = el.closest(".sheet"); let b = sheet && sheet.querySelector("#doublon");
+  if (!d) { if (b) b.remove(); return; }
+  if (!b && sheet) { b = document.createElement("div"); b.className = "banner warn"; b.id = "doublon"; b.setAttribute("role", "status"); el.insertAdjacentElement("afterend", b); }
+  if (b) b.innerHTML = `<b>« ${esc(t.label)} » est déjà dans le devis.</b> Si c'est le même produit, ferme cette fiche et change plutôt la quantité de la ligne existante. Sinon, précise le nom (ex. : la pièce).`;
+}
 // Licence : toute sortie d'un devis (PDF, Word, impression, envoi) passe par ici.
 // La saisie et les calculs ne sont jamais bloqués.
 function sortieAutorisee(q) {
@@ -1057,6 +1076,7 @@ const actions = {
   ficheToggle(b) { const q = S.getQuote(ui.qid), k = b.dataset.k, v = b.dataset.v; if (!q.current.fiche && q.current.elec) q.current.fiche = { ...q.current.elec }; const f = (q.current.fiche = q.current.fiche || {}); const a = Array.isArray(f[k]) ? f[k] : []; f[k] = a.includes(v) ? a.filter((x) => x !== v) : [...a, v]; touchQuote(q); },
   elecDom(b) { const e = ui.tmp.elec; e.dom = b.dataset.d; e.q = ""; e.open = {}; },
   elecFam(b) { const e = ui.tmp.elec, f = b.dataset.f; e.open[f] = !e.open[f]; },
+  voirIdentite() { const c = document.getElementById("identite"); if (c) { c.scrollIntoView({ block: "start" }); const i = c.querySelector("input"); if (i) i.focus({ preventScroll: true }); } return "skip"; },
   rowClose() {
     const t = ui.tmp.row, manq = manqueLigne(t);
     // Une ligne commencée mais incomplète n'est pas perdue en silence : on dit ce qui manque, une fois.

@@ -79,4 +79,16 @@ eq("devis sans métré : aucun bloc ajouté", /Détail du métré/.test(html), f
 // Quantités décimales : 0,32 m³ ne s'imprime plus « 0 »
 import("./ui-doc.js").then((U) => { eq("quantité 0,32 imprimée 0,32 (pas 0)", [U.fmtQ(0.32), U.fmtQ(366), U.fmtQ(47.87), U.fmtQ(1234)], ["0,32", "366", "47,87", U.fmtN(1234)]); });
 await new Promise((r) => setTimeout(r, 20));
+// Word valide et sans texte de remplissage (audit v40)
+{ const d0 = JSON.parse(JSON.stringify(ref)); d0.terms.delayMin = null; d0.terms.delayMax = null; const c0 = { ...company, responsible: "" };
+  const s0 = { ...snapOf(d0, pres), company: c0 }; const w0 = buildDocx(s0, d0.ref);
+  eq("Word : aucune virgule entre deux cellules (XML valide)", /<\/w:tc>,<w:tc>|<\/w:tr>,<w:tr>/.test(w0.documentXml), false);
+  eq("Word : pas de « … jours » quand la durée est vide", /…\s*jours/.test(w0.text), false);
+  eq("Word : pas de « — Signature » sans responsable", /(^|>)\s*— Signature/.test(w0.documentXml), false);
+  const d1 = JSON.parse(JSON.stringify(ref)); d1.terms.delayMin = 10; d1.terms.delayMax = 15; const w1 = buildDocx(snapOf(d1, pres), d1.ref);
+  eq("Word : la durée saisie est écrite (10 à 15 jours)", /10 à 15 jours/.test(w1.text), true);
+  eq("Word : la date est écrite", /20\/10\/2026/.test(w1.text), true);
+  eq("Word : le responsable signe quand il existe", /M\. Test — Signature/.test(w1.text), true);
+}
+
 console.log(`\n${pass} réussis, ${fail} échoués`); process.exit(fail ? 1 : 0);

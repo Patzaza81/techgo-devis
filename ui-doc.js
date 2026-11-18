@@ -112,11 +112,14 @@ function tctx(snap, ref) {
   return { q, r, c, t, vat, base, opt, sum, pres, tpl, acc, pay, delay, grand, ref: ref || q.ref, mat: base.filter((l) => SECT(l) === "mat"), mo: base.filter((l) => SECT(l) === "mo"), out: base.filter((l) => SECT(l) === "out"), log: base.filter((l) => SECT(l) === "log"), sNet: effSurface(q.site) };
 }
 const sigBlock = (x, snap) => `<div class="sign"><div>POUR LE CLIENT — Bon pour accord<br>Date : ____/____/______<br><br>____________________________<br><span class="note">Nom, signature et mention « Lu et approuvé »</span></div>
-      <div>POUR ${esc(x.c.name)}<br>Date : ${frDate(snap.at || x.q.date)}<br><br>____________________________<br><span class="note">${esc(x.c.responsible)} — Signature &amp; cachet</span></div></div>`;
+      <div>POUR ${esc(x.c.name)}<br>Date : ${frDate(snap.at || x.q.date)}<br><br>____________________________<br><span class="note">${x.c.responsible ? esc(x.c.responsible) + " — " : ""}Signature &amp; cachet</span></div></div>`;
 const footTech = (x, snap) => `<div class="docfoot note">${esc(x.c.name)} — ${esc(x.ref)}${snap.n ? " V" + snap.n : ""}${x.c.whatsapp ? " — WhatsApp " + esc(x.c.whatsapp) : ""}${legalLine(x.c) ? "<br>" + esc(legalLine(x.c)) : ""}${snap.hash ? `<br>Empreinte de contrôle : ${snap.hash}` : ""}</div>`;
 const lawLine = "Devis établi sur la base des informations et métrés fournis. Toute prestation non incluse dans le présent devis, ou toute variation en cours de chantier, fera l'objet d'un avenant écrit avant exécution.";
 const optBox = (x) => (x.opt.length ? `<p>☐ Offre de base seule — <b>${fmt(x.t.base)}</b><br>☐ Offre de base + option — <b>${fmt(x.t.withOption)}</b></p>` : "");
 
+// Détail d'un poste résumé (main-d'œuvre, outils, transport) : ce que l'artisan a saisi reste visible du client.
+// Un forfait unique (1 ligne, quantité 1) garde la présentation des devis d'origine.
+const detailPoste = (ls) => (ls.length === 1 && ls[0].qty === 1 ? "" : `<div class="note">${ls.map((l) => `${esc(l.label)} : ${fmtQ(l.qty)} ${esc(l.unit)} × ${fmtN(l.price)} = ${fmtN(l.total)}`).join(" · ")}</div>`);
 // Forme « Express » : une page, un seul tableau (modèle devis n° 1111)
 function techExpress(snap, { draft = false } = {}) {
   const x = tctx(snap, arguments[1] && arguments[1].ref), { q, c, t, vat } = x;
@@ -133,7 +136,7 @@ function techExpress(snap, { draft = false } = {}) {
     </div>
     <table><thead><tr><th>Désignation</th><th class="n">Qté</th><th>Unité</th><th class="n">P.U.</th><th class="n">Montant</th></tr></thead>
       ${rows(x.mat)}${x.opt.length ? `<tr class="sub"><td colspan="5">Option non obligatoire</td></tr>${rows(x.opt)}` : ""}
-      ${grp.map(([k, ls]) => `<tr class="sub"><td colspan="4">${k}${ls.length === 1 ? " — " + esc(ls[0].label) : ""}</td><td class="n">${fmtN(x.sum(ls))}</td></tr>`).join("")}
+      ${grp.map(([k, ls]) => `<tr class="sub"><td colspan="4">${k}${ls.length === 1 ? " — " + esc(ls[0].label) : ""}${detailPoste(ls)}</td><td class="n">${fmtN(x.sum(ls))}</td></tr>`).join("")}
       ${t.discountBase ? `<tr><td colspan="4">Remise${q.discount.pct > 0 ? " (" + q.discount.pct + " %)" : ""}</td><td class="n">− ${fmtN(t.discountBase)}</td></tr>` : ""}
       <tr class="sub"><td colspan="4">TOTAL ${vat === null ? "(hors taxes)" : "HT"}</td><td class="n">${fmtN(t.base)}</td></tr>
       ${vat === null ? "" : `<tr><td colspan="4">TVA ${vat} %</td><td class="n">${fmtN(t.vatBase)}</td></tr><tr class="sub"><td colspan="4">TOTAL TTC</td><td class="n">${fmtN(t.ttcBase)}</td></tr>`}
@@ -162,9 +165,9 @@ function techChantier(snap, { draft = false } = {}) {
     <div class="gt"><div class="gl"><span>MONTANT TOTAL DU DEVIS${vat === null ? " (HT)" : " (TTC)"}<br><small>Transport et main-d'œuvre inclus — détail dans la synthèse financière</small></span><b class="gb">${fmt(x.grand)}</b></div></div>
     <h3>2. Synthèse financière</h3>
     <table><tr><td>${hasOuv(x.mat) ? "Sous-total fournitures et ouvrages" : "Sous-total matériaux"}</td><td class="n">${fmt(x.sum(x.mat))}</td></tr>
-      ${x.out.length ? `<tr><td>Outils, machines et accès</td><td class="n">${fmt(x.sum(x.out))}</td></tr>` : ""}${x.log.length ? `<tr><td>Transport, logistique et divers</td><td class="n">${fmt(x.sum(x.log))}</td></tr>` : ""}
+      ${x.out.length ? `<tr><td>Outils, machines et accès${detailPoste(x.out)}</td><td class="n">${fmt(x.sum(x.out))}</td></tr>` : ""}${x.log.length ? `<tr><td>Transport, logistique et divers${detailPoste(x.log)}</td><td class="n">${fmt(x.sum(x.log))}</td></tr>` : ""}
       <tr class="sub"><td>Total partiel (coût des travaux)</td><td class="n">${fmt(partiel)}</td></tr>
-      ${x.mo.length ? `<tr><td>Main-d'œuvre</td><td class="n">${fmt(x.sum(x.mo))}</td></tr>` : ""}
+      ${x.mo.length ? `<tr><td>Main-d'œuvre${detailPoste(x.mo)}</td><td class="n">${fmt(x.sum(x.mo))}</td></tr>` : ""}
       ${t.discountBase ? `<tr><td>Remise</td><td class="n">− ${fmt(t.discountBase)}</td></tr>` : ""}
       <tr class="sub"><td>TOTAL ${vat === null ? "GÉNÉRAL (hors taxes)" : "HT"}</td><td class="n">${fmt(t.base)}</td></tr>
       ${vat === null ? "" : `<tr><td>TVA ${vat} %</td><td class="n">${fmt(t.vatBase)}</td></tr><tr class="sub"><td>TOTAL TTC</td><td class="n">${fmt(t.ttcBase)}</td></tr>`}
@@ -192,7 +195,7 @@ function techDetaille(snap, { draft = false, ref = "" } = {}) {
   const sNet = effSurface(q.site);
   const matRows = (ls) => ls.map((l) => `<tr><td><b>${esc(l.label)}</b>${l.role ? `<div class="note">${esc(l.role)}</div>` : ""}</td><td>${esc(l.unit)}</td><td class="n">${fmtQ(l.qty)}</td><td class="n">${fmtN(l.price)}</td><td class="n">${fmtN(l.total)}</td></tr>`).join("");
   const head5 = `<tr><th>Désignation</th><th>Unité</th><th class="n">Qté</th><th class="n">P.U. (FCFA)</th><th class="n">Total (FCFA)</th></tr>`;
-  const synth = [[hasOuv(mat) ? "Fournitures, matériaux et ouvrages" : "Fournitures et matériaux", sum(mat)], ["Main-d'œuvre", sum(mo)], ["Outils, machines et accès", sum(out)], ["Transport, logistique et divers", sum(log)]].filter((x) => x[1] > 0);
+  const synth = [[hasOuv(mat) ? "Fournitures, matériaux et ouvrages" : "Fournitures et matériaux", sum(mat), ""], ["Main-d'œuvre", sum(mo), mo.length ? detailPoste(mo) : ""], ["Outils, machines et accès", sum(out), out.length ? detailPoste(out) : ""], ["Transport, logistique et divers", sum(log), log.length ? detailPoste(log) : ""]].filter((x) => x[1] > 0);
   const delay = dMin && dMax && dMin !== dMax ? `${dMin} à ${dMax} jours` : dMax || dMin ? `${dMax || dMin} jours maximum` : "";
   const crewTxt = [crew.workers > 0 ? `Ce poste couvre la mobilisation de ${crew.workers} ouvrier${crew.workers > 1 ? "s" : ""}${delay ? ` sur une durée prévisionnelle de ${delay}` : ""}, ainsi que la supervision et la coordination du chantier.` : "", crew.extraDay > 0 ? `Au-delà de la durée prévue, pour une cause non imputable à ${esc(c.name)}, un supplément journalier de ${fmtN(crew.extraDay)} FCFA sera appliqué et validé avec le client avant poursuite des travaux.` : ""].filter(Boolean).join(" ");
   return `<div id="doc" class="tpl-${tpl} tf tf-detaille" style="--dc:${acc}">
@@ -210,7 +213,7 @@ function techDetaille(snap, { draft = false, ref = "" } = {}) {
     ${mat.length ? `<h3>1. ${hasOuv(mat) ? "Fournitures, matériaux et ouvrages" : "Fournitures et matériaux"}</h3><table><thead>${head5}</thead>${matRows(mat)}<tr class="sub"><td colspan="4">${hasOuv(mat) ? "SOUS-TOTAL FOURNITURES ET OUVRAGES" : "SOUS-TOTAL FOURNITURES"}</td><td class="n">${fmtN(sum(mat))}</td></tr></table>` : ""}
     ${opt.length ? `<h3>Option non obligatoire</h3><table><thead>${head5}</thead>${matRows(opt)}<tr class="sub"><td colspan="4">SOUS-TOTAL OPTION</td><td class="n">${fmtN(sum(opt))}</td></tr></table>` : ""}
     <h3>${mat.length ? "2" : "1"}. Synthèse financière</h3>
-    <table>${synth.map(([k, v]) => `<tr><td>${k}</td><td class="n">${fmt(v)}</td></tr>`).join("")}
+    <table>${synth.map(([k, v, d]) => `<tr><td>${k}${d}</td><td class="n">${fmt(v)}</td></tr>`).join("")}
       ${ohOn ? `<tr><td>Frais de fonctionnement (${q.overhead.pct} %)</td><td class="n">${fmt(t.overheadBase)}</td></tr>` : ""}
       ${t.discountBase ? `<tr><td>Remise${q.discount.pct > 0 ? " (" + q.discount.pct + " %)" : ""}</td><td class="n">− ${fmt(t.discountBase)}</td></tr>` : ""}
       <tr class="sub"><td>TOTAL ${vat === null ? "(hors taxes)" : "HT"}</td><td class="n">${fmt(t.base)}</td></tr>
@@ -229,7 +232,7 @@ function techDetaille(snap, { draft = false, ref = "" } = {}) {
     ${opt.length ? `<p>☐ Offre de base seule — <b>${fmt(t.base)}</b><br>☐ Offre de base + option — <b>${fmt(t.withOption)}</b></p>` : ""}
     ${metreBloc(q)}
     <div class="sign"><div>POUR LE CLIENT — Bon pour accord<br>Date : ____/____/______<br><br>____________________________<br><span class="note">Nom, signature et mention « Lu et approuvé »</span></div>
-      <div>POUR ${esc(c.name)}<br>Date : ${frDate(snap.at || q.date)}<br><br>____________________________<br><span class="note">${esc(c.responsible)} — Signature &amp; cachet</span></div></div>
+      <div>POUR ${esc(c.name)}<br>Date : ${frDate(snap.at || q.date)}<br><br>____________________________<br><span class="note">${c.responsible ? esc(c.responsible) + " — " : ""}Signature &amp; cachet</span></div></div>
     <div class="docfoot note">${esc(c.name)} — ${esc(ref || q.ref)}${snap.n ? " V" + snap.n : ""}${c.whatsapp ? " — WhatsApp " + esc(c.whatsapp) : ""}${legalLine(c) ? "<br>" + esc(legalLine(c)) : ""}${snap.hash ? `<br>Empreinte de contrôle : ${snap.hash}` : ""}</div>
   </div>`;
 }
@@ -294,7 +297,7 @@ export function renderDoc(snap, { draft = false, ref = "" } = {}) {
     <h3>Choix du client et signatures</h3>
     <p>☐ Offre de base seule — <b>${fmt(t.base)}</b>${hasOpt ? `<br>☐ Offre de base + option — <b>${fmt(t.withOption)}</b>` : ""}</p>
     <div class="sign"><div>POUR LE CLIENT — Bon pour accord<br>Date : ____/____/______<br><br>____________________________<br><span class="note">Nom, signature et mention « Bon pour accord »</span></div>
-      <div>POUR ${esc(c.name)}<br>Date : ${frDate(snap.at || q.date)}<br><br>____________________________<br><span class="note">${esc(c.responsible)} — Signature &amp; cachet</span></div></div>
+      <div>POUR ${esc(c.name)}<br>Date : ${frDate(snap.at || q.date)}<br><br>____________________________<br><span class="note">${c.responsible ? esc(c.responsible) + " — " : ""}Signature &amp; cachet</span></div></div>
     <div class="docfoot note">${esc(c.name)} — ${esc(ref || q.ref)}${snap.n ? " V" + snap.n : ""}${c.whatsapp ? " — WhatsApp " + esc(c.whatsapp) : ""}${legalLine(c) ? "<br>" + esc(legalLine(c)) : ""}${snap.hash ? `<br>Empreinte de contrôle : ${snap.hash} (vérifie l'intégrité du document ; ne remplace pas une signature électronique)` : ""}</div>
   </div>`;
 }

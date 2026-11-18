@@ -114,4 +114,15 @@ for (const form of ["express", "detaille", "chantier"]) {
   eq("maçonnerie, forme " + form + " : l'ouvrage est détaillé avec sa norme", h.includes("Enduit extérieur") && /384.000/.test(h) && h.includes("Norme de référence : EN 13914 ; NF DTU 26.1"), true);
   eq("maçonnerie, forme " + form + " : la main-d'œuvre simple reste un total", /Main-d'œuvre/.test(h), true);
 }
+// Recherche : ce que tape un artisan (mots dans le désordre, sans tiret, mot du chantier) — 3 cas qui trouvent, 3 qui ne doivent rien trouver
+{ const { refOf } = await import("./metiers/ref.js"); const pl = refOf("plomberie"), el = refOf("electricite"), ma = refOf("maconnerie");
+  eq("recherche « PPR » trouve le tube PP-R", pl.rows("produits", null, "PPR")[0]?.name, "Tube polypropylène PP-R");
+  eq("recherche « agglo » trouve le bloc creux (parpaing)", ma.rows("produits", null, "agglo").some((r) => r.name === "Bloc creux (parpaing)"), true);
+  eq("recherche « pvc coude » (désordre) trouve un coude PVC", pl.rows("produits", null, "pvc coude").every((r) => /Coude PVC/.test(r.name)) && pl.rows("produits", null, "pvc coude").length > 0, true);
+  eq("recherche « PPR 25 » : le diamètre ignoré, le tube PP-R proposé", pl.rows("produits", null, "PPR 25").some((r) => /PP-R/.test(r.name)), true);
+  eq("recherche « zzproduit » : aucun résultat (rien d'inventé)", el.rows("produits", null, "zzproduit").length, 0);
+  eq("recherche « disjoncteur parpaing » : aucun résultat (les deux mots exigés)", el.rows("produits", null, "disjoncteur parpaing").length, 0);
+  eq("recherche « de la » (mots vides) : aucun résultat", el.rows("produits", null, "de la").length, 0);
+}
+
 console.log(`\n${pass} réussis, ${fail} échoués`); process.exit(fail ? 1 : 0);
