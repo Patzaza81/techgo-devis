@@ -1,0 +1,113 @@
+OK    1 lignes · écran : total 778 154 HT ou 927 949 TTC
+OK    1 lignes · aperçu : HT 778 154
+OK    1 lignes · aperçu : TVA 149 795
+OK    1 lignes · aperçu : TTC 927 949
+OK    1 lignes · aperçu : remise 86 462
+OK    1 lignes · aperçu : les 1 montants de ligne
+OK    1 lignes · aperçu : les 1 lignes présentes
+OK    1 lignes · PDF en texte (2 page(s), 11 Ko)
+OK    1 lignes · PDF : HT 778 154
+OK    1 lignes · PDF : TVA 149 795
+OK    1 lignes · PDF : TTC 927 949
+OK    1 lignes · PDF : remise 86 462
+OK    1 lignes · PDF : les 1 montants de ligne
+OK    1 lignes · PDF : les 1 lignes présentes
+OK    1 lignes · PDF : aucune ligne coupée entre deux pages (nom complet et montant sur la même page)
+OK    1 lignes · PDF : chaque page qui contient des lignes du tableau a l'en-tête
+OK    1 lignes · PDF : pages numérotées « Page x / y »
+OK    1 lignes · Word : HT 778 154
+OK    1 lignes · Word : TVA 149 795
+OK    1 lignes · Word : TTC 927 949
+OK    1 lignes · Word : remise 86 462
+OK    1 lignes · Word : les 1 montants de ligne
+OK    1 lignes · Word : les 1 lignes présentes
+OK    1 lignes · Word : chaque ligne de tableau est insécable
+OK    1 lignes · Word rendu (LibreOffice) : 2 page(s), TTC 927 949
+OK    1 lignes · Word rendu : aucune ligne coupée entre deux pages
+OK    1 lignes · aucune erreur JavaScript
+OK    30 lignes · écran : total 22 732 664 HT ou 27 108 702 TTC
+OK    30 lignes · aperçu : HT 22 732 664
+OK    30 lignes · aperçu : TVA 4 376 038
+OK    30 lignes · aperçu : TTC 27 108 702
+OK    30 lignes · aperçu : remise 1 843 189
+OK    30 lignes · aperçu : les 30 montants de ligne
+OK    30 lignes · aperçu : les 30 lignes présentes
+OK    30 lignes · PDF en texte (3 page(s), 43 Ko)
+OK    30 lignes · PDF : HT 22 732 664
+OK    30 lignes · PDF : TVA 4 376 038
+OK    30 lignes · PDF : TTC 27 108 702
+OK    30 lignes · PDF : remise 1 843 189
+OK    30 lignes · PDF : les 30 montants de ligne
+OK    30 lignes · PDF : les 30 lignes présentes
+OK    30 lignes · PDF : aucune ligne coupée entre deux pages (nom complet et montant sur la même page)
+OK    30 lignes · PDF : chaque page qui contient des lignes du tableau a l'en-tête
+OK    30 lignes · PDF : pages numérotées « Page x / y »
+OK    30 lignes · Word : HT 22 732 664
+OK    30 lignes · Word : TVA 4 376 038
+OK    30 lignes · Word : TTC 27 108 702
+OK    30 lignes · Word : remise 1 843 189
+OK    30 lignes · Word : les 30 montants de ligne
+OK    30 lignes · Word : les 30 lignes présentes
+OK    30 lignes · Word : chaque ligne de tableau est insécable
+OK    30 lignes · Word rendu (LibreOffice) : 2 page(s), TTC 27 108 702
+OK    30 lignes · Word rendu : aucune ligne coupée entre deux pages
+OK    30 lignes · aucune erreur JavaScript
+OK    100 lignes · écran : total 75 662 313 HT ou 90 227 308 TTC
+OK    100 lignes · aperçu : HT 75 662 313
+OK    100 lignes · aperçu : TVA 14 564 995
+OK    100 lignes · aperçu : TTC 90 227 308
+OK    100 lignes · aperçu : remise 12 345
+OK    100 lignes · aperçu : frais 3 603 555
+OK    100 lignes · aperçu : les 100 montants de ligne
+OK    100 lignes · aperçu : les 100 lignes présentes
+OK    100 lignes · PDF en texte (5 page(s), 116 Ko)
+OK    100 lignes · PDF : HT 75 662 313
+OK    100 lignes · PDF : TVA 14 564 995
+OK    100 lignes · PDF : TTC 90 227 308
+OK    100 lignes · PDF : remise 12 345
+OK    100 lignes · PDF : frais 3 603 555
+OK    100 lignes · PDF : les 100 montants de ligne
+OK    100 lignes · PDF : les 100 lignes présentes
+OK    100 lignes · PDF : aucune ligne coupée entre deux pages (nom complet et montant sur la même page)
+OK    100 lignes · PDF : chaque page qui contient des lignes du tableau a l'en-tête
+OK    100 lignes · PDF : pages numérotées « Page x / y »
+OK    100 lignes · Word : HT 75 662 313
+OK    100 lignes · Word : TVA 14 564 995
+OK    100 lignes · Word : TTC 90 227 308
+OK    100 lignes · Word : remise 12 345
+OK    100 lignes · Word : frais 3 603 555
+OK    100 lignes · Word : les 100 montants de ligne
+OK    100 lignes · Word : les 100 lignes présentes
+OK    100 lignes · Word : chaque ligne de tableau est insécable
+OK    100 lignes · Word rendu (LibreOffice) : 5 page(s), TTC 90 227 308
+OK    100 lignes · Word rendu : aucune ligne coupée entre deux pages
+OK    100 lignes · aucune erreur JavaScript
+OK    200 lignes · écran : total 186 880 388 822 HT ou 222 854 863 670 TTC
+OK    200 lignes · aperçu : HT 186 880 388 822
+OK    200 lignes · aperçu : TVA 35 974 474 848
+OK    200 lignes · aperçu : TTC 222 854 863 670
+OK    200 lignes · aperçu : remise 7 281 054 110
+OK    200 lignes · aperçu : les 200 montants de ligne
+OK    200 lignes · aperçu : les 200 lignes présentes
+OK    200 lignes · PDF en texte (8 page(s), 225 Ko)
+OK    200 lignes · PDF : HT 186 880 388 822
+OK    200 lignes · PDF : TVA 35 974 474 848
+OK    200 lignes · PDF : TTC 222 854 863 670
+OK    200 lignes · PDF : remise 7 281 054 110
+OK    200 lignes · PDF : les 200 montants de ligne
+OK    200 lignes · PDF : les 200 lignes présentes
+OK    200 lignes · PDF : aucune ligne coupée entre deux pages (nom complet et montant sur la même page)
+OK    200 lignes · PDF : chaque page qui contient des lignes du tableau a l'en-tête
+OK    200 lignes · PDF : pages numérotées « Page x / y »
+OK    200 lignes · Word : HT 186 880 388 822
+OK    200 lignes · Word : TVA 35 974 474 848
+OK    200 lignes · Word : TTC 222 854 863 670
+OK    200 lignes · Word : remise 7 281 054 110
+OK    200 lignes · Word : les 200 montants de ligne
+OK    200 lignes · Word : les 200 lignes présentes
+OK    200 lignes · Word : chaque ligne de tableau est insécable
+OK    200 lignes · Word rendu (LibreOffice) : 7 page(s), TTC 222 854 863 670
+OK    200 lignes · Word rendu : aucune ligne coupée entre deux pages
+OK    200 lignes · aucune erreur JavaScript
+
+111/111 vérifications réussies

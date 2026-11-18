@@ -248,5 +248,16 @@ eq("empreinte de 27 caractères", fingerprint(q).length, 27);
   eq("coût + marge : coût saisi sur place accepté", computeQuote({ surface: 100, lossPct: 0, items: { "T-1": item }, lines: [{ ...base, costOverride: 5000 }], pricing: { method: "cout_plus_marge", markupPct: 20 }, overhead: { pct: 0, mode: "inclus" } }).lines[0].total, 60000);
 }
 
+// Surface de base : bloquante seulement si un calcul en dépend (audit v40 : plomberie/électricité entreprise bloquées à tort)
+{ const r0 = computeQuote(buildInput(referenceDraft({}), ALL_SEEDS(), {}));
+  const sb = (o) => runChecks({ result: r0, workHeightM: 3, accessThresholdM: 3, decisions: {}, expects: [], hasDelay: true, hasValidity: true, hasPayment: true, ...o }).items.some((i) => /^Surface ou quantité de base/.test(i.label) && i.state === "bloque");
+  eq("surface vide + lignes saisies seulement : pas de blocage", sb({ surface: 0, surfaceNeeded: false }), false);
+  eq("surface saisie : pas de blocage", sb({ surface: 50, surfaceNeeded: true }), false);
+  eq("technicien : pas de blocage", sb({ surface: 0, surfaceNeeded: true, simple: true }), false);
+  eq("surface vide + travail calculé sur la surface : blocage", sb({ surface: 0, surfaceNeeded: true }), true);
+  eq("surface vide, ancien appel sans l'information : blocage conservé", sb({ surface: 0 }), true);
+  eq("surface négative + travail calculé : blocage", sb({ surface: -1, surfaceNeeded: true }), true);
+}
+
 console.log(`\n${pass} réussis, ${fail} échoués`);
 process.exit(fail ? 1 : 0);

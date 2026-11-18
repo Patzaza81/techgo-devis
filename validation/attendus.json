@@ -1,0 +1,69 @@
+{
+ "peinture": {
+  "Sous-couche [Seau]": 2.0,
+  "Peinture acrylique [Seau]": 5.0,
+  "Travaux de peinture — 2 ouvriers [journée d'ouvrier]": 7.0,
+  "Laque [Pot]": 2.0,
+  "Peinture des portes [m²]": 10.08
+ },
+ "carrelage": {
+  "Grès 60×60 [Carton]": 28.0,
+  "Colle à carrelage [Sac]": 8.0,
+  "Joint de carrelage [Sac]": 4.0,
+  "Plinthes [Pièce]": 35.0,
+  "Pose de carrelage — équipe de 2 [journée d'équipe]": 2.0,
+  "Faïence 25×40 [Carton]": 8.0,
+  "Pose de faïence [m²]": 10.36
+ },
+ "maconnerie": {
+  "Fouilles [m³]": 1.62,
+  "Parpaing de 15 [Pièce]": 516.0,
+  "Ciment [Sac]": 41.0,
+  "Sable [m³]": 4.34,
+  "Élévation de mur — 3 ouvriers [journée d'ouvrier]": 12.0,
+  "Gravier [m³]": 3.35,
+  "Coulage de béton [m³]": 0.79,
+  "Fer de 12 [Barre]": 9.0,
+  "Fer de 6 [Barre]": 9.0,
+  "Enduit — 3 ouvriers [journée d'ouvrier]": 9.0,
+  "Réalisation de chape — équipe de 4 [journée d'équipe]": 1.0
+ },
+ "plomberie": {
+  "Tube PVC Ø100 [Barre]": 2.0,
+  "Coude Ø100 [Pièce]": 3.0,
+  "Té Ø100 [Pièce]": 1.0,
+  "Colliers pour Tube PVC Ø100 [Pièce]": 10.0,
+  "Pose de tuyauterie [ml]": 33.7,
+  "Tube PPR Ø20 [Barre]": 7.0,
+  "Coude Ø20 [Pièce]": 12.0,
+  "Té Ø20 [Pièce]": 4.0,
+  "Vanne d'arrêt Ø20 [Pièce]": 2.0,
+  "Colliers pour Tube PPR Ø20 [Pièce]": 41.0,
+  "WC [Pièce]": 1.0,
+  "Lavabo [Pièce]": 1.0,
+  "Douche [Pièce]": 1.0,
+  "Flexible [Pièce]": 5.0,
+  "Robinet d'arrêt [Pièce]": 3.0,
+  "Siphon [Pièce]": 3.0,
+  "Pose des appareils [point]": 4.0,
+  "Tube PVC Ø50 [Mètre]": 5.0,
+  "Coude Ø50 [Pièce]": 2.0,
+  "Évier [Pièce]": 1.0
+ },
+ "electricite": {
+  "Prise 2P+T [Pièce]": 10.0,
+  "Interrupteur simple [Pièce]": 3.0,
+  "Point lumineux [Pièce]": 3.0,
+  "Boîte d'encastrement [Pièce]": 16.0,
+  "Pose des points électriques [point]": 16.0,
+  "Câble 3G2,5 [Rouleau]": 1.0,
+  "Gaine Ø20 [Rouleau]": 1.0,
+  "Tirage de câble — équipe de 2 [journée d'équipe]": 1.0,
+  "Fil 1,5 mm² [Rouleau]": 1.0,
+  "Gaine Ø16 [Rouleau]": 1.0,
+  "Coffret 13 modules [Pièce]": 1.0,
+  "Disjoncteur [Pièce]": 6.0,
+  "Interrupteur différentiel [Pièce]": 2.0,
+  "Câblage du tableau [forfait]": 1.0
+ }
+}

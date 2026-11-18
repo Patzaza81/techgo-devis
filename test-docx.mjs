@@ -56,4 +56,54 @@ const s2 = snapOf(r2, pres); eq("avec TVA de test + remise : montants Word = PDF
 }
 { const d = buildDocx({ ...snap, n: null, hash: undefined, at: null }, "REF-X"); eq("Word d'un brouillon : marqué brouillon, sans empreinte", d.text.includes("brouillon") && !d.text.includes("Empreinte de contrôle"), true); }
 fs.writeFileSync(process.argv[2] || "/tmp/test.docx", w.bytes);
+// En-tête imprimé : seulement ce qui est renseigné, aucun tiret orphelin
+const vide = { ...company, tagline: "", address: "", phone: "", whatsapp: "", web: "" };
+const hv = renderDoc({ ...snap, company: vide }, { ref: ref.ref });
+const entete = hv.slice(hv.indexOf('class="dochead"'), hv.indexOf("</div></div></div>", hv.indexOf('class="dochead"')));
+eq("en-tête sans coordonnées : pas de « Tél. » imprimé", /Tél\./.test(entete), false);
+eq("en-tête sans coordonnées : pas de tiret orphelin", / — /.test(entete), false);
+eq("en-tête complet : tél et WhatsApp imprimés", /Tél\. 600/.test(html) && /WhatsApp 600/.test(html), true);
+// Détail du métré : imprimé dans le PDF et dans Word, sans changer aucun montant
+const metre = { zones: [{ id: "z1", nom: "Salon", ouvrages: [{ id: "o1", type: "p_piece", v: { longueur: 4, largeur: 3, hauteur: 2.8, prod: [{ nom: "Peinture", couches: 2, couv: 40 }] } }] }] };
+const refM = referenceDraft({}); refM.metre = metre; const snapM = snapOf(refM, pres);
+for (const f of ["express", "detaille", "chantier", ""]) {
+  const sm = snapOf({ ...refM, profil: f ? "technicien" : refM.profil, form: f }, pres), hm = renderDoc(sm, { ref: refM.ref });
+  eq(`métré imprimé (forme ${f || "entreprise"}) : zone et formule`, /Détail du métré/.test(hm) && hm.includes("Salon") && hm.includes("2 × (4 + 3) × 2,8 = 39,2 m²"), true);
+}
+eq("métré imprimé : les montants ne changent pas", nums(renderDoc(snapM, { ref: refM.ref }).replace(/<h3 class="metreh">[\s\S]*?<\/table>/, "")), nums(html));
+const wm = buildDocx(snapM, refM.ref);
+eq("Word : détail du métré présent", wm.text.includes("Détail du métré") || wm.text.includes("DÉTAIL DU MÉTRÉ"), true);
+eq("Word : formule du métré présente", wm.text.includes("2 × (4 + 3) × 2,8 = 39,2 m²"), true);
+eq("métré non imprimé si décoché", /Détail du métré/.test(renderDoc(snapOf({ ...refM, metre: { ...metre, imprimer: false } }, pres), { ref: refM.ref })), false);
+eq("devis sans métré : aucun bloc ajouté", /Détail du métré/.test(html), false);
+// Quantités décimales : 0,32 m³ ne s'imprime plus « 0 »
+import("./ui-doc.js").then((U) => { eq("quantité 0,32 imprimée 0,32 (pas 0)", [U.fmtQ(0.32), U.fmtQ(366), U.fmtQ(47.87), U.fmtQ(1234)], ["0,32", "366", "47,87", U.fmtN(1234)]); });
+await new Promise((r) => setTimeout(r, 20));
+// Word valide et sans texte de remplissage (audit v40)
+{ const d0 = JSON.parse(JSON.stringify(ref)); d0.terms.delayMin = null; d0.terms.delayMax = null; const c0 = { ...company, responsible: "" };
+  const s0 = { ...snapOf(d0, pres), company: c0 }; const w0 = buildDocx(s0, d0.ref);
+  eq("Word : aucune virgule entre deux cellules (XML valide)", /<\/w:tc>,<w:tc>|<\/w:tr>,<w:tr>/.test(w0.documentXml), false);
+  eq("Word : pas de « … jours » quand la durée est vide", /…\s*jours/.test(w0.text), false);
+  eq("Word : pas de « — Signature » sans responsable", /(^|>)\s*— Signature/.test(w0.documentXml), false);
+  const d1 = JSON.parse(JSON.stringify(ref)); d1.terms.delayMin = 10; d1.terms.delayMax = 15; const w1 = buildDocx(snapOf(d1, pres), d1.ref);
+  eq("Word : la durée saisie est écrite (10 à 15 jours)", /10 à 15 jours/.test(w1.text), true);
+  eq("Word : la date est écrite", /20\/10\/2026/.test(w1.text), true);
+  eq("Word : le responsable signe quand il existe", /M\. Test — Signature/.test(w1.text), true);
+}
+
+// Arrêté du devis : sur le montant à payer (TTC) quand une TVA est appliquée, sinon hors taxes (audit v40)
+{ const d2 = JSON.parse(JSON.stringify(ref)); d2.terms.vatPct = 19.25; const s2 = snapOf(d2, pres); const w2 = buildDocx(s2, d2.ref), h2 = renderDoc(s2, { ref: d2.ref });
+  eq("Word avec TVA : arrêté « toutes taxes comprises »", /Arrêté[^\n]*toutes taxes comprises/.test(w2.text), true);
+  eq("Aperçu avec TVA : arrêté « toutes taxes comprises »", /toutes taxes comprises/.test(h2), true);
+  eq("Word avec TVA : TVA écrite « 19,25 % »", /TVA 19,25 %/.test(w2.text), true);
+  eq("Word sans TVA : arrêté hors taxes", /Arrêté[^\n]*hors taxes/.test(w.text) && !/toutes taxes comprises/.test(w.text), true);
+}
+
+// Synthèse : les lignes s'additionnent jusqu'au total (la remise y figure) — audit v40
+{ const d3 = JSON.parse(JSON.stringify(ref)); d3.discount = { pct: 10, amount: null }; const s3 = snapOf(d3, pres); const w3 = buildDocx(s3, d3.ref), h3 = renderDoc(s3, { ref: d3.ref });
+  const t3 = s3.result.totals; eq("Synthèse : fournitures + services − remise = total", t3.matBase + t3.svcBase + (t3.overheadBase || 0) - t3.discountBase === t3.base, true);
+  const syn = w3.text.slice(w3.text.indexOf("SYNTHÈSE") >= 0 ? w3.text.indexOf("SYNTHÈSE") : w3.text.indexOf("Synthèse")); eq("Word : la remise est dans la synthèse", /Remise/.test(syn.slice(0, 600)), true);
+  const hs = h3.slice(h3.indexOf("Synthèse financière")); eq("Aperçu : la remise est dans la synthèse", /Remise/.test(hs.slice(0, 1500)), true);
+}
+
 console.log(`\n${pass} réussis, ${fail} échoués`); process.exit(fail ? 1 : 0);

@@ -1,0 +1,632 @@
+{
+ "peinture": {
+  "titre": "Appartement : salon, chambre et trois portes",
+  "zones": [
+   {
+    "nom": "Salon",
+    "ouvrages": [
+     {
+      "type": "p_piece",
+      "v": {
+       "longueur": 5.2,
+       "largeur": 3.8,
+       "hauteur": 2.7,
+       "ouv": [
+        {
+         "n": 1,
+         "l": 0.9,
+         "h": 2.1
+        },
+        {
+         "n": 2,
+         "l": 1.4,
+         "h": 1.2
+        }
+       ],
+       "plafond": true,
+       "prod": [
+        {
+         "nom": "Sous-couche",
+         "couches": 1,
+         "couv": 60,
+         "u": "Seau"
+        },
+        {
+         "nom": "Peinture acrylique",
+         "couches": 2,
+         "couv": 48,
+         "u": "Seau"
+        }
+       ],
+       "perte": 8,
+       "moMode": "ouvrier",
+       "moRend": 35,
+       "moOuv": 2
+      }
+     }
+    ]
+   },
+   {
+    "nom": "Chambre",
+    "ouvrages": [
+     {
+      "type": "p_piece",
+      "v": {
+       "longueur": 3.6,
+       "largeur": 3.2,
+       "hauteur": 2.7,
+       "ouv": [
+        {
+         "n": 1,
+         "l": 0.8,
+         "h": 2.1
+        },
+        {
+         "n": 1,
+         "l": 1.2,
+         "h": 1.2
+        }
+       ],
+       "plafond": true,
+       "prod": [
+        {
+         "nom": "Sous-couche",
+         "couches": 1,
+         "couv": 60,
+         "u": "Seau"
+        },
+        {
+         "nom": "Peinture acrylique",
+         "couches": 2,
+         "couv": 48,
+         "u": "Seau"
+        }
+       ],
+       "perte": 8,
+       "moMode": "ouvrier",
+       "moRend": 35,
+       "moOuv": 2
+      }
+     }
+    ]
+   },
+   {
+    "nom": "Portes",
+    "ouvrages": [
+     {
+      "type": "p_surface",
+      "v": {
+       "longueur": 0.8,
+       "hauteur": 2.1,
+       "nombre": 3,
+       "faces": 2,
+       "prod": [
+        {
+         "nom": "Laque",
+         "couches": 2,
+         "couv": 12,
+         "u": "Pot"
+        }
+       ],
+       "perte": 5,
+       "moMode": "tache",
+       "moNom": "Peinture des portes"
+      }
+     }
+    ]
+   }
+  ]
+ },
+ "carrelage": {
+  "titre": "Maison : séjour, cuisine et douche",
+  "zones": [
+   {
+    "nom": "Séjour",
+    "ouvrages": [
+     {
+      "type": "c_sol",
+      "v": {
+       "longueur": 6.4,
+       "largeur": 4.25,
+       "carreau": "Grès 60×60",
+       "vente": "Carton",
+       "cA": 60,
+       "cB": 60,
+       "parCarton": 4,
+       "perte": 10,
+       "colle": 4.5,
+       "colleSac": 25,
+       "jointC": 0.4,
+       "jointSac": 5,
+       "plinthes": true,
+       "portes": 1.8,
+       "plinthe": 60,
+       "perteP": 5,
+       "moMode": "equipe",
+       "moRend": 18,
+       "moOuv": 2
+      }
+     }
+    ]
+   },
+   {
+    "nom": "Cuisine",
+    "ouvrages": [
+     {
+      "type": "c_sol",
+      "v": {
+       "longueur": 3.5,
+       "largeur": 2.8,
+       "deduire": 1.2,
+       "carreau": "Grès 60×60",
+       "vente": "Carton",
+       "cA": 60,
+       "cB": 60,
+       "parCarton": 4,
+       "perte": 10,
+       "colle": 4.5,
+       "colleSac": 25,
+       "jointC": 0.4,
+       "jointSac": 5,
+       "moMode": "equipe",
+       "moRend": 18,
+       "moOuv": 2
+      }
+     }
+    ]
+   },
+   {
+    "nom": "Douche",
+    "ouvrages": [
+     {
+      "type": "c_mur",
+      "v": {
+       "longueur": 5.6,
+       "hauteur": 2.1,
+       "ouv": [
+        {
+         "n": 1,
+         "l": 0.7,
+         "h": 2.0
+        }
+       ],
+       "carreau": "Faïence 25×40",
+       "vente": "Carton",
+       "cA": 25,
+       "cB": 40,
+       "parCarton": 15,
+       "perte": 12,
+       "colle": 3.5,
+       "colleSac": 25,
+       "jointC": 0.3,
+       "jointSac": 5,
+       "moMode": "tache"
+      }
+     }
+    ]
+   }
+  ]
+ },
+ "maconnerie": {
+  "titre": "Clôture de 24 m avec 9 poteaux, dallage et enduit",
+  "zones": [
+   {
+    "nom": "Clôture",
+    "ouvrages": [
+     {
+      "type": "m_fouille",
+      "v": {
+       "nombre": 9,
+       "longueur": 0.6,
+       "largeur": 0.6,
+       "profondeur": 0.5,
+       "moMode": "tache"
+      }
+     },
+     {
+      "type": "m_mur",
+      "v": {
+       "longueur": 24,
+       "hauteur": 2.2,
+       "ouv": [
+        {
+         "n": 1,
+         "l": 3.5,
+         "h": 2.0
+        },
+        {
+         "n": 1,
+         "l": 1.0,
+         "h": 2.0
+        }
+       ],
+       "blocNom": "Parpaing de 15",
+       "blocL": 40,
+       "blocH": 20,
+       "blocE": 15,
+       "joint": 1.5,
+       "perte": 5,
+       "mortier": true,
+       "ciment": 350,
+       "sac": 50,
+       "sable": 1,
+       "perteM": 20,
+       "moMode": "ouvrier",
+       "moRend": 12,
+       "moOuv": 3
+      }
+     },
+     {
+      "type": "m_beton",
+      "v": {
+       "nom": "Poteaux",
+       "nombre": 9,
+       "longueur": 2.2,
+       "largeur": 20,
+       "epaisseur": 20,
+       "perte": 5,
+       "ciment": 350,
+       "sac": 50,
+       "sable": 0.4,
+       "gravier": 0.8,
+       "moMode": "tache"
+      }
+     },
+     {
+      "type": "m_acier",
+      "v": {
+       "nom": "Armatures des poteaux",
+       "nombre": 9,
+       "longueur": 2.2,
+       "barre": 12,
+       "filNom": "Fer de 12",
+       "filN": 4,
+       "filRec": 0.6,
+       "cadNom": "Fer de 6",
+       "cadEsp": 15,
+       "cadDev": 68
+      }
+     },
+     {
+      "type": "m_enduit",
+      "v": {
+       "longueur": 24,
+       "hauteur": 2.2,
+       "faces": 2,
+       "ouv": [
+        {
+         "n": 1,
+         "l": 3.5,
+         "h": 2.0
+        },
+        {
+         "n": 1,
+         "l": 1.0,
+         "h": 2.0
+        }
+       ],
+       "epaisseur": 1.5,
+       "perte": 15,
+       "ciment": 300,
+       "sac": 50,
+       "sable": 1,
+       "moMode": "ouvrier",
+       "moRend": 30,
+       "moOuv": 3
+      }
+     }
+    ]
+   },
+   {
+    "nom": "Cour",
+    "ouvrages": [
+     {
+      "type": "m_chape",
+      "v": {
+       "longueur": 8,
+       "largeur": 5,
+       "epaisseur": 8,
+       "perte": 5,
+       "ciment": 300,
+       "sac": 50,
+       "sable": 0.5,
+       "gravier": 0.8,
+       "moMode": "equipe",
+       "moRend": 40,
+       "moOuv": 4
+      }
+     }
+    ]
+   }
+  ]
+ },
+ "plomberie": {
+  "titre": "Salle de bain et cuisine",
+  "zones": [
+   {
+    "nom": "Salle de bain",
+    "ouvrages": [
+     {
+      "type": "pl_reseau",
+      "v": {
+       "tuyau": "Tube PVC Ø100",
+       "longueur": 6.5,
+       "perte": 10,
+       "vente": "Barre",
+       "barre": 4,
+       "art": [
+        {
+         "nom": "Coude Ø100",
+         "n": 3
+        },
+        {
+         "nom": "Té Ø100",
+         "n": 1
+        }
+       ],
+       "colEsp": 80,
+       "moMode": "tache"
+      }
+     },
+     {
+      "type": "pl_reseau",
+      "v": {
+       "tuyau": "Tube PPR Ø20",
+       "perte": 5,
+       "vente": "Barre",
+       "barre": 4,
+       "colEsp": 60,
+       "moMode": "tache",
+       "longueur": 14,
+       "art": [
+        {
+         "nom": "Coude Ø20",
+         "n": 8
+        },
+        {
+         "nom": "Té Ø20",
+         "n": 3
+        },
+        {
+         "nom": "Vanne d'arrêt Ø20",
+         "n": 2
+        }
+       ]
+      }
+     },
+     {
+      "type": "pl_appareils",
+      "v": {
+       "art": [
+        {
+         "nom": "WC",
+         "n": 1
+        },
+        {
+         "nom": "Lavabo",
+         "n": 1
+        },
+        {
+         "nom": "Douche",
+         "n": 1
+        }
+       ],
+       "acc": [
+        {
+         "nom": "Flexible",
+         "n": 3
+        },
+        {
+         "nom": "Robinet d'arrêt",
+         "n": 3
+        },
+        {
+         "nom": "Siphon",
+         "n": 2
+        }
+       ],
+       "moMode": "tache"
+      }
+     }
+    ]
+   },
+   {
+    "nom": "Cuisine",
+    "ouvrages": [
+     {
+      "type": "pl_reseau",
+      "v": {
+       "tuyau": "Tube PPR Ø20",
+       "perte": 5,
+       "vente": "Barre",
+       "barre": 4,
+       "colEsp": 60,
+       "moMode": "tache",
+       "longueur": 9,
+       "art": [
+        {
+         "nom": "Coude Ø20",
+         "n": 4
+        },
+        {
+         "nom": "Té Ø20",
+         "n": 1
+        }
+       ]
+      }
+     },
+     {
+      "type": "pl_reseau",
+      "v": {
+       "tuyau": "Tube PVC Ø50",
+       "longueur": 4.2,
+       "perte": 10,
+       "vente": "Mètre",
+       "art": [
+        {
+         "nom": "Coude Ø50",
+         "n": 2
+        }
+       ],
+       "moMode": "tache"
+      }
+     },
+     {
+      "type": "pl_appareils",
+      "v": {
+       "art": [
+        {
+         "nom": "Évier",
+         "n": 1
+        }
+       ],
+       "acc": [
+        {
+         "nom": "Flexible",
+         "n": 2
+        },
+        {
+         "nom": "Siphon",
+         "n": 1
+        }
+       ],
+       "moMode": "tache"
+      }
+     }
+    ]
+   }
+  ]
+ },
+ "electricite": {
+  "titre": "Logement : séjour, chambre et tableau",
+  "zones": [
+   {
+    "nom": "Séjour",
+    "ouvrages": [
+     {
+      "type": "e_points",
+      "v": {
+       "art": [
+        {
+         "nom": "Prise 2P+T",
+         "n": 6
+        },
+        {
+         "nom": "Interrupteur simple",
+         "n": 2
+        },
+        {
+         "nom": "Point lumineux",
+         "n": 2
+        }
+       ],
+       "boites": true,
+       "moMode": "tache"
+      }
+     },
+     {
+      "type": "e_ligne",
+      "v": {
+       "cable": "Câble 3G2,5",
+       "nombre": 2,
+       "longueur": 14,
+       "reserve": 0.25,
+       "racc": 5,
+       "perte": 10,
+       "rouleau": 100,
+       "conduit": "Gaine Ø20",
+       "rouleauC": 50,
+       "moMode": "equipe",
+       "moRend": 60,
+       "moOuv": 2
+      }
+     }
+    ]
+   },
+   {
+    "nom": "Chambre",
+    "ouvrages": [
+     {
+      "type": "e_points",
+      "v": {
+       "art": [
+        {
+         "nom": "Prise 2P+T",
+         "n": 4
+        },
+        {
+         "nom": "Interrupteur simple",
+         "n": 1
+        },
+        {
+         "nom": "Point lumineux",
+         "n": 1
+        }
+       ],
+       "boites": true,
+       "moMode": "tache"
+      }
+     },
+     {
+      "type": "e_ligne",
+      "v": {
+       "cable": "Câble 3G2,5",
+       "longueur": 11,
+       "reserve": 0.25,
+       "racc": 6,
+       "perte": 10,
+       "rouleau": 100,
+       "conduit": "Gaine Ø20",
+       "rouleauC": 50,
+       "moMode": "equipe",
+       "moRend": 60,
+       "moOuv": 2
+      }
+     },
+     {
+      "type": "e_ligne",
+      "v": {
+       "cable": "Fil 1,5 mm²",
+       "longueur": 9,
+       "fils": 3,
+       "reserve": 0.25,
+       "racc": 4,
+       "perte": 10,
+       "rouleau": 100,
+       "conduit": "Gaine Ø16",
+       "rouleauC": 50,
+       "moMode": "equipe",
+       "moRend": 60,
+       "moOuv": 2
+      }
+     }
+    ]
+   },
+   {
+    "nom": "Tableau",
+    "ouvrages": [
+     {
+      "type": "e_tableau",
+      "v": {
+       "art": [
+        {
+         "nom": "Coffret 13 modules",
+         "n": 1
+        },
+        {
+         "nom": "Disjoncteur",
+         "n": 6
+        },
+        {
+         "nom": "Interrupteur différentiel",
+         "n": 2
+        }
+       ],
+       "moMode": "tache"
+      }
+     }
+    ]
+   }
+  ]
+ }
+}

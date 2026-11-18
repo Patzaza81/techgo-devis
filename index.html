@@ -21,6 +21,8 @@ main{max-width:640px;margin:0 auto;padding:20px}
 h2{font-size:26px;line-height:1.2;margin:4px 0 18px;color:var(--ink);font-weight:800;letter-spacing:-.01em;text-wrap:balance}
 h3{font-size:14px;margin:28px 0 10px;color:var(--mut);text-transform:uppercase;letter-spacing:.08em;font-weight:700}
 .card{background:var(--card);border-radius:18px;padding:18px;margin-bottom:16px;border:1px solid var(--line);box-shadow:var(--sh)}
+.fmsg{color:#b3261e;font-size:14px;margin:4px 0 0;line-height:1.35}button.rowc{scroll-margin-top:72px}a.fixlink,button.fixlink{display:block;margin-top:4px;padding:10px 0;min-height:44px;color:#0b6b7d;font-weight:600;text-decoration:underline}details.reglages>summary{cursor:pointer;list-style:none;padding:4px 0;min-height:44px}details.reglages>summary::-webkit-details-marker{display:none}details.reglages[open]>summary{margin-bottom:8px}
+input.bad{border-color:#b3261e;outline:0;box-shadow:0 0 0 2px rgba(179,38,30,.18)}
 label{display:block;font-size:15px;font-weight:600;color:var(--mut);margin:14px 0 6px}
 select{-webkit-appearance:none;appearance:none;padding-right:44px;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='%2369787e' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'><path d='M6 9l6 6 6-6'/></svg>");background-repeat:no-repeat;background-position:right 14px center}
 input,select,textarea{width:100%;font:inherit;padding:13px 14px;border:2px solid transparent;border-radius:14px;background-color:var(--field);color:var(--ink);min-height:52px}
@@ -64,7 +66,7 @@ a.btn.sec{background:var(--info-bg);color:var(--teal-d)}
 .empty{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:26px;color:var(--mut);text-align:center;margin:16px 0}
 .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
 .st{display:inline-block;padding:3px 11px;border-radius:99px;font-size:14px;font-weight:700;background:var(--info-bg);color:var(--teal-d)}
-.st-accepte{background:var(--ok-bg);color:var(--ok)}.st-refuse,.st-annule,.st-expire{background:var(--bad-bg);color:var(--bad)}.st-envoye,.st-negociation{background:var(--warn-bg);color:var(--warn-ink)}
+.st-accepte{background:var(--ok-bg);color:var(--ok)}.st-refuse,.st-annule,.st-expire{background:var(--bad-bg);color:var(--bad)}.st-envoye,.st-negociation{background:var(--warn-bg);color:var(--warn-ink)}.st-termine{background:var(--warn-bg);color:var(--warn-ink)}
 .qcard{display:block;background:var(--card);border-radius:18px;padding:16px 18px;margin-bottom:12px;text-decoration:none;color:var(--ink);border:1px solid var(--line);box-shadow:var(--sh)}
 .qcard.arch{opacity:.55}
 .qtop,.qbot{display:flex;justify-content:space-between;align-items:center;gap:8px}
@@ -143,6 +145,21 @@ em.tick{font-style:normal;flex:none;width:28px;height:28px;border-radius:50%;bac
 #doc .sign>div{border:1.5px dashed #9fb3b8;border-radius:10px;padding:12px;min-height:130px}
 #doc .docfoot{margin-top:22px;border-top:2px solid var(--dc);padding-top:8px;word-break:break-word;text-align:center}
 #doc ul.note{padding-left:20px}
+/* Téléphone : l'aperçu du devis tient dans la largeur de l'écran (le PDF, lui, est toujours mis en page en A4). */
+@media (max-width:520px){#doc{padding:14px;overflow-x:auto}#doc table{font-size:13px}#doc th{font-size:10.5px;letter-spacing:0;padding:8px 4px}#doc td{padding:8px 4px}#doc .gt .gb{font-size:24px}}
+.calc{border:1px solid var(--line);border-radius:12px;padding:12px;margin:4px 0 12px;background:#f7fafb}
+#doc .metret td{vertical-align:top}#doc .metret td.note{font-size:12px}
+.mzone{border:1px solid var(--line);border-radius:12px;padding:4px 10px 10px;margin:10px 0}.mzone>.sech{width:100%}
+.sheet.metre{padding-top:10px}.mf{margin:0 0 10px}.ml{display:block;margin:10px 0 4px;font-size:15px}
+.mrow{display:grid;gap:8px;align-items:end;margin:0 0 8px}.mrow.m3{grid-template-columns:1fr 1fr 1fr 40px}.mrow.m2{grid-template-columns:2fr 1fr 40px}.mrow.m1{grid-template-columns:1fr 40px}
+.mrow label{font-size:13px;line-height:1.2;white-space:normal;overflow-wrap:anywhere}.mrow input,.mrow select{min-width:0;width:100%;padding-left:8px;padding-right:6px}
+.mfs{display:grid;grid-template-columns:1fr 1fr;gap:0 10px;align-items:end}.mfs>*{grid-column:1/-1;min-width:0}.mfs>.half{grid-column:auto}.mfs>.half label{white-space:normal;line-height:1.2;overflow-wrap:anywhere}
+.mg{margin:16px 0 8px;padding:6px 10px;background:#e8f1f3;border-radius:8px}.mg b{display:block;font-size:15px}.mg span{display:block;font-size:13px;color:#51606a;margin-top:2px}
+.mf.rep input,.mf.rep select{border-color:#c98a00;background:#fff8e6}.hint.mrep{color:#8a5a00;margin:2px 0 6px}
+.mest{display:inline-block;font-size:11px;font-weight:600;padding:1px 7px;border-radius:9px;background:#fff1cc;color:#7a4f00;vertical-align:middle}.mest.ex{background:#e3f3ea;color:#17603a}
+.mprod{border-left:3px solid var(--teal);padding-left:8px;margin:0 0 10px}.mprod .mrow.m3{grid-template-columns:1fr 1fr}
+button.mx{min-height:44px;width:40px;padding:0;background:transparent;color:#b42318;font-size:18px}
+.mcalc{background:#fff;border:1px solid var(--line);border-radius:12px;padding:6px 12px 10px;margin:10px 0}.mres{padding:6px 0;border-top:1px solid var(--line)}.mres:first-of-type{border-top:0}.mres .hint{margin:2px 0 0}
 #doc.tpl-sobre .dochead{border-bottom:1px solid #999}#doc.tpl-sobre .dochead::after{display:none}
 #doc.tpl-sobre th{background:#fff;color:#111;border-bottom:2px solid var(--dc)}
 #doc.tpl-sobre .gt{background:#fff;color:#111;border:2px solid var(--dc)}#doc.tpl-sobre .gt .gold{color:#8a6100}
@@ -165,6 +182,8 @@ em.tick{font-style:normal;flex:none;width:28px;height:28px;border-radius:50%;bac
   table{page-break-inside:auto}tr{page-break-inside:avoid}h3{page-break-after:avoid}.gt,.sign{page-break-inside:avoid}
   th,.gt,tr.sub td,.dochead,.dochead::after{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 }
+@media (max-width:440px){#doc{padding:12px}#doc table{font-size:12px!important}#doc th,#doc td{padding:5px 3px!important;white-space:normal!important;letter-spacing:0!important}#doc th{font-size:10px!important}} /* aperçu sur téléphone : la colonne des montants reste visible (le PDF est rendu à 794 px, non concerné) */
+.chips.unites{margin:0 0 6px}.chips.unites{gap:6px}.chips.unites .chip{width:auto;flex:0 0 auto;min-height:40px;padding:6px 12px}#metre{scroll-margin-top:72px}.chips.doms{gap:6px}.chips.doms .chip{width:auto;flex:0 1 auto;min-height:38px;padding:6px 12px;font-size:14px;line-height:1.2}.unitesl{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:8px}.unitesl select{width:auto;flex:1 1 96px;min-width:96px;padding-right:34px;background-position:right 10px center}.rowtot.montantl{margin:2px 0 8px}
 </style>
 </head>
 <body>

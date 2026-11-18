@@ -17,3 +17,15 @@ jobs:
       - run: node test-store.mjs
       - run: node test-csv.mjs
       - run: node test-docx.mjs /tmp/ref.docx
+      - run: node test-aide.mjs
+      - run: node test-licence.mjs
+      - run: python3 validation/controle.py && git diff --exit-code validation VALIDATION.md
+      - run: node test-metre.mjs
+      - run: node test-sw.mjs
+      - run: node test-listes.mjs
+      - run: node test-ref.mjs
+      - run: node test-tech.mjs
+      - run: node test-saisie.mjs
+      - run: node test-arrondi.mjs
+      - run: node test-journal.mjs
+      - run: node test-texte.mjs
