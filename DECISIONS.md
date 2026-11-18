@@ -85,3 +85,16 @@ Format : quoi · pourquoi · date.
 - La surface de base ne bloque un devis entreprise que si un travail est calculé à partir d'elle.
 - « Vérifier » signale (sans bloquer) : nom de l'entreprise absent, nom du client absent, produit en double.
 - Rapport complet : audit-v40/RAPPORT.md. Aucun test humain réalisé.
+
+## v41 — produit commercial (18/11/2026, branche audit/ux-v41)
+
+Décisions prises par Patrick le 18/11 (questions posées avant de coder) :
+
+- **Arrondi** : une seule règle. Chaque ligne = quantité × prix, arrondi au franc (0,5 → au-dessus), en calcul entier exact. Total HT = somme des lignes. Remise, frais et TVA calculés sur le total HT, arrondis au franc. TTC = HT + TVA. Même règle à l'écran, dans l'aperçu, le PDF et le Word (`engine.js : montantLigne`, `test-arrondi.mjs`).
+- **Arrêté du devis** : en lettres sur le montant TTC.
+- **PDF** : vrai texte (sélectionnable, cherchable, ~15 Ko au lieu d'une image). Coupure de page entre deux lignes, en-tête du tableau répété, numéros de page. L'ancien PDF image reste en secours si le texte échoue.
+- **Catalogue** : on n'ajoute que des noms et des unités de vente, avec source citée, marqués « à confirmer ». Aucun prix, norme ni caractéristique. Les sigles sont écrits en clair, le sigle reste entre parenthèses ; l'ancien nom retrouve toujours la fiche.
+- **Unités** : chaque fiche produit propose ses unités (document source, sinon famille, sinon nom). La fiche de ligne montre d'abord ces unités en boutons, les autres dans « Autre… ». Un nom tapé à la main reçoit les unités de la fiche seulement s'il n'y a pas d'ambiguïté.
+- **Quantités** : un seul outil, le métré. L'aide « calculer à partir de la surface » de la fiche de ligne est retirée ; la fiche renvoie au métré. Les travaux types (calcul depuis la surface du chantier) sont rangés dans la carte du métré.
+- **Envoi (profil technicien)** : plus d'étape « Marquer Prêt à envoyer » ; le bouton « Envoyer au client (version 1) » suffit quand rien ne bloque. Le profil entreprise garde l'étape de vérification. Les points de contrôle réussis ne sont plus listés pour le technicien.
+- **Journal d'essai** : activé par le lien `?essai=1`, reste dans le téléphone, n'enregistre ni nom, ni téléphone, ni prix ; export CSV dans Réglages.

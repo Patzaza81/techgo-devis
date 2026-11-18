@@ -233,9 +233,9 @@ module.exports = ({ scenario, nonTeste, METIERS, montant, contient, nombre, norm
   // ---------------------------------------------------------------- ENVOI, VERSIONS, REPRISE D'UN DEVIS DEPUIS SON PDF
   () => scenario("PEI-V1", "peinture", "Figer V1, modifier ensuite (V2), V1 inchangée ; rouvrir le devis depuis son PDF sur un autre téléphone", async (A, p, ok, note) => {
     await A.demarrer("Peinture"); await A.client("M. Tchoua"); await A.continuer(); await A.ajouter("Ciment ordinaire", { qty: 12, unit: "sac", price: 6500 }); await A.allerEtape3();
-    await A.toucher(A.bouton(/Marquer « Prêt à envoyer »/), "Marquer « Prêt à envoyer »");
-    await A.toucher(A.bouton(/Envoyer : figer V1/), "Envoyer : figer V1");
-    ok(/V1 figée/.test(await A.lire()), "Message « V1 figée et envoyée »");
+    ok(!(await A.bouton(/Marquer « Prêt à envoyer »/).count()), "Technicien : pas d'étape « Marquer prêt » avant l'envoi");
+    await A.toucher(A.bouton(/Envoyer au client \(version 1\)/), "Envoyer au client (version 1)");
+    ok(/Version 1 envoyée/.test(await A.lire()), "Message « Version 1 envoyée »");
     const pdf1 = await A.exporter("pdf"); ok(pdf1.ok && contient(pdf1.texte, 78000), "PDF de V1 : 78 000");
     // modification après envoi : passer par le suivi du devis
     const suivi = p.locator("a.btn").filter({ hasText: /Suivi du devis/ }).first(); await A.toucher(suivi, "Suivi du devis");

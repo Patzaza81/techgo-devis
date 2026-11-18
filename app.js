@@ -1,7 +1,7 @@
 import * as S from "./store.js";
 import { PLAN_TECH, CATS, PRICING, DECISION_TAGS, PACKS, scaffoldLines, referenceDraft, effSurface, surfaceSource } from "./packs.js";
 import { buildDocx, DOCX_MIME } from "./docx.js";
-import { manqueLigne, aDesDonnees, AIDE_QTE, quantiteCouverture, oublis } from "./metiers/aide.js";
+import { manqueLigne, aDesDonnees, AIDE_QTE, oublis } from "./metiers/aide.js";
 import * as Lic from "./licence.js";
 import * as Mt from "./metiers/metre.js";
 import * as UM from "./ui-metre.js";
@@ -11,6 +11,7 @@ import { analyseCsv, exportCatalogueCsv, templateCsv, exportRowsCsv } from "./cs
 const NEUTRAL_LOGO = "data:image/svg+xml;utf8," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><rect width="40" height="40" rx="9" fill="#e7ebed"/><path d="M12 9h12l6 6v16H12z" fill="none" stroke="#69787e" stroke-width="2.2" stroke-linejoin="round"/><path d="M16 21h10M16 26h10" stroke="#69787e" stroke-width="2.2" stroke-linecap="round"/></svg>');
 import { LISTES, METIERS, visibleIn, metierLabel } from "./metiers/listes.js";
 import { refOf, unitsOf } from "./metiers/ref.js";
+import { AJOUTS, unitesListe } from "./metiers/complements.js";
 import { vocab } from "./metiers/vocab.js";
 import { esc, fmt, fmtN, fmtQ, fmtD, frDate, renderDoc, renderInvoice, summaryText } from "./ui-doc.js";
 
@@ -224,7 +225,7 @@ function sheetRows(q, ev, tab) {
   for (const l of lines) { const m = q.current.manual.find((x) => x.id === l.id); const nm = m.nom ?? l.label; used.add(nz(nm)); rows.push({ key: nz(nm), name: nm, line: l, man: m }); }
   const rf = refOf(met);
   // Électricité, plomberie : la liste vient du référentiel (sous-ensemble choisi ou recherche), pas d'une liste à plat.
-  const generic = rf && tab === "produits" ? [] : LISTES[met]?.[tab] || [];
+  const generic = rf && tab === "produits" ? [] : [...(LISTES[met]?.[tab] || []), ...(AJOUTS[met] || []).filter((x) => x.liste === tab).map((x) => x.nom)];
   const names = [...generic, ...db.catalogue.filter((i) => !i.archived && TAB_OF[i.cat] === tab && String(i.id).startsWith("TER-") && i.price != null && ownsItem(i, met) && !(rf && tab === "produits" && rf.find(i.nom || i.label))).map((i) => i.nom || i.label)];
   for (const n of names) { if (used.has(nz(n))) continue; used.add(nz(n)); rows.push({ key: nz(n), name: n, line: null, man: null }); }
   if (rf) {
@@ -236,19 +237,6 @@ function sheetRows(q, ev, tab) {
 }
 // Aide « calculer la quantité à partir de la surface » (peinture, carrelage). La couverture par unité est
 // toujours saisie par l'utilisateur ; la formule est affichée en clair.
-function aideQuantite(t, met) {
-  const cfg = AIDE_QTE[met]; if (!cfg) return "";
-  const c = ui.tmp.calc, q = S.getQuote(ui.qid), site = q ? effSurface(q.current.site) : null;
-  if (!c.open) return `<button type="button" class="linkbtn" data-act="calcToggle" style="margin:2px 0 8px">Calculer la quantité à partir de la surface</button>`;
-  const surface = c.surface ?? site, couches = cfg.couches ? (c.couches ?? 1) : 1;
-  const r = quantiteCouverture({ surface, couches, couverture: c.couv, pertePct: c.perte ?? 0 });
-  return `<div class="calc"><b>Calculer la quantité</b>
-    <div class="row"><div>${L("Surface (m²)")}${I("tmp", "calc.surface", surface, { type: "number", n: "n" })}</div>${cfg.couches ? `<div>${L("Nombre de couches")}${I("tmp", "calc.couches", couches, { type: "number", n: "n" })}</div>` : ""}</div>
-    ${L(cfg.couverture)}${I("tmp", "calc.couv", c.couv, { type: "number", n: "n" })}<p class="hint" style="margin:2px 0 8px">${cfg.ou}</p>
-    ${L("Pertes et coupes (%) — laisse vide si tu n'en comptes pas")}${I("tmp", "calc.perte", c.perte, { type: "number", n: "n" })}
-    ${r.ok ? `<div class="banner info"><b>Quantité : ${fmtN(r.qty)}</b><div class="hint" style="margin:4px 0 0">${esc(r.detail)}</div></div><div class="row"><button type="button" data-act="calcUse" data-q="${r.qty}">Utiliser ${fmtN(r.qty)}</button><button type="button" class="sec" data-act="calcToggle">Fermer le calcul</button></div>`
-      : `<p class="hint">Il manque : ${r.manque.join(", ")}.</p><button type="button" class="sec" data-act="calcToggle">Fermer le calcul</button>`}</div>`;
-}
 // ---------- Métré : lien entre le chantier décrit et les lignes du devis ----------
 const ligneMetre = (t) => { const q = S.getQuote(ui.qid); return (t && t.lineId && q && q.current.manual.find((m) => m.id === t.lineId && m.metre)) || null; };
 function explMetre(t) {
@@ -316,6 +304,12 @@ function apresMetre(q, chemin) {
   syncMetre(q);
   return redessiner;
 }
+// Unités de vente qui ont un sens pour ce produit (référentiel, compléments v41, liste à plat) ; vide si inconnu.
+function unitesDe(t, rf, met) {
+  if (t.tab !== "produits") return UNITS_ROW[t.tab] || [];
+  if (rf) return rf.unitesPour(t.label);
+  return unitesListe(met, t.label) || [];
+}
 function sheetForm(t, prod, rf, met) {
   const elec = !!rf, v = vocab(met);
   const manq = manqueLigne(t), incomplet = !t.lineId && aDesDonnees(t) && manq.length > 0;
@@ -323,21 +317,29 @@ function sheetForm(t, prod, rf, met) {
   const tot = t.qty > 0 && t.price > 0 ? montantLigne(t.qty, t.price) : null; // même règle d'arrondi que le devis
   const ref = rf ? rf.find(t.label) : null;
   const base = rf ? [...unitsOf(ref?.unit), ...(t.tab === "produits" ? [] : UNITS_ROW[t.tab] || []), ...rf.units] : t.tab === "produits" ? v.unitsP : UNITS_ROW[t.tab] || [];
-  const opts = [["", "—"], ...[...new Set([...base, t.unit].filter(Boolean))].map((u) => [u, u])];
+  // Unités qui correspondent au produit en premier ; les autres restent possibles, rangées à part.
+  const rel = unitesDe(t, rf, met), low = (u) => String(u).toLowerCase(), relL = new Set(rel.map(low));
+  const autres = [...new Set([...base, t.unit].filter(Boolean))].filter((u) => !relL.has(low(u)) && !(rel.length && [...relL].some((x) => x === low(u))));
+  const optU = (u) => `<option value="${esc(u)}" ${low(t.unit || "") === low(u) ? "selected" : ""}>${esc(u)}</option>`;
+  const selUnite = `<select data-r="tmp" data-p="row.unit"><option value="" ${t.unit ? "" : "selected"}>${rel.length && rel.length <= 5 ? "Autre…" : "Choisir"}</option>${rel.length ? `<optgroup label="Pour ce produit">${rel.map(optU).join("")}</optgroup>${autres.length ? `<optgroup label="Autres unités">${autres.map(optU).join("")}</optgroup>` : ""}` : autres.map(optU).join("")}</select>`;
   const specHint = ref && ref.spec ? `<p class="hint" style="margin:2px 0 8px">${t.tab === "autres" ? "Contenu" : rf.specLabel} : ${esc(ref.spec)}</p>` : "";
   const normHint = ref && ref.norm ? `<p class="hint" style="margin:2px 0 8px">Norme de référence : ${esc(ref.norm)}</p>` : "";
+  // Ordre de la fiche : le nom, puis ce qui fait le montant (quantité, unité, prix), puis le facultatif replié.
+  const puces = rel.length && rel.length <= 5 ? `<div class="chips unites" style="margin:0">${rel.map((u) => `<button type="button" class="chip ${low(t.unit || "") === low(u) ? "on" : ""}" data-act="rowUnit" data-u="${esc(u)}">${esc(u)}</button>`).join("")}</div>` : "";
+  const facultatif = prod ? `${L(elec ? "Marque ou référence fabricant" : "Référence ou marque")}${I("tmp", "row.brand", t.brand, { ph: v.brand })}
+    ${!v.cond ? `${L(v.condLabel)}${I("tmp", "row.cond", t.cond, { ph: rf && rf.met !== "maconnerie" && ref && ref.spec ? "Ex. : " + ref.spec.split(",").slice(0, 2).join(",") : v.condPh })}` : `${L(v.condLabel)}<div class="chips">${v.cond.map((c) => `<button type="button" class="chip ${nz(t.cond) === nz(c) ? "on" : ""}" data-act="rowCond" data-c="${esc(c)}">${esc(c)}</button>`).join("")}</div>`}
+    ${ref ? specHint + normHint : ""}` : "";
+  const nbFac = [t.brand, t.cond, t.role].filter((x) => String(x || "").trim()).length;
   return `<div class="sheet">
-    ${prod ? `${L(elec ? "Marque ou référence fabricant (facultatif)" : "Référence ou marque (facultatif)")}${I("tmp", "row.brand", t.brand, { ph: v.brand })}` : ""}
     ${L(prod ? "Nom du produit" : "Désignation")}${I("tmp", "row.label", t.label)}
-    ${prod && !v.cond ? `${L(v.condLabel)}${I("tmp", "row.cond", t.cond, { ph: rf && rf.met !== "maconnerie" && ref && ref.spec ? "Ex. : " + ref.spec.split(",").slice(0, 2).join(",") : v.condPh })}` : ""}
-    ${ref ? specHint + normHint : ""}
-    ${prod && v.cond ? `${L(v.condLabel)}<div class="chips">${v.cond.map((c) => `<button type="button" class="chip ${nz(t.cond) === nz(c) ? "on" : ""}" data-act="rowCond" data-c="${esc(c)}">${esc(c)}</button>`).join("")}</div>` : ""}
-    ${explMetre(t)}${prod && !ligneMetre(t) ? aideQuantite(t, met) : ""}
-    <div class="row"><div>${L("Quantité")}${I("tmp", "row.qty", t.qty, { type: "number", n: "n" })}</div><div>${L("Unité")}${Sel("tmp", "row.unit", t.unit, opts)}</div></div>
-    <div class="row"><div>${L(ligneMetre(t) ? `Prix pour 1 ${esc(String(t.unit || "unité").toLowerCase())} (FCFA)` : "Prix unitaire (FCFA)")}${I("tmp", "row.price", t.price, { type: "number", n: "n" })}</div><div>${L("Montant")}<div class="rowtot"><b>${tot === null ? "—" : fmt(tot)}</b></div></div></div>
     ${dejaLa ? `<div class="banner warn" id="doublon"><b>« ${esc(t.label)} » est déjà dans le devis.</b> Si c'est le même produit, ferme cette fiche et change plutôt la quantité de la ligne existante. Sinon, précise le nom (ex. : la pièce).</div>` : ""}
+    ${explMetre(t)}
+    ${L("Unité")}<div class="unitesl">${puces}${selUnite}</div>
+    <div class="row"><div>${L("Quantité")}${I("tmp", "row.qty", t.qty, { type: "number", n: "n" })}</div><div>${L(ligneMetre(t) ? `Prix pour 1 ${esc(String(t.unit || "unité").toLowerCase())}` : "Prix unitaire")}${I("tmp", "row.price", t.price, { type: "number", n: "n" })}</div></div>
+    <div class="rowtot montantl">Montant de la ligne : <b>${tot === null ? "—" : fmt(tot)}</b></div>
     ${incomplet ? `<div class="banner warn" id="lignemanque"><b>Cette ligne n'est pas encore dans le devis.</b> Il manque : ${manq.join(", ")}.</div>` : ""}
-    <details><summary>Écrire à quoi ça sert (facultatif)</summary>${I("tmp", "row.role", t.role, { ph: "Ex. : " + v.role })}</details>
+    ${prod && !ligneMetre(t) && AIDE_QTE[met] ? `<button type="button" class="linkbtn" data-act="versMetre" style="margin:2px 0 6px">Calculer la quantité à partir d'une surface (métré)</button>` : ""}
+    <details ${nbFac ? "open" : ""}><summary>Précisions écrites sur le devis (facultatif)${nbFac ? ` · ${nbFac}` : ""}</summary>${facultatif}${L("À quoi ça sert")}${I("tmp", "row.role", t.role, { ph: "Ex. : " + v.role })}</details>
     <div class="row" style="margin-top:8px"><button class="sec" data-act="rowClose">▲ Fermer</button>${ligneMetre(t) ? `<p class="hint" style="margin:0;align-self:center">Ligne du métré : pour la retirer, modifie le métré.</p>` : t.lineId ? `<button class="sec danger" data-act="rowRemove">Retirer du devis</button>` : `<p class="hint" style="margin:0;align-self:center">Remplis la quantité, l'unité et le prix : la ligne entre dans le devis.</p>`}</div></div>`;
 }
 // Électricité, plomberie : le matériel est rangé en sous-ensembles, puis en familles repliables (avec les points de vigilance du référentiel).
@@ -388,10 +390,9 @@ function stepTravauxS(q, ev, dis) {
   return `<h2>Le travail et le matériel</h2>
     <p class="hint">Touche un produit, remplis la quantité et le prix : le montant se calcule tout seul. Seules les lignes remplies entrent dans le devis.</p>
     <div class="total"><div><span>Total du devis</span><span class="big">${fmt(ev.result.totals.base)}</span></div></div>
-    ${UM.carte(q, dis, etatMetre(q))}
+    ${UM.carte(q, dis, etatMetre(q), q.current.prestations.length || PACKS[metierOf(q)]?.prestations?.length ? `<details class="more" ${q.current.prestations.length ? "open" : ""}><summary>Travaux types déjà paramétrés (calcul à partir de la surface du chantier)</summary>${stepPrest(q, ev, dis, true)}</details>` : "")}
     ${body}
     ${auto.length ? `<p class="hint">${auto.length} ligne${auto.length > 1 ? "s" : ""} calculée${auto.length > 1 ? "s" : ""} automatiquement (voir « Calcul automatique » plus bas) sont aussi comptées.</p>` : ""}
-    <details class="more"><summary>Calcul automatique à partir de la surface (facultatif)</summary>${stepPrest(q, ev, dis, true)}</details>
     ${stepBesoins(q, ev, dis, true, true)}`;
 }
 // Rappels « as-tu pensé à… » : jamais bloquants, écartables d'un toucher.
@@ -604,11 +605,11 @@ function stepControle(q, ev, dis) {
   if (["brouillon", "a_verifier"].includes(q.status)) acts.push(`<button data-act="mark" data-to="pret" ${ck.status === "bloque" ? "disabled" : ""}>Marquer « Prêt à envoyer »</button>`);
   if (["a_verifier", "pret"].includes(q.status)) acts.push(`<button class="sec" data-act="mark" data-to="brouillon">Repasser en brouillon</button>`);
   return `<h2>Vérifier avant d'envoyer</h2><div class="card"><div style="display:flex;justify-content:space-between;align-items:center"><b>Résultat</b>${badge(ck.status, STATE_LABEL[ck.status])}</div>
-    <p class="hint">Prêt : tout est en ordre. À vérifier : un point reste à confirmer. Il manque quelque chose : corrige-le avant d'envoyer.</p>
     ${sansIdentite() && !dis ? `<div class="chk"><div class="dot d-verifier">!</div><div><b>Ton nom n'est pas sur le devis</b><div class="hint">Le devis porte « Mon entreprise »${String(S.state.db.company.phone || "").trim() ? "" : " et aucun téléphone"} : ton client ne saura pas qui l'envoie.</div>${modeOf(q) === "technicien" ? `<button type="button" class="fixlink linkbtn" data-act="voirIdentite">Corriger : écrire mon nom et mon téléphone</button>` : `<a class="fixlink" href="#/reglages">Corriger : aller dans Réglages</a>`}</div></div>` : ""}
     ${!String(q.current.client.name || "").trim() && !dis ? `<div class="chk"><div class="dot d-verifier">!</div><div><b>Le nom du client n'est pas écrit</b><div class="hint">Le devis portera une ligne en pointillés à la place du nom.</div><a class="fixlink" href="#/devis/${q.id}/0">Corriger : aller à « ${esc(stepsOf(q)[0])} »</a></div></div>` : ""}
-    ${ck.items.map((r) => { const to = r.state === "ok" || dis ? null : etapeDuPoint(q, r.label); return `<div class="chk"><div class="dot d-${r.state}">${r.state === "ok" ? "✓" : r.state === "verifier" ? "!" : "✕"}</div><div><b>${esc(r.label)}</b>${r.hint ? `<div class="hint">${esc(r.hint)}</div>` : ""}${to !== null ? `<a class="fixlink" href="#/devis/${q.id}/${to}">Corriger : aller à « ${esc(stepsOf(q)[to])} »</a>` : ""}</div></div>`; }).join("")}</div>
-    ${r_warn(ev)}${dis ? "" : `<div class="row">${acts.join("")}</div>`}`;
+    ${modeOf(q) === "technicien" && ck.items.every((r) => r.state === "ok") && !sansIdentite() && String(q.current.client.name || "").trim() ? `<p class="hint" style="margin:8px 0 0">Tout est en ordre.</p>` : ""}
+    ${ck.items.filter((r) => modeOf(q) !== "technicien" || r.state !== "ok").map((r) => { const to = r.state === "ok" || dis ? null : etapeDuPoint(q, r.label); return `<div class="chk"><div class="dot d-${r.state}">${r.state === "ok" ? "✓" : r.state === "verifier" ? "!" : "✕"}</div><div><b>${esc(r.label)}</b>${r.hint ? `<div class="hint">${esc(r.hint)}</div>` : ""}${to !== null ? `<a class="fixlink" href="#/devis/${q.id}/${to}">Corriger : aller à « ${esc(stepsOf(q)[to])} »</a>` : ""}</div></div>`; }).join("")}</div>
+    ${r_warn(ev)}${dis || modeOf(q) === "technicien" ? "" : `<div class="row">${acts.join("")}</div>`}`;
 }
 function stepVerifier(q, ev, dis) {
   return `<div class="noprint">${stepControle(q, ev, dis)}${guideCard(metierOf(q))}</div>${stepApercu(q, ev, dis)}<div class="noprint"><a class="btn sec" href="#/devis/${q.id}/${lastOf(q) + 1}" style="margin-top:14px;width:100%">Suivi du devis : statut, versions, décision du client</a></div>`;
@@ -625,17 +626,18 @@ function snapFor(q, ev) {
 function stepApercu(q, ev, dis) {
   const { snap, draft, sel } = snapFor(q, ev);
   const opts = [...(S.editable(q) || !q.versions.length ? [["draft", "Brouillon actuel"]] : []), ...q.versions.map((v) => [String(v.n), `V${v.n} — ${frDate(v.at)}`])];
-  const seg = `<div class="seg noprint"><button class="${ui.view === "client" ? "on" : ""}" data-act="view" data-v="client">Version client</button><button class="${ui.view === "interne" ? "on" : ""}" data-act="view" data-v="interne">Interne (marge)</button></div>`;
-  const canSend = ["pret", "negociation"].includes(q.status);
-  const top = `<div class="noprint" id="apercu"><h2>Aperçu et envoi</h2>${seg}<div class="row">${L("Version affichée")}${Sel("ui", "ver", sel, opts)}</div></div>`;
+  const seg = `<div class="seg noprint"><button class="${ui.view === "client" ? "on" : ""}" data-act="view" data-v="client">Ce que voit le client</button><button class="${ui.view === "interne" ? "on" : ""}" data-act="view" data-v="interne">Ma marge (pour moi)</button></div>`;
+  const canSend = ["pret", "negociation"].includes(q.status) || (modeOf(q) === "technicien" && ["brouillon", "a_verifier"].includes(q.status));
+  const top = `<div class="noprint" id="apercu"><h2>Aperçu et envoi</h2>${seg}${opts.length > 1 ? `<div class="row">${L("Version affichée")}${Sel("ui", "ver", sel, opts)}</div>` : ""}</div>`;
   if (ui.view === "interne") return top + internal(snap, q);
   const wa = `https://wa.me/?text=${encodeURIComponent(summaryText(snap, q.ref))}`;
   const blocked = ev.checks.status === "bloque";
-  return `${top}<div class="noprint">${draft ? `<div class="banner info">Aperçu d'un brouillon : il n'a ni empreinte ni valeur contractuelle tant qu'il n'est pas envoyé (figé).</div>` : `<div class="banner info">Version figée V${snap.n} — empreinte ${snap.hash}</div>`}
+  return `${top}<div class="noprint">${draft ? `<div class="banner info">Brouillon : tu peux encore tout changer. Il devient le devis officiel quand tu l'envoies.</div>` : `<div class="banner info">Version ${snap.n} envoyée — elle ne change plus. Code de contrôle : ${snap.hash}</div>`}
     <div class="row"><button data-act="pdf" ${(draft && blocked) || ui.busy ? "disabled" : ""}>${ui.busy === "pdf" ? "PDF en préparation…" : "Créer le PDF"}</button><button class="sec" data-act="word" data-n="${draft ? "draft" : snap.n}" ${draft && blocked ? "disabled" : ""}>Créer le Word (.docx)</button></div>
     ${ui.file ? `<div class="banner info"><b>${esc(ui.file.name)}</b> est prêt.<div class="row"><button class="gold" data-act="saveFile">Enregistrer / envoyer le fichier</button></div></div>` : ""}
     <div class="row"><button class="sec" data-act="print" ${draft && blocked ? "disabled" : ""}>Imprimer</button>
-    <button class="gold" data-act="send" ${canSend && !blocked ? "" : "disabled"}>Envoyer : figer V${q.versions.length + 1}</button></div>
+    <button class="gold" data-act="send" ${canSend && !blocked ? "" : "disabled"}>Envoyer au client (version ${q.versions.length + 1})</button></div>
+    ${canSend && !blocked && draft ? `<p class="hint">Après l'envoi, cette version ne change plus. Si tu modifies le devis ensuite, l'application crée la version ${q.versions.length + 2}.</p>` : ""}
     ${canSend ? "" : draft ? `<p class="hint">Pour envoyer : marque d'abord le devis « Prêt à envoyer » (bloc Vérifier, plus haut).</p>` : ""}
     ${blocked && draft ? `<p class="hint">Corrige ce qui manque (bloc Vérifier, plus haut) pour générer le PDF.</p>` : ""}
     ${!draft ? `<div class="row"><a class="btn sec" href="${wa}" target="_blank" rel="noopener">Partager sur WhatsApp</a><button class="sec" data-act="copy" data-t="${esc(summaryText(snap, q.ref))}">Copier le message</button></div><p class="hint">WhatsApp reçoit le message de synthèse ; joins ensuite le PDF créé ci-dessus.</p>` : ""}</div>
@@ -824,7 +826,7 @@ function lierLibelles(racine) {
 }
 // Après « Ajouter un ouvrage », la nouvelle fiche s'ouvre ailleurs dans la page : on l'amène à l'écran, sinon la personne ne voit rien changer.
 function voirNouvelOuvrage() { const id = ui.versOuv; if (!id) return; ui.versOuv = null; const b = document.querySelector(`[data-act="metreOuv"][data-o="${id}"]`); if (b && b.scrollIntoView) b.scrollIntoView({ block: "start" }); }
-function rerender(keepScroll = true) { const y = window.scrollY; render(); if (keepScroll) window.scrollTo(0, y); voirNouvelOuvrage(); }
+function rerender(keepScroll = true) { const y = window.scrollY; render(); if (keepScroll) window.scrollTo(0, y); voirNouvelOuvrage(); if (ui.versMetre) { ui.versMetre = false; const m = document.getElementById("metre"); if (m) m.scrollIntoView({ block: "start" }); } }
 
 // ---------- Événements ----------
 function parseValue(el) {
@@ -1077,12 +1079,15 @@ const actions = {
     const it = S.state.db.catalogue.filter((i) => !i.archived && TAB_OF[i.cat] === tab && nz(i.nom || i.label) === key && i.price != null).sort((x, y) => String(y.priceDate || "").localeCompare(String(x.priceDate || "")))[0];
     const rf = row.ref; // fiche du référentiel : unité et norme viennent du document, jamais devinées
     const ru = rf && rf.unit && tab !== "outils" ? unitsOf(rf.unit)[0] : ""; // un outil du chantier se compte au forfait ou à la journée
-    ui.tmp.row = { ...blank, label: row.name, unit: it ? it.unit : ru || blank.unit, qty: !it && rf && tab === "autres" ? (/^forfait/i.test(ru) ? 1 : null) : blank.qty, price: it ? it.price : null, brand: it?.brand || "", cond: it?.cond || "", norm: rf ? rf.norm || "" : "" };
+    const rel1 = !ru && !it && tab === "produits" ? unitesDe({ tab, label: row.name }, rf ? refOf(metierOf(q)) : null, metierOf(q)) : [];
+    ui.tmp.row = { ...blank, label: row.name, unit: it ? it.unit : ru || (rel1.length === 1 ? rel1[0] : blank.unit), qty: !it && rf && tab === "autres" ? (/^forfait/i.test(ru) ? 1 : null) : blank.qty, price: it ? it.price : null, brand: it?.brand || "", cond: it?.cond || "", norm: rf ? rf.norm || "" : "" };
   },
   formChoice(b) { const q = S.getQuote(ui.qid); q.current.form = b.dataset.f; touchQuote(q); },
   ficheToggle(b) { const q = S.getQuote(ui.qid), k = b.dataset.k, v = b.dataset.v; if (!q.current.fiche && q.current.elec) q.current.fiche = { ...q.current.elec }; const f = (q.current.fiche = q.current.fiche || {}); const a = Array.isArray(f[k]) ? f[k] : []; f[k] = a.includes(v) ? a.filter((x) => x !== v) : [...a, v]; touchQuote(q); },
   elecDom(b) { const e = ui.tmp.elec; e.dom = b.dataset.d; e.q = ""; e.open = {}; },
   elecFam(b) { const e = ui.tmp.elec, f = b.dataset.f; e.open[f] = !e.open[f]; },
+  rowUnit(b) { const t = ui.tmp.row; t.unit = b.dataset.u; if (!commitRow()) dropIfEmpty(); },
+  versMetre() { const t = ui.tmp.row; ui.tmp.row = { ...t, open: null }; ui.versMetre = true; },
   voirIdentite() { const c = document.getElementById("identite"); if (c) { c.scrollIntoView({ block: "start" }); const i = c.querySelector("input"); if (i) i.focus({ preventScroll: true }); } return "skip"; },
   rowClose() {
     const t = ui.tmp.row, manq = manqueLigne(t);
@@ -1090,8 +1095,6 @@ const actions = {
     if (!t.lineId && aDesDonnees(t) && manq.length && !t.averti) { ui.tmp.row = { ...t, averti: true }; throw new Error(`Ligne non enregistrée : il manque ${manq.join(", ")}. Complète-la, ou touche encore « Fermer » pour l'abandonner.`); }
     ui.tmp.row = { ...t, open: null, averti: false }; ui.tmp.calc = { ...ui.tmp.calc, open: false, surface: null, couv: null, perte: null, couches: 1 };
   },
-  calcToggle() { ui.tmp.calc = { ...ui.tmp.calc, open: !ui.tmp.calc.open }; },
-  calcUse(b) { const n = Number(b.dataset.q); if (!(n > 0)) return; ui.tmp.row = { ...ui.tmp.row, qty: n }; ui.tmp.calc = { ...ui.tmp.calc, open: false }; commitRow(); },
   oubliNa(b) { const q = S.getQuote(ui.qid); q.current.decisions = q.current.decisions || {}; q.current.decisions["oubli_" + b.dataset.id] = "na"; touchQuote(q); },
   oubliReset() { const q = S.getQuote(ui.qid); for (const k of Object.keys(q.current.decisions || {})) if (k.startsWith("oubli_")) delete q.current.decisions[k]; touchQuote(q); },
   rowCond(b) { const t = ui.tmp.row; t.cond = t.cond === b.dataset.c ? "" : b.dataset.c; commitRow(); },
@@ -1151,7 +1154,7 @@ const actions = {
   mark(b) { const q = S.getQuote(ui.qid); S.setStatus(q, b.dataset.to); ui.flash = { type: "ok", text: "Statut : " + S.STATUS[q.status] }; },
   view(b) { ui.view = b.dataset.v; },
   print() { const q = S.getQuote(ui.qid); sortieAutorisee(q); window.print(); sortieFaite(q); },
-  send() { const q = S.getQuote(ui.qid); sortieAutorisee(q); const v = S.freezeVersion(q); sortieFaite(q); ui.ver = String(v.n); ui.view = "client"; ui.flash = { type: "ok", text: `V${v.n} figée et envoyée. Empreinte ${v.hash}.` }; },
+  send() { const q = S.getQuote(ui.qid); sortieAutorisee(q); if (modeOf(q) === "technicien" && ["brouillon", "a_verifier"].includes(q.status)) S.setStatus(q, "pret"); const v = S.freezeVersion(q); sortieFaite(q); ui.ver = String(v.n); ui.view = "client"; ui.flash = { type: "ok", text: `Version ${v.n} envoyée : elle ne change plus. Partage maintenant le PDF ou le message WhatsApp.` }; },
   seeVer(b) { ui.file = null; ui.ver = b.dataset.n; ui.view = "client"; },
   copy(b) { const t = b.dataset.t; const ok = () => { ui.flash = { type: "ok", text: "Message copié." }; rerender(); }; if (navigator.clipboard) navigator.clipboard.writeText(t).then(ok).catch(() => { ui.flash = { type: "err", text: "Copie impossible : sélectionne le texte manuellement." }; rerender(); }); else ok(); return "skip"; },
   startNeg() { const q = S.getQuote(ui.qid); S.startNegotiation(q); ui.ver = "draft"; ui.flash = { type: "ok", text: `Brouillon de V${q.versions.length + 1} prêt : modifie puis envoie.` }; go(`#/devis/${q.id}/0`); },

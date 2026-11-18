@@ -113,13 +113,14 @@ const CHANTIERS = {
         await p.locator('[data-act="pdf"]').click(); await p.waitForSelector('[data-act="saveFile"]', { timeout: 60000 });
         const [d1] = await Promise.all([p.waitForEvent("download", { timeout: 20000 }), p.locator('[data-act="saveFile"]').click()]);
         const f = `/tmp/metre-${met}-${largeur}.pdf`; await d1.saveAs(f);
-        ok(T + "PDF créé depuis l'écran de téléphone", fs.statSync(f).size > 50000, fs.statSync(f).size);
+        const txt = require("child_process").execFileSync("pdftotext", [f, "-"]).toString();
+        ok(T + "PDF créé depuis l'écran de téléphone (texte lisible)", fs.statSync(f).size > 5000 && /DEVIS/.test(txt) && /TOTAL|Total/.test(txt), fs.statSync(f).size);
       }
       // 6. Cycle de vie complet (une fois par écran, en peinture) : envoi, Word, négociation, acceptation, facture, paiement
       if (met === "peinture") {
-        await p.locator('[data-act="mark"][data-to="pret"]').click(); await pause(p, 400);
+        const mk = p.locator('[data-act="mark"][data-to="pret"]'); if (await mk.count()) { await mk.click(); await pause(p, 400); }
         await p.locator('[data-act="send"]').first().click(); await pause(p, 500);
-        ok(T + "version V1 figée et envoyée", (await txt(p, "#app")).includes("V1 figée"), (await txt(p, ".banner")).slice(0, 120));
+        ok(T + "version 1 envoyée (et figée)", (await txt(p, "#app")).includes("Version 1 envoyée"), (await txt(p, ".banner")).slice(0, 120));
         const w = p.locator('[data-act="word"]').first();
         if (await w.count()) { await w.click(); await p.waitForSelector('[data-act="saveFile"]', { timeout: 30000 }); const [d2] = await Promise.all([p.waitForEvent("download", { timeout: 20000 }), p.locator('[data-act="saveFile"]').click()]); const f = `/tmp/metre-${met}-${largeur}.docx`; await d2.saveAs(f); ok(T + "Word créé (version figée)", fs.statSync(f).size > 5000, fs.statSync(f).size); } else ok(T + "bouton Word présent après l'envoi", false);
         await p.goto(base + "/1"); await pause(p, 400);

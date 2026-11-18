@@ -59,7 +59,7 @@ function outils(p, S, ok, note, ctx) {
       await A.toucher(p.getByText(profil === "technicien" ? /Je suis technicien/ : /Je suis une entreprise/).first(), "profil " + profil);
       await A.toucher(A.bouton(/Faire un devis|Nouveau devis/), "Faire un devis");
     },
-    champ(re, n = 0) { return p.locator("label:visible").filter({ hasText: re }).nth(n).locator("xpath=following-sibling::*[self::input or self::select or self::textarea][1]"); },
+    champ(re, n = 0) { return p.locator("label:visible").filter({ hasText: re }).nth(n).locator("xpath=(following-sibling::*[self::input or self::select or self::textarea] | following-sibling::div[contains(@class,'unitesl')]//select)[1]"); },
     async taper(re, valeur, n = 0) { const f = A.champ(re, n); await f.scrollIntoViewIfNeeded().catch(() => {}); if (!(await f.count())) throw new Error(`Champ « ${re.source} » introuvable`); S.gestes++; await f.tap(); await f.fill(""); await f.pressSequentially(String(valeur), { delay: 5 }); await f.press("Tab"); await p.waitForTimeout(250); return f; },
     async choisir(re, valeur, n = 0) { const f = A.champ(re, n); await f.scrollIntoViewIfNeeded().catch(() => {}); await f.selectOption({ label: valeur }).catch(async () => f.selectOption(valeur)); await p.waitForTimeout(250); },
     async client(nom = "M. Mbarga Jean", tel = "6 77 12 34 56", lieu = "Bonamoussadi, Douala") { await A.taper(/Nom du client/, nom); if (tel) await A.taper(/Téléphone du client/, tel); if (lieu) await A.taper(/Quartier ou adresse|Adresse du chantier|Lieu/, lieu).catch(() => {}); },
@@ -74,7 +74,7 @@ function outils(p, S, ok, note, ctx) {
     async remplirLigne({ qty, unit, price, nom }) {
       if (nom !== undefined) await A.taper(/^(Nom du produit|Désignation)$/, nom);
       if (qty !== undefined) await A.taper(/^Quantité$/, qty);
-      if (unit !== undefined) { const u = A.champ(/^Unité$/); const opts = await u.locator("option").allInnerTexts(); if (unit === "auto") { const cur = await u.inputValue(); if (!cur) { const o1 = opts.find((x) => x.trim() !== "—"); if (o1) await u.selectOption({ label: o1 }); await p.waitForTimeout(250); } } else { const o = opts.find((x) => x.trim().toLowerCase() === String(unit).toLowerCase()) || opts.find((x) => x.toLowerCase().startsWith(String(unit).toLowerCase())); if (!o) throw new Error(`Unité « ${unit} » absente de la liste : ${opts.join(", ")}`); await u.selectOption({ label: o }); await p.waitForTimeout(250); } }
+      if (unit !== undefined) { const u = A.champ(/^Unité$/); const opts = await u.locator("option").allInnerTexts(); if (unit === "auto") { const cur = await u.inputValue(); if (!cur) { const v1 = (await u.locator("option").evaluateAll((os) => os.map((o) => o.value))).find((v) => v); if (v1) await u.selectOption(v1); await p.waitForTimeout(250); } } else { const o = opts.find((x) => x.trim().toLowerCase() === String(unit).toLowerCase()) || opts.find((x) => x.trim().toLowerCase().startsWith(String(unit).toLowerCase())); if (!o) throw new Error(`Unité « ${unit} » absente de la liste : ${opts.join(", ")}`); await u.selectOption({ label: o }); await p.waitForTimeout(250); } }
       if (price !== undefined) await A.taper(/^Prix (unitaire|pour 1)/, price);
     },
     async fermerLigne() { const f = p.locator("button:visible").filter({ hasText: /▲ Fermer/ }).first(); if (await f.count()) await A.toucher(f, "Fermer"); },

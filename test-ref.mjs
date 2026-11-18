@@ -10,7 +10,7 @@ const eq = (name, got, want) => { const ok = JSON.stringify(got) === JSON.string
 // --- contenu du référentiel électricité
 const R = { printableNorm: M.printableNorm, unitsOf: M.unitsOf };
 const E = M.refOf("electricite"), P = M.refOf("plomberie");
-eq("électricité : 564 fiches (487 matériels + 77 accessoires)", E.count, 564);
+eq("électricité : 571 fiches (487 matériels + 77 accessoires + 7 compléments v41 sourcés)", E.count, 571);
 eq("électricité : 8 sous-ensembles", E.domaines.length, 8);
 eq("électricité : chaque famille du document est rangée dans un sous-ensemble", ["1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16.1","16.8","17","18"].every((f) => E.domaines.some((d) => d[3].includes(f))), true);
 eq("électricité : contrôles (19) hors sous-ensembles, dans « divers »", [E.domaines.some((d) => d[3].includes("19")), E.rows("autres", "", "").length], [false, 21]);
@@ -43,7 +43,7 @@ eq("fiche électricité : alerte HTA / ATEX, pas pour BT", [E.fiche.warn({ alim:
 
 // --- maçonnerie : document organisé en matériaux + ouvrages (bordereau), pas en catalogue de matériel
 const MA = M.refOf("maconnerie");
-eq("maçonnerie : 161 fiches", MA.count, 161);
+eq("maçonnerie : 167 fiches (161 du document + 6 compléments v41 sourcés)", MA.count, 167);
 eq("maçonnerie : 6 sous-ensembles de matériaux", MA.domaines.length, 6);
 eq("maçonnerie : les 45 postes du bordereau sont dans « Ouvrages » (+15 ouvrages industriels)", MA.rows("ouvriers", "", "").length, 60);
 eq("maçonnerie : aucun ouvrage dans les sous-ensembles de matériaux", MA.domaines.every((d) => MA.rows("produits", d[0], "").every((r) => r.tab === "produits")), true);
@@ -57,7 +57,7 @@ eq("maçonnerie : Installation de chantier = forfait", MA.find("Installation de 
 eq("maçonnerie : acier Ø 12 mm = 0,889 kg/m (tableau du document)", /0,889 kg\/m/.test(MA.find("Acier d'armature Ø 12 mm").spec), true);
 eq("maçonnerie : aucun prix, aucune quantité, aucun rendement", MA.rows("ouvriers", "", "").every((r) => !("price" in r) && !("qty" in r) && !("yield" in r)), true);
 eq("maçonnerie : recherche « linteau » trouve le matériau préfabriqué", MA.rows("produits", "liants", "linteau").some((r) => r.name === "Linteau préfabriqué"), true);
-eq("maçonnerie : noms uniques", new Set(["produits", "ouvriers", "autres", "outils"].flatMap((t) => (t === "produits" ? MA.domaines.flatMap((d) => MA.rows(t, d[0], "")) : MA.rows(t, "", ""))).map((r) => r.name.toLowerCase())).size, 161);
+eq("maçonnerie : noms uniques", new Set(["produits", "ouvriers", "autres", "outils"].flatMap((t) => (t === "produits" ? MA.domaines.flatMap((d) => MA.rows(t, d[0], "")) : MA.rows(t, "", ""))).map((r) => r.name.toLowerCase())).size, 167);
 eq("maçonnerie : notes de vigilance sur le ciment", /ne compense pas un mauvais dosage/.test(MA.note("M1")), true);
 eq("maçonnerie : aides = 7 rubriques, 17 erreurs, 14 lots, 6 documents", [MA.guide.sections.length, MA.guide.erreurs.length, MA.guide.travaux.length, MA.guide.plans.length], [7, 17, 14, 6]);
 eq("maçonnerie : titres de l'onglet renommés", [MA.labels.ouvriers[0], MA.calc], ["Ouvrages et main-d'œuvre", true]);
@@ -116,13 +116,52 @@ for (const form of ["express", "detaille", "chantier"]) {
 }
 // Recherche : ce que tape un artisan (mots dans le désordre, sans tiret, mot du chantier) — 3 cas qui trouvent, 3 qui ne doivent rien trouver
 { const { refOf } = await import("./metiers/ref.js"); const pl = refOf("plomberie"), el = refOf("electricite"), ma = refOf("maconnerie");
-  eq("recherche « PPR » trouve le tube PP-R", pl.rows("produits", null, "PPR")[0]?.name, "Tube polypropylène PP-R");
+  eq("recherche « PPR » trouve le tube PPR", pl.rows("produits", null, "PPR")[0]?.name, "Tube PPR (polypropylène, PP-R)");
   eq("recherche « agglo » trouve le bloc creux (parpaing)", ma.rows("produits", null, "agglo").some((r) => r.name === "Bloc creux (parpaing)"), true);
   eq("recherche « pvc coude » (désordre) trouve un coude PVC", pl.rows("produits", null, "pvc coude").every((r) => /Coude PVC/.test(r.name)) && pl.rows("produits", null, "pvc coude").length > 0, true);
   eq("recherche « PPR 25 » : le diamètre ignoré, le tube PP-R proposé", pl.rows("produits", null, "PPR 25").some((r) => /PP-R/.test(r.name)), true);
   eq("recherche « zzproduit » : aucun résultat (rien d'inventé)", el.rows("produits", null, "zzproduit").length, 0);
   eq("recherche « disjoncteur parpaing » : aucun résultat (les deux mots exigés)", el.rows("produits", null, "disjoncteur parpaing").length, 0);
   eq("recherche « de la » (mots vides) : aucun résultat", el.rows("produits", null, "de la").length, 0);
+}
+
+// Désignations en clair (v41) : le sigle reste, l'ancien nom retrouve la fiche, rien n'est inventé
+{ const { refOf } = await import("./metiers/ref.js"); const pl = refOf("plomberie"), el = refOf("electricite");
+  eq("ancien nom « Tube polypropylène PP-R » retrouve la fiche (devis déjà enregistrés)", pl.find("Tube polypropylène PP-R")?.name, "Tube PPR (polypropylène, PP-R)");
+  eq("« PER » propose le tube PER (PE-X) en premier", /Tube PER/.test(pl.rows("produits", null, "PER")[0]?.name), true);
+  eq("« TGBT » toujours trouvé par son sigle", el.rows("produits", null, "TGBT").some((r) => /Tableau général basse tension/.test(r.name)), true);
+  eq("la précision et la norme d'une fiche renommée sont inchangées", JSON.stringify([pl.find("Tube PE-X").spec, pl.find("Tube PE-X").norm, pl.find("Tube PE-X").unit]) === JSON.stringify([pl.find("Tube PER (polyéthylène réticulé, PE-X)").spec, pl.find("Tube PER (polyéthylène réticulé, PE-X)").norm, pl.find("Tube PER (polyéthylène réticulé, PE-X)").unit]), true);
+  eq("« PVC » et « WC » restent tels quels (connus de tous)", [pl.find("Tube PVC insonorisé")?.name, pl.find("WC suspendu")?.name], ["Tube PVC insonorisé", "WC suspendu"]);
+  eq("nom inconnu : aucune fiche (rien d'inventé)", pl.find("Tube PER inventé"), null);
+}
+
+// Compléments v41 : nom + unités de vente seulement, chaque ajout sourcé ; unités proposées pour chaque fiche de maçonnerie
+{ const { refOf } = await import("./metiers/ref.js"); const C = await import("./metiers/complements.js"); const ma = refOf("maconnerie"), el = refOf("electricite");
+  eq("chaque complément cite au moins une source connue", Object.values(C.AJOUTS).flat().every((a) => a.src.length && a.src.every((k) => C.SOURCES[k])), true);
+  eq("aucun complément n'a de prix, de norme ni de dimension", Object.values(C.AJOUTS).flat().every((a) => Object.keys(a).every((k) => ["dom", "fam", "nom", "unites", "src", "liste"].includes(k))), true);
+  eq("« hourdis » trouve le hourdis, vendu à la pièce", ma.rows("produits", null, "hourdis")[0]?.name + " / " + ma.rows("produits", null, "hourdis")[0]?.unites.join(","), "Hourdis (entrevous) / pièce");
+  eq("« ampoule » trouve l'ampoule en premier", el.rows("produits", null, "ampoule")[0]?.name, "Ampoule (lampe à culot)");
+  eq("toutes les fiches produits de maçonnerie ont au moins une unité proposée", ma.domaines.flatMap((d) => ma.rows("produits", d[0], "")).every((r) => r.unites.length > 0), true);
+  eq("sable : m³, camion ou tonne (pas « pièce »)", ma.find("Sable fin").unites, ["m³", "camion", "tonne"]);
+  eq("bloc creux : à la pièce seulement", ma.find("Bloc creux (parpaing)").unites, ["pièce"]);
+  eq("carreaux : m² ou carton", C.unitesListe("carrelage", "Carreaux"), ["m²", "carton"]);
+  eq("produit inconnu : aucune unité devinée", C.unitesListe("carrelage", "Truc inconnu"), null);
+  // Nom tapé à la main (sans passer par la recherche) : unités de la fiche si elle est sans ambiguïté
+  const pl = refOf("plomberie");
+  eq("tapé « Hourdis » → pièce", ma.unitesPour("Hourdis"), ["pièce"]);
+  eq("tapé « ciment » (minuscules) → sac ou tonne", ma.unitesPour("ciment"), ["sac", "tonne"]);
+  eq("tapé « Tube PER » : deux fiches, mêmes unités → mètre", pl.unitesPour("Tube PER"), ["mètre"]);
+  eq("tapé « Tube » : fiches aux unités différentes → rien", pl.unitesPour("Tube"), []);
+  eq("tapé « Hour » (mot incomplet) → rien", ma.unitesPour("Hour"), []);
+  eq("tapé « xyz » → rien", ma.unitesPour("xyz"), []);
+  eq("« Tube PER » ambigu : pas de fiche unique choisie", pl.proche("Tube PER"), null);
+  // Accessoires d'électricité sans unité dans le document : mode de vente proposé
+  eq("accessoire « Cosses » → pièce ou lot", el.find("Cosses").unites, ["pièce", "lot"]);
+  eq("accessoire « Gaines » → mètre ou rouleau", el.find("Gaines").unites, ["mètre", "rouleau"]);
+  eq("accessoire « Rubans isolants » → rouleau", el.find("Rubans isolants").unites, ["rouleau"]);
+  eq("toutes les fiches produits d'électricité ont au moins une unité proposée", el.domaines.flatMap((d) => el.rows("produits", d[0], "")).every((r) => r.unites.length > 0), true);
+  eq("une fiche qui a son unité dans le document la garde (pas de « lot » ajouté)", el.domaines.flatMap((d) => el.rows("produits", d[0], "")).filter((r) => r.unit && !String(r.fam).startsWith("A:")).every((r) => !r.unites.includes("lot") || /lot/i.test(r.unit)), true);
+  eq("« Pièce » n'est pas proposé au mètre", C.unitesAccessoire("Câbles"), ["mètre", "rouleau"]);
 }
 
 console.log(`\n${pass} réussis, ${fail} échoués`); process.exit(fail ? 1 : 0);

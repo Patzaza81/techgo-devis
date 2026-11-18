@@ -392,7 +392,7 @@ async function parcours(browser, P) {
         const rb = await trouver(() => p.locator("button.rowc").filter({ hasText: nom }).first(), nom, { optionnel: true, ecrans: 4 }); if (!rb) continue;
         await toucher(rb, nom);
         const q = await trouver(() => p.locator('input[inputmode=decimal]:visible').first(), "Quantité", { optionnel: true, ecrans: 3 });
-        const us = p.locator('select:visible').filter({ has: p.locator("option", { hasText: /^—$/ }) }).last();
+        const us = p.locator('select:visible').filter({ has: p.locator("option", { hasText: /^—( choisir —)?$/ }) }).last();
         if (q) await taper(q, 1 + Math.floor(r() * 6), "quantité", pick(r, P.formats.filter((x) => x !== "unite")));
         if (await us.count()) { await us.selectOption({ index: 1 }).catch(() => {}); cout(T.tap); }
         const pu = p.locator('input[inputmode=decimal]:visible'); const nn = await pu.count(); if (nn >= 2) { await taper(pu.nth(nn - 1), 2000 + Math.floor(r() * 20) * 500, "prix", pick(r, P.formats.filter((x) => x !== "unite"))); }
