@@ -218,7 +218,7 @@ export function evaluate(q, draft = q.current) {
     surfaceNeeded: (draft.prestations || []).length > 0 || (draft.manual || []).some((m) => m.mode && m.mode !== "fixed"),
     surface: effSurface(draft.site) > 0 ? effSurface(draft.site) : ((draft.metre?.zones || []).some((z) => (z.ouvrages || []).length) && result.lines.length ? 1 : 0), lossPct: draft.site.lossPct, result, workHeightM: draft.site.workHeightM, accessThresholdM: s.accessThresholdM, decisions: draft.decisions || {},
     expects: packExpects(draft), hasDelay: draft.terms.delayMin > 0 && draft.terms.delayMax >= draft.terms.delayMin, hasValidity: draft.validityDays > 0,
-    hasPayment: validPct(draft.terms.payment.materials) && validPct(draft.terms.payment.services), vatPct: draft.terms.vatPct, minMarginPct: s.minMarginPct,
+    hasPayment: validPct(draft.terms.payment.materials) && validPct(draft.terms.payment.services), vatPct: draft.terms.vatPct, sansTva: !!draft.terms.sansTva, minMarginPct: s.minMarginPct,
     discountActive: (draft.discount.pct > 0) || (draft.discount.amount > 0), expired,
   });
   return { result, checks };

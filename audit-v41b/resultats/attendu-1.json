@@ -1,0 +1,17 @@
+{
+ "n": 1,
+ "lignes": [
+  {
+   "nom": "Article 001 — Produit de chantier",
+   "qte": 23,
+   "pu": 37592,
+   "total": 864616
+  }
+ ],
+ "sousTotal": 864616,
+ "frais": 0,
+ "remise": 86462,
+ "ht": 778154,
+ "tva": 149795,
+ "ttc": 927949
+}

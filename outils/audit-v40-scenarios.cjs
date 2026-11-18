@@ -13,7 +13,7 @@ module.exports = ({ scenario, nonTeste, METIERS, montant, contient, nombre, norm
     for (const [i, cle] of P.entries()) { // nom réel : liste à plat ou premier résultat de la recherche
       let nom = cle; if (await A.rechercher(cle)) { const v = await A.nomsVisibles(); nom = v[0]; ok(!!nom, `Recherche « ${cle} » : un produit trouvé`, v.slice(0, 4).join(" ; "));
         const sansAcc = (x) => String(x || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-        ok(sansAcc(nom).split(/[^a-z0-9]+/).some((m) => m.startsWith(sansAcc(cle))), `Recherche « ${cle} » : le 1er résultat contient le mot cherché`, nom); }
+        const premier = sansAcc(cle).split(/[^a-z0-9]+/)[0]; ok(sansAcc(nom).split(/[^a-z0-9]+/).some((m) => m.startsWith(premier)), `Recherche « ${cle} » : le 1er résultat contient le mot cherché`, nom); }
       await A.ouvrirLigne(nom); noms.push(nom);
       // unités proposées pour CE produit : on prend la 1re pour le 1er produit, la 2e (si elle existe) pour le 2e…
       const puces = await p.locator(".chips.unites .chip:visible").allInnerTexts(); note(`Unités proposées pour « ${nom} »`, puces.join(", ") || "(liste « Choisir »)");
@@ -104,7 +104,7 @@ module.exports = ({ scenario, nonTeste, METIERS, montant, contient, nombre, norm
     await p.reload(); await p.waitForTimeout(800);
     ok(JSON.stringify(await A.lignes()) === avant && (await A.total()) === totApres, "Lignes et total conservés après rechargement", JSON.stringify(await A.lignes()).slice(0, 200));
     // produit absent du catalogue
-    if (await A.rechercher("zzproduitintrouvable")) { const t = await A.lire(); ok(/Aucun matériel trouvé/.test(t), "Recherche sans résultat : un message le dit et propose l'ajout à la main"); await A.rechercher(""); }
+    if (await A.rechercher("zzproduitintrouvable")) { const t = await A.lire(); ok(/Aucun (matériel|produit) trouvé/.test(t), "Recherche sans résultat : un message le dit et propose l'ajout à la main"); await A.rechercher(""); }
     else note("Pas de champ de recherche dans ce métier", "liste à plat");
     await A.ajouterLibre(/Ajouter un produit/, { nom: "Produit spécial XYZ 450", qty: 1, unit: "auto", price: 1500 });
     ok((await A.lignes()).some((l) => l.nom === "Produit spécial XYZ 450"), "Produit absent du catalogue : ajouté à la main");
@@ -176,7 +176,8 @@ module.exports = ({ scenario, nonTeste, METIERS, montant, contient, nombre, norm
     ok((await A.total()) === 115000, "Total avant remise : 5 × 12 000 + 2,5 × 6 000 + 2 × 20 000 = 115 000", await A.total());
     await A.allerEtape3();
     await A.toucher(p.locator("details.reglages > summary").filter({ hasText: /Conditions, présentation/ }).first(), "Conditions, présentation et paiement");
-    await A.taper(/^Remise en %/, 10); await A.taper(/^TVA \(%\)/, "19,25");
+    await A.taper(/^Remise en %/, 10);
+    const ct = p.locator('[data-act="tva"][data-v="19.25"]'); ok(await ct.count(), "Bouton « TVA 19,25 % » présent à l'étape du prix"); await A.toucher(ct, "TVA 19,25 %");
     const t = await A.lire(); const ap = await A.apercu(); await A.capture("apercu");
     ok(contient(ap, 103500), "Aperçu : HT après remise 103 500", (ap.match(/[\d ]{5,} FCFA/g) || []).slice(0, 8).join(" | "));
     ok(contient(ap, 11500), "Aperçu : remise 11 500 écrite");

@@ -98,3 +98,13 @@ Décisions prises par Patrick le 18/11 (questions posées avant de coder) :
 - **Quantités** : un seul outil, le métré. L'aide « calculer à partir de la surface » de la fiche de ligne est retirée ; la fiche renvoie au métré. Les travaux types (calcul depuis la surface du chantier) sont rangés dans la carte du métré.
 - **Envoi (profil technicien)** : plus d'étape « Marquer Prêt à envoyer » ; le bouton « Envoyer au client (version 1) » suffit quand rien ne bloque. Le profil entreprise garde l'étape de vérification. Les points de contrôle réussis ne sont plus listés pour le technicien.
 - **Journal d'essai** : activé par le lien `?essai=1`, reste dans le téléphone, n'enregistre ni nom, ni téléphone, ni prix ; export CSV dans Réglages.
+
+## v41b — suite de l'examen de Patrick (18/11/2026, branche audit/ux-v41)
+
+- **Envoi** : « Envoyer au client » n'envoyait rien (il figeait la version). Désormais : « Terminer le devis et créer le PDF à envoyer (version N) » fige la version et crée son PDF ; puis « Envoyer le PDF (WhatsApp, e-mail…) » ouvre le menu Partager du téléphone, ou « Télécharger le fichier » si le téléphone ne sait pas partager.
+- **Règle de calcul** (complète) : quantité et prix au millième (la saisie est ramenée au millième, l'affichage aussi) ; montant de ligne au franc ; pourcentages et répartitions en calcul entier exact quelle que soit la taille ; location refacturée = jours × prix par jour. Moteur 2.1.0 ; une version figée avant garde ses montants, l'écart de recalcul est signalé, pas traité comme une fraude.
+- **TVA** : choix en deux boutons « Sans TVA » / « TVA 19,25 % » ; « sans TVA » choisi n'est plus signalé comme un oubli.
+- **Catalogue** : matériel d'usine (HTA, moteurs, ATEX, cimenteries ; fiches « industriel », « réactifs ») caché à l'artisan, visible au profil entreprise ou d'un toucher ; recherche en peinture et en carrelage ; à score égal, le sous-ensemble « Logement » passe d'abord.
+- **PDF/Word** : un poste de 4 lignes ou plus a son tableau ; Word : lignes insécables et en-tête répété.
+- **Unités** : la fiche dit si l'unité est celle d'achat, de facturation du travail ou issue du métré ; pas de conversion carton ↔ m² devinée pour une ligne saisie à la main.
+- **Étape 1** : l'outil « surface des murs moins portes » est retiré pour le technicien (le métré le fait) ; gardé pour les anciens devis qui l'utilisent.

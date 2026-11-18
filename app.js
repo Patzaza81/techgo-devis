@@ -116,7 +116,7 @@ function viewDevis() {
     <div>${L("Statut")}${Sel("ui", "f.status", f.status, [["", "Tous"], ...Object.entries(S.STATUS)])}</div></div>
     ${counts.length ? `<div class="chips">${counts.map(([k, n]) => `<span class="st st-${k}">${S.STATUS[k]} ${n}</span>`).join("")}</div>` : ""}</div>
     <p class="hint">Tes devis restent dans ce navigateur (Safari et Chrome ne partagent rien). Pour les retrouver ailleurs : rouvre un PDF créé par l'application, ou fais une sauvegarde (Réglages).</p>
-    <div class="card"><b>Rouvrir un ancien devis</b><p class="hint">Choisis un PDF créé par l'application (version 24 ou plus) : le devis revient ici, modifiable.</p><input type="file" accept="application/pdf" data-on="importQuote"></div>
+    <div class="card"><b>Rouvrir un ancien devis</b><p class="hint">Choisis un PDF créé par TechGo Devis : le devis revient ici, modifiable.</p><input type="file" accept="application/pdf" data-on="importQuote"></div>
     ${list.length ? list.map(quoteCard).join("") : `<div class="empty"><b>Aucun devis.</b><br>Touche « Nouveau devis » pour commencer.</div>`}`;
 }
 function quoteCard(q) {
@@ -159,12 +159,17 @@ function stepClient(q, ev, dis) {
     <div class="card"><b>Chantier</b>
     ${L("Nom du chantier")}${I("q", "current.site.name", cur.site.name, { ph: v.chantier, dis })}
     ${L("Adresse / quartier")}${I("q", "current.site.address", cur.site.address, { dis })}
+    ${L("Hauteur de travail maximale (m)")}${I("q", "current.site.workHeightM", cur.site.workHeightM, { type: "number", n: "n", dis })}
+    <p class="hint" style="margin:-4px 0 8px">Obligatoire : sert à décider s'il faut un échafaudage ou une nacelle.</p>
+    <details data-k="surfaceE" ${(ui.ouvert || {}).surfaceE || [cur.site.surfaceBrute, cur.site.ouvertures, cur.site.surface, cur.site.levels, cur.site.lossPct].some((x) => x !== null && x !== undefined && x !== "") ? "open" : ""}><summary>Surface, niveaux et pertes (facultatif — pour les travaux types)</summary>
+    <p class="hint" style="margin:6px 0">Le métré, à l'étape suivante, calcule les quantités pièce par pièce. Ces champs ne servent qu'aux travaux types calculés sur une surface globale.</p>
     ${v.calc ? `<div class="row"><div>${L(v.murs)}${I("q", "current.site.surfaceBrute", cur.site.surfaceBrute, { type: "number", n: "n", dis })}</div><div>${L(v.ouv)}${I("q", "current.site.ouvertures", cur.site.ouvertures, { type: "number", n: "n", dis })}</div></div>` : ""}
     ${L(v.calc ? "ou surface déjà calculée (m²)" : v.surface)}${I("q", "current.site.surface", cur.site.surface, { type: "number", n: "n", ph: v.calc ? "" : v.surfacePh, dis })}
     <p class="hint"><b>Surface retenue pour le calcul : ${effSurface(cur.site) === null ? "non renseignée" : fmtD(effSurface(cur.site)) + " m² (" + surfaceSource(cur.site) + ")"}.</b> Si la surface brute est saisie, elle prime : surface nette = brute − ouvertures (portes, fenêtres).</p>
-    <div class="row"><div>${L("Hauteur de travail maximale (m)")}${I("q", "current.site.workHeightM", cur.site.workHeightM, { type: "number", n: "n", dis })}</div><div>${L("Nombre de niveaux")}${I("q", "current.site.levels", cur.site.levels, { type: "number", n: "n", dis })}</div></div>
+    ${L("Nombre de niveaux")}${I("q", "current.site.levels", cur.site.levels, { type: "number", n: "n", dis })}
     ${L("Produit en plus pour les pertes (%)")}${I("q", "current.site.lossPct", cur.site.lossPct, { type: "number", n: "n", dis })}
-    <p class="hint">La marge de sécurité couvre pertes, reprises et irrégularités. Elle s'applique aux fournitures, jamais à la main-d'œuvre. Utilise la valeur observée sur tes chantiers. Seuil d'accès de l'entreprise : ${S.state.db.settings.accessThresholdM === null ? "non défini (Réglages)" : S.state.db.settings.accessThresholdM + " m"}.</p>
+    <p class="hint">Les pertes s'ajoutent aux fournitures, jamais à la main-d'œuvre. Mets la valeur observée sur tes chantiers.</p>
+    </details>
     <details><summary>Informations facultatives sur le chantier</summary>
     <div class="row"><div>${L("Type de bâtiment")}${I("q", "current.site.buildingType", cur.site.buildingType, { ph: "Villa, immeuble, entrepôt…", dis })}</div><div>${L("Occupation des lieux")}${Sel("q", "current.site.occupied", cur.site.occupied, [["", "—"], ["Occupé", "Occupé"], ["Vide", "Vide"]], { dis })}</div></div>
     <div class="row"><div>${L(v.support)}${I("q", "current.site.support", cur.site.support, { ph: v.supportPh, dis })}</div><div>${L(v.finish)}${I("q", "current.site.finish", cur.site.finish, { ph: v.finishPh, dis })}</div></div>
@@ -186,7 +191,7 @@ function stepClientS(q, ev, dis) {
     ${L("Quartier ou adresse")}${I("q", "current.site.address", cur.site.address, { ph: "Ex. : Bonamoussadi, près du carrefour", dis })}
     ${L(v.surface)}${I("q", "current.site.surface", cur.site.surface, { type: "number", n: "n", ph: v.surfacePh, dis })}
     <p class="hint">${effSurface(cur.site) === null ? "Pas de surface ? Laisse vide si ton travail ne se mesure pas en m²." : `Surface retenue : <b>${fmtD(effSurface(cur.site))} m²</b> (${esc(surfaceSource(cur.site))})`}</p>
-    ${elec ? "" : `<details><summary>Je veux calculer la surface (murs moins portes et fenêtres)</summary>
+    ${elec || !(cur.site.surfaceBrute > 0 || cur.site.ouvertures > 0) ? "" : `<details open><summary>Surface des murs moins portes et fenêtres</summary>
       <div class="row"><div>${L(v.murs)}${I("q", "current.site.surfaceBrute", cur.site.surfaceBrute, { type: "number", n: "n", dis })}</div><div>${L(v.ouv)}${I("q", "current.site.ouvertures", cur.site.ouvertures, { type: "number", n: "n", dis })}</div></div>
       <p class="hint">Si tu remplis « surface des murs », l'application enlève elle-même les portes et fenêtres.</p></details>`}
     ${L("Description courte du chantier (facultatif)")}${I("q", "current.site.name", cur.site.name, { ph: "Ex. : " + v.desc, dis })}</div>${rf ? ficheMetier(cur, dis, rf) : ""}`;
@@ -369,7 +374,7 @@ function refBrowser(q, k, rows, oneRow, dis, rf) {
     const d = rf.domaines.find((x) => x[0] === e.dom);
     head = `<div class="elecbar">${L("Cherche un matériel")}<input type="search" data-r="tmp" data-p="elec.q" value="${esc(e.q)}" placeholder="${rf.ph.search}" autocomplete="off" enterkeyhint="search">
       ${searching ? `<p class="hint" style="margin:6px 0">${Object.values(grp).flat().length ? "Résultats (40 au plus). Affine ta recherche si besoin." : "Aucun matériel trouvé. Tu peux l'ajouter à la main plus bas (« ＋ Ajouter un produit »)."}${cachés ? ` <button type="button" class="linkbtn" data-act="voirIndus">+ ${cachés} dans le matériel d'usine : les montrer</button>` : ""}</p>` : `<p class="hint" style="margin:8px 0 6px"><b>Ou choisis par type de matériel</b>, puis une famille.</p>
-      <div class="chips">${doms.map(([id, lab]) => `<button type="button" class="chip ${e.dom === id ? "on" : ""}" data-act="elecDom" data-d="${id}">${esc(lab)}</button>`).join("")}${modeOf(q) === "technicien" && rf.domaines.length > rf.domainesLogement.length ? `<button type="button" class="chip" data-act="voirIndus">${e.indus ? "Cacher le matériel d'usine" : "+ Matériel d'usine (industrie)"}</button>` : ""}</div>
+      <div class="chips doms">${doms.map(([id, lab]) => `<button type="button" class="chip ${e.dom === id ? "on" : ""}" data-act="elecDom" data-d="${id}">${esc(lab)}</button>`).join("")}${modeOf(q) === "technicien" && rf.domaines.length > rf.domainesLogement.length ? `<button type="button" class="chip" data-act="voirIndus">${e.indus ? "Cacher le matériel d'usine" : "+ Matériel d'usine (industrie)"}</button>` : ""}</div>
       ${d ? `<p class="hint" style="margin:6px 0">${esc(d[2])}</p>` : ""}`}
       <details><summary>Normes et méthode de comptage (facultatif)</summary>
       ${Chk("q", "current.showNorms", q.current.showNorms, "Écrire la norme de référence sous chaque matériel du devis", { dis })}
@@ -409,7 +414,7 @@ function stepTravauxS(q, ev, dis) {
   return `<h2>Le travail et le matériel</h2>
     <p class="hint">Touche un produit, remplis la quantité et le prix : le montant se calcule tout seul. Seules les lignes remplies entrent dans le devis.</p>
     <div class="total"><div><span>Total du devis</span><span class="big">${fmt(ev.result.totals.base)}</span></div></div>
-    ${UM.carte(q, dis, etatMetre(q), q.current.prestations.length || PACKS[metierOf(q)]?.prestations?.length ? `<details class="more" ${q.current.prestations.length ? "open" : ""}><summary>Travaux types déjà paramétrés (calcul à partir de la surface du chantier)</summary>${stepPrest(q, ev, dis, true)}</details>` : "")}
+    ${UM.carte(q, dis, etatMetre(q), q.current.prestations.length || PACKS[metierOf(q)]?.prestations?.length ? `<details class="more" ${q.current.prestations.length ? "open" : ""}><summary>Travaux types : calcul rapide à partir de la surface totale</summary>${stepPrest(q, ev, dis, true)}</details>` : "")}
     ${body}
     ${auto.length ? `<p class="hint">${auto.length} ligne${auto.length > 1 ? "s" : ""} calculée${auto.length > 1 ? "s" : ""} automatiquement (voir « Calcul automatique » plus bas) sont aussi comptées.</p>` : ""}
     ${stepBesoins(q, ev, dis, true, true)}`;
@@ -436,11 +441,20 @@ function carteIdentite(dis) {
     ${L("Nom de ton entreprise ou ton nom")}${I("db", "company.name", c.name === "Mon entreprise" ? "" : c.name, { ph: "Ex. : Ets Kamga Carrelage" })}
     <div class="row"><div>${L("Téléphone")}${I("db", "company.phone", c.phone, { type: "tel" })}</div><div>${L("Ville ou quartier")}${I("db", "company.address", c.address)}</div></div></div>`;
 }
+// TVA : un choix clair en deux touches (taux légal camerounais 19,25 % = TVA 17,5 % + centimes additionnels) ;
+// un autre taux reste possible dans « Conditions ».
+function carteTva(q, dis) {
+  const t = q.current.terms, v = t.vatPct, sans = !!t.sansTva && (v === null || v === undefined);
+  const on = (x) => (x ? "on" : "");
+  return `<div class="card" id="tva"><b>TVA</b><div class="chips" style="margin-top:8px"><button type="button" class="chip ${on(sans)}" data-act="tva" data-v="0" ${dis ? "disabled" : ""}>Sans TVA</button><button type="button" class="chip ${on(v === 19.25)}" data-act="tva" data-v="19.25" ${dis ? "disabled" : ""}>TVA 19,25 %</button>${v !== null && v !== undefined && v !== 19.25 ? `<button type="button" class="chip on" disabled>TVA ${fmtD(v)} %</button>` : ""}</div>
+    ${!sans && (v === null || v === undefined) ? `<p class="hint" style="margin:8px 0 0">Choisis : ton client doit savoir si le prix comprend la TVA.</p>` : ""}</div>`;
+}
 function stepEnvoiS(q, ev, dis) {
   const cur = q.current, r = ev.result, miss = missingPrices(ev);
   return `<h2>Le prix</h2>
     <div class="total"><div><span>Total du devis</span><span class="big">${fmt(r.totals.base)}</span></div>${miss ? `<div class="opt"><span>Total pas fini : ${miss} prix manquant${miss > 1 ? "s" : ""}</span></div>` : ""}${r.totals.vatBase !== null ? `<div><span>Avec TVA</span><span>${fmt(r.totals.ttcBase)}</span></div>` : ""}</div>
     ${miss ? `<div class="banner warn">Il manque ${miss} prix. <a href="#/devis/${q.id}/1">Retourne au travail et au matériel</a> pour les remplir.</div>` : ""}
+    ${carteTva(q, dis)}
     ${UM.controle(q, dis, etatMetre(q))}${carteOublis(q, ev, dis)}${carteIdentite(dis)}
     ${stepVerifier(q, ev, dis)}
     <details class="card reglages" data-k="reglages" ${(ui.ouvert || {}).reglages ? "open" : ""}><summary><b>Conditions, présentation et paiement</b><small class="hint" style="display:block;margin:2px 0 0">Déjà remplis avec des valeurs courantes. Touche pour les changer.</small></summary>
@@ -586,7 +600,7 @@ function stepBesoins(q, ev, dis, simple, nofree) {
 
 function stepPrix(q, ev, dis) {
   const cur = q.current, r = ev.result, m = r.margin;
-  return `<h2>Prix et conditions</h2>${UM.controle(q, dis, etatMetre(q))}
+  return `<h2>Prix et conditions</h2>${carteTva(q, dis)}${UM.controle(q, dis, etatMetre(q))}
     <div class="card"><b>Comment calculer le prix de vente</b>${L("Prix de vente")}${Sel("q", "current.pricing.method", cur.pricing.method, [["catalogue", "Prix de vente du catalogue"], ["cout_plus_marge", "Prix d'achat + ma marge"]], { dis })}
     ${cur.pricing.method === "cout_plus_marge" ? `${L("Majoration sur coût d'achat (%)")}${I("q", "current.pricing.markupPct", cur.pricing.markupPct, { type: "number", n: "n", dis })}<p class="hint">Chaque article doit avoir un coût d'achat dans le Catalogue, sinon son prix reste inconnu.</p>` : ""}</div>
     <div class="card"><b>Remise</b><div class="row"><div>${L("Remise (%)")}${I("q", "current.discount.pct", cur.discount.pct, { type: "number", n: "n", dis })}</div><div>${L("ou montant (FCFA)")}${I("q", "current.discount.amount", cur.discount.amount, { type: "number", n: "n", dis })}</div></div>
@@ -627,7 +641,7 @@ function stepControle(q, ev, dis) {
     ${sansIdentite() && !dis ? `<div class="chk"><div class="dot d-verifier">!</div><div><b>Ton nom n'est pas sur le devis</b><div class="hint">Le devis porte « Mon entreprise »${String(S.state.db.company.phone || "").trim() ? "" : " et aucun téléphone"} : ton client ne saura pas qui l'envoie.</div>${modeOf(q) === "technicien" ? `<button type="button" class="fixlink linkbtn" data-act="voirIdentite">Corriger : écrire mon nom et mon téléphone</button>` : `<a class="fixlink" href="#/reglages">Corriger : aller dans Réglages</a>`}</div></div>` : ""}
     ${!String(q.current.client.name || "").trim() && !dis ? `<div class="chk"><div class="dot d-verifier">!</div><div><b>Le nom du client n'est pas écrit</b><div class="hint">Le devis portera une ligne en pointillés à la place du nom.</div><a class="fixlink" href="#/devis/${q.id}/0">Corriger : aller à « ${esc(stepsOf(q)[0])} »</a></div></div>` : ""}
     ${modeOf(q) === "technicien" && ck.items.every((r) => r.state === "ok") && !sansIdentite() && String(q.current.client.name || "").trim() ? `<p class="hint" style="margin:8px 0 0">Tout est en ordre.</p>` : ""}
-    ${ck.items.filter((r) => modeOf(q) !== "technicien" || r.state !== "ok").map((r) => { const to = r.state === "ok" || dis ? null : etapeDuPoint(q, r.label); return `<div class="chk"><div class="dot d-${r.state}">${r.state === "ok" ? "✓" : r.state === "verifier" ? "!" : "✕"}</div><div><b>${esc(r.label)}</b>${r.hint ? `<div class="hint">${esc(r.hint)}</div>` : ""}${to !== null ? `<a class="fixlink" href="#/devis/${q.id}/${to}">Corriger : aller à « ${esc(stepsOf(q)[to])} »</a>` : ""}</div></div>`; }).join("")}</div>
+    ${ck.items.filter((r) => modeOf(q) !== "technicien" || r.state !== "ok").map((r) => { const to = r.state === "ok" || dis ? null : etapeDuPoint(q, r.label); return `<div class="chk"><div class="dot d-${r.state}">${r.state === "ok" ? "✓" : r.state === "verifier" ? "!" : "✕"}</div><div><b>${esc(r.label)}</b>${r.hint ? `<div class="hint">${esc(r.hint)}</div>` : ""}${/^TVA : à choisir/.test(r.label) && !dis ? `<button type="button" class="fixlink linkbtn" data-act="voirTva">Corriger : choisir avec ou sans TVA</button>` : to !== null ? `<a class="fixlink" href="#/devis/${q.id}/${to}">Corriger : aller à « ${esc(stepsOf(q)[to])} »</a>` : ""}</div></div>`; }).join("")}</div>
     ${r_warn(ev)}${dis || modeOf(q) === "technicien" ? "" : `<div class="row">${acts.join("")}</div>`}`;
 }
 function stepVerifier(q, ev, dis) {
@@ -651,11 +665,11 @@ function stepApercu(q, ev, dis) {
   if (ui.view === "interne") return top + internal(snap, q);
   const wa = `https://wa.me/?text=${encodeURIComponent(summaryText(snap, q.ref))}`;
   const blocked = ev.checks.status === "bloque";
-  return `${top}<div class="noprint">${draft ? `<div class="banner info">Brouillon : tu peux encore tout changer. Il devient le devis officiel quand tu l'envoies.</div>` : `<div class="banner info">Version ${snap.n} envoyée — elle ne change plus. Code de contrôle : ${snap.hash}</div>`}
+  return `${top}<div class="noprint">${draft ? `<div class="banner info">Brouillon : tu peux encore tout changer. Il devient le devis officiel quand tu l'envoies.</div>` : `<div class="banner info">Version ${snap.n} terminée — elle ne change plus. Code de contrôle : ${snap.hash}</div>`}
     <div class="row"><button data-act="pdf" ${(draft && blocked) || ui.busy ? "disabled" : ""}>${ui.busy === "pdf" ? "PDF en préparation…" : draft ? "PDF brouillon (pour relire)" : `Créer le PDF (version ${snap.n})`}</button><button class="sec" data-act="word" data-n="${draft ? "draft" : snap.n}" ${draft && blocked ? "disabled" : ""}>${draft ? "Word brouillon" : `Créer le Word (version ${snap.n})`}</button></div>
     ${ui.file ? `<div class="banner info"><b>${esc(ui.file.name)}</b> est prêt.<div class="row"><button class="gold" data-act="saveFile">${peutPartager(ui.file) ? (/\.pdf$/.test(ui.file.name) ? "Envoyer le PDF (WhatsApp, e-mail…)" : "Envoyer le fichier Word (WhatsApp, e-mail…)") : "Télécharger le fichier"}</button></div></div>` : ""}
     <div class="row"><button class="sec" data-act="print" ${draft && blocked ? "disabled" : ""}>Imprimer</button>
-    <button class="gold" data-act="send" ${canSend && !blocked && !ui.busy ? "" : "disabled"}>${ui.busy === "send" ? "PDF en préparation…" : `Terminer le devis et créer le PDF à envoyer (version ${q.versions.length + 1})`}</button></div>
+    ${draft ? `<button class="gold" data-act="send" ${canSend && !blocked && !ui.busy ? "" : "disabled"}>${ui.busy === "send" ? "PDF en préparation…" : `Terminer le devis et créer le PDF à envoyer (version ${q.versions.length + 1})`}</button>` : ""}</div>
     ${canSend && !blocked && draft ? `<p class="hint">Après ce bouton, la version ${q.versions.length + 1} ne change plus et le devis passe à « Envoyé ». Tu l'envoies ensuite au client avec le bouton « Envoyer le PDF ». Une modification plus tard crée la version ${q.versions.length + 2}.</p>` : ""}
     ${canSend ? "" : draft ? `<p class="hint">Pour envoyer : marque d'abord le devis « Prêt à envoyer » (bloc Vérifier, plus haut).</p>` : ""}
     ${blocked && draft ? `<p class="hint">Corrige ce qui manque (bloc Vérifier, plus haut) pour générer le PDF.</p>` : ""}
@@ -1244,6 +1258,8 @@ const actions = {
   journalEffacer() { Journal.effacer(); ui.flash = { type: "ok", text: "Journal d'essai effacé." }; },
   journalStop() { Journal.arreter(); ui.flash = { type: "ok", text: "Journal d'essai arrêté sur ce téléphone." }; },
   voirIndus() { const e = ui.tmp.elec; e.indus = !e.indus; if (!e.indus) { const rf = refOf(metierOf(S.getQuote(ui.qid))); if (rf && !rf.domainesLogement.some((d) => d[0] === e.dom)) e.dom = rf.domainesLogement[0][0]; } },
+  voirTva() { const c = document.getElementById("tva"); if (c) { c.scrollIntoView({ block: "center" }); return "skip"; } const q = S.getQuote(ui.qid); go(`#/devis/${q.id}/${modeOf(q) === "technicien" ? 2 : 3}`); },
+  tva(b) { const q = S.getQuote(ui.qid), t = q.current.terms; if (b.dataset.v === "0") { t.vatPct = null; t.sansTva = true; } else { t.vatPct = Number(b.dataset.v); t.sansTva = false; } touchQuote(q); },
   csvExport() { download(`catalogue-${S.today()}.csv`, "text/csv;charset=utf-8", exportCatalogueCsv(S.state.db.catalogue)); ui.flash = { type: "ok", text: "Catalogue exporté (CSV)." }; },
   csvTemplate() { download("modele-catalogue.csv", "text/csv;charset=utf-8", templateCsv()); },
   csvApply() { const ok = ui.csv.rows.filter((r) => r.status !== "error").map((r) => r.item); S.saveItems(ok, "import CSV"); ui.flash = { type: "ok", text: `${ok.length} article(s) importé(s).` }; ui.csv = null; },

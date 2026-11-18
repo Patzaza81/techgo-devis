@@ -272,7 +272,8 @@ export function runChecks(ctx) {
   if (!simple) add(ctx.hasDelay ? "ok" : "bloque", ctx.hasDelay ? "Délai renseigné" : "Délai d'exécution manquant");
   add(ctx.hasValidity ? "ok" : "bloque", ctx.hasValidity ? "Validité de l'offre renseignée" : "Validité de l'offre manquante");
   add(ctx.hasPayment ? "ok" : "bloque", ctx.hasPayment ? "Échéancier renseigné (100 %)" : "Échéancier incomplet", "Chaque échéancier doit totaliser 100 %.");
-  if (ctx.vatPct === null || ctx.vatPct === undefined) add("verifier", "TVA non définie (devis affiché hors taxes)");
+  if ((ctx.vatPct === null || ctx.vatPct === undefined) && !ctx.sansTva) add("verifier", "TVA : à choisir (avec ou sans TVA)", "Touche « Sans TVA » si tu ne factures pas de TVA, ou « TVA 19,25 % ».");
+  else if (ctx.sansTva && (ctx.vatPct === null || ctx.vatPct === undefined)) add("ok", "Devis sans TVA (choisi)");
   if (simple) { /* marge : information interne, jamais bloquante pour le technicien */ }
   else if (r && r.margin) {
     if (ctx.minMarginPct !== null && ctx.minMarginPct !== undefined && r.margin.base.marginRatePct < ctx.minMarginPct)
