@@ -3,6 +3,8 @@
 import * as E from "./elec-data.js";
 import * as P from "./plo-data.js";
 import * as M from "./mac-data.js";
+import { nomClair } from "./noms-clairs.js";
+import { AJOUTS, UNITES_FAMILLE, UNITES_NOM, unitesAccessoire } from "./complements.js";
 
 const nz = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
 
@@ -67,7 +69,7 @@ export function printableNorm(n) {
 // tirets, points et barres ignorés (« PPR » trouve « PP-R ») ; quelques mots du chantier renvoient au terme du référentiel.
 // Ces équivalences ne créent aucun produit : elles orientent seulement vers les fiches qui existent déjà.
 const VIDES = new Set(["de", "du", "des", "la", "le", "les", "l", "d", "a", "au", "aux", "en", "et", "pour", "un", "une"]);
-const EQUIV = { agglo: ["parpaing", "bloc"], agglos: ["parpaing", "bloc"], agglomere: ["parpaing", "bloc"], ampoule: ["lampe", "led"], spot: ["spot", "downlight"], teflon: ["ptfe"], fer: ["fer", "acier", "armature"], tuyau: ["tuyau", "tube"], tuyaux: ["tuyau", "tube"], solaire: ["solaire", "photovolta"], panneau: ["panneau", "module"], fil: ["fil", "conducteur"] };
+const EQUIV = { agglo: ["parpaing", "bloc"], agglos: ["parpaing", "bloc"], agglomere: ["parpaing", "bloc"], ampoule: ["ampoule", "lampe", "led"], spot: ["spot", "downlight"], teflon: ["ptfe"], fer: ["fer", "acier", "armature"], tuyau: ["tuyau", "tube"], tuyaux: ["tuyau", "tube"], solaire: ["solaire", "photovolta"], panneau: ["panneau", "module"], fil: ["fil", "conducteur"], glycero: ["glycero", "huile"], facade: ["facade", "exterieure"], white: ["white", "diluant"], wago: ["wago", "borne"], polytank: ["polytank", "cuve", "citerne", "reservoir"], recuit: ["recuit", "attache"], faience: ["faience", "carreaux"], cale: ["cale", "croisillons"], stabilisateur: ["stabilisateur", "regulateur"], plastique: ["plastique", "polyane", "film"], spirit: ["spirit", "diluant"], surpresseur: ["surpresseur", "surpression"] };
 const plat = (s) => nz(s).replace(/[-_./'’]/g, "");
 export function chercher(liste, query) {
   const mots = nz(query).replace(/[-_./'’]/g, "").split(/\s+/).filter((m) => m && !VIDES.has(m));
@@ -75,16 +77,21 @@ export function chercher(liste, query) {
   const res = [];
   for (const r of liste) {
     // un mot tapé doit être le DÉBUT d'un mot de la fiche (« sable » ne trouve pas « réutilisable »)
-    const nom = " " + plat(r.name).replace(/[()\[\],;:]/g, " "), tout = nom + " " + plat(r.spec + " " + r.famLabel).replace(/[()\[\],;:]/g, " ");
+    // le nom deux fois : « Sous-couche » se trouve en tapant « souscouche » comme « sous couche »
+    const nom = " " + plat(r.name + " " + (r.nomRef || "")).replace(/[()\[\],;:]/g, " ") + " " + nz(r.name).replace(/[-_./'’()\[\],;:]/g, " "), tout = nom + " " + plat(r.spec + " " + r.famLabel).replace(/[()\[\],;:]/g, " ");
     let score = 0, ok = true;
-    for (const m of mots) { const alt = (EQUIV[m] || [m]).map((a) => " " + a); if (nom.startsWith(alt[0]) || alt.some((a) => nom.startsWith(a))) score += 3; else if (alt.some((a) => nom.includes(a))) score += 2; else if (alt.some((a) => tout.includes(a))) score += 1; else { ok = false; break; } }
-    if (ok) res.push([score, r]);
+    for (const m of mots) { const alt = (EQUIV[m] || [m]).map((a) => " " + a); const debut = alt.some((a) => nom.startsWith(a)) ? 1 : 0, litteral = (nom + " ").includes(" " + m + " ") ? 2 : 0; if (alt.some((a) => (nom + " ").includes(a + " "))) score += 4 + debut + litteral; else if (debut) score += 3; else if (alt.some((a) => nom.includes(a))) score += 2; else if (alt.some((a) => tout.includes(a))) score += 1; else { ok = false; break; } }
+    if (ok) { const pos = nom.indexOf(" " + ((EQUIV[mots[0]] || [mots[0]])[0])); res.push([score, r, pos < 0 ? 999 : pos]); }
   }
   // « PPR 25 » : le diamètre n'est pas dans les fiches ; on montre les fiches qui ont les mots, sans le nombre.
   if (!res.length && mots.some((m) => /^\d/.test(m)) && mots.some((m) => !/^\d/.test(m))) return chercher(liste, mots.filter((m) => !/^\d/.test(m)).join(" "));
-  return res.sort((a, b) => b[0] - a[0]).map((x) => x[1]);
+  // à score égal : le mot cherché le plus tôt dans le nom (« Tube PER » avant « Tube multicouche PER-alu-PER »)
+  // puis l'ordre des sous-ensembles (« Logement et bâtiment » d'abord), quand la fiche en porte un
+  return res.sort((a, b) => b[0] - a[0] || a[2] - b[2] || (a[1].rang ?? 99) - (b[1].rang ?? 99)).map((x) => x[1]);
 }
 const CACHE = {};
+// Sous-ensembles d'usine : visibles pour le profil entreprise, ou sur demande ; cachés par défaut pour l'artisan du logement.
+const INDUS = { electricite: ["ind", "spe"], plomberie: ["ind", "cim"] };
 export function refOf(met) {
   const cfg = CFG[met]; if (!cfg) return null;
   if (CACHE[met]) return CACHE[met];
@@ -96,22 +103,51 @@ export function refOf(met) {
     let name = it; if (seen.has(nz(name))) name = `${it} (${fam.toLowerCase()})`; seen.add(nz(name));
     all.push({ fam: "A:" + fam, famLabel: fam, name, spec: "", unit: "", norm: "", tab: "produits", acc: true });
   }
-  const byName = new Map(all.map((r) => [nz(r.name), r]));
+  // Compléments v41 (nom + unités de vente, sources dans complements.js) rangés dans un sous-ensemble existant.
+  for (const a of AJOUTS[met] || []) if (a.dom) all.push({ fam: "C:" + a.fam, famLabel: a.fam, name: a.nom, spec: "", unit: a.unites.join(" ou "), norm: "", tab: "produits", dom: a.dom, ajout: true, statut: a.statut, note: a.note });
+  // Unités proposées quand le document n'en donne pas : par famille, ou par nom quand la famille mélange les ventes.
+  for (const r of all) r.unites = r.unit ? unitsOf(r.unit) : UNITES_NOM[r.name] || (UNITES_FAMILLE[met] || {})[r.fam] || (String(r.fam).startsWith("A:") ? unitesAccessoire(r.name) : []);
+  // Désignation en clair (le sigle reste entre parenthèses) ; l'ancien nom retrouve toujours la fiche (devis déjà enregistrés).
+  for (const r of all) { const c = nomClair(r.name); if (c !== r.name) { r.nomRef = r.name; r.name = c; } }
+  const byName = new Map(all.map((r) => [nz(r.name), r])); for (const r of all) if (r.nomRef) byName.set(nz(r.nomRef), r);
   const domOf = new Map(); d.DOMAINES.forEach(([id, , , fams]) => fams.forEach((f) => domOf.set(f, id)));
-  const dom = (r) => (r.acc ? "acc" : domOf.get(r.fam) || "");
+  const dom = (r) => (r.dom ? r.dom : r.acc ? "acc" : domOf.get(r.fam) || "");
+  for (const r of all) r.rang = d.DOMAINES.findIndex((x) => x[0] === dom(r));
+  const industriel = (r) => (INDUS[met] || []).includes(dom(r)) || /^A:(HTA|ATEX|Cimenterie|Moteurs|Automatisme|Instrumentation)$/.test(r.fam) || /industriel|réactifs/i.test(r.name);
   const out = {
     met, domaines: d.DOMAINES, count: all.length, fiche: cfg.fiche, guide: cfg.guide, units: cfg.units, specLabel: cfg.specLabel || "À préciser", labels: cfg.labels || {}, calc: !!cfg.calc, ph: cfg.ph || null,
     find: (name) => byName.get(nz(name)) || null,
-    famLabel: (f) => (f.startsWith("A:") ? "Accessoires — " + f.slice(2) : d.FAM[f] || f),
+    /** Nom tapé à la main : la fiche exacte, sinon la seule fiche dont le nom commence par ce mot complet
+     *  (« Hourdis » → « Hourdis (entrevous) »). Plusieurs candidates ou aucune → null : on ne devine pas. */
+    proche(name) {
+      const k = nz(name); if (!k) return null; const ex = byName.get(k); if (ex) return ex;
+      if (k.length < 3) return null;
+      const c = all.filter((r) => { const n = nz(r.name); return n.startsWith(k) && /^[\s(,]/.test(n.slice(k.length)); });
+      return c.length === 1 ? c[0] : null;
+    },
+    /** Unités à proposer pour un nom tapé : celles de la fiche (exacte ou proche) ; si plusieurs fiches
+     *  commencent par ce nom et ont exactement les mêmes unités, ces unités ; sinon aucune proposition. */
+    unitesPour(name) {
+      const r = this.proche(name); if (r) return r.unites || [];
+      const k = nz(name); if (k.length < 3) return [];
+      const c = all.filter((x) => { const n = nz(x.name); return n.startsWith(k) && /^[\s(,]/.test(n.slice(k.length)); });
+      const u = new Set(c.map((x) => (x.unites || []).join("|")));
+      return c.length && u.size === 1 ? c[0].unites || [] : [];
+    },
+    famLabel: (f) => (f.startsWith("A:") ? "Accessoires — " + f.slice(2) : f.startsWith("C:") ? f.slice(2) : d.FAM[f] || f).replace(/ BT$/, " basse tension (BT)"),
     note: (f) => d.FAM_NOTE[f] || "",
     firstDomain: d.DOMAINES[0][0],
     /** Fiches visibles : onglet, sous-ensemble choisi, recherche libre (alors tous les sous-ensembles, 40 au plus). */
-    rows(tab, dm, query) {
-      const q = nz(query);
+    rows(tab, dm, query, { indus = true } = {}) {
+      const q = nz(query), garde = (r) => indus || !industriel(r);
       if (tab !== "produits") return all.filter((r) => r.tab === tab && (!q || nz(r.name).includes(q)));
-      if (q) return chercher(all.filter((r) => r.tab === "produits"), query).slice(0, 40);
-      return all.filter((r) => r.tab === "produits" && dom(r) === (d.DOMAINES.some((x) => x[0] === dm) ? dm : d.DOMAINES[0][0]));
+      if (q) return chercher(all.filter((r) => r.tab === "produits" && garde(r)), query).slice(0, 40);
+      return all.filter((r) => r.tab === "produits" && garde(r) && dom(r) === (d.DOMAINES.some((x) => x[0] === dm) ? dm : d.DOMAINES[0][0]));
     },
+    /** Matériel d'usine (postes HTA, moteurs, ATEX, cimenteries…) : caché par défaut à l'artisan du logement. */
+    estIndustriel: (r) => industriel(r),
+    domainesLogement: d.DOMAINES.filter((x) => !(INDUS[met] || []).includes(x[0])),
+    industrielsTrouves(query) { return nz(query) ? chercher(all.filter((r) => r.tab === "produits" && industriel(r)), query).length : 0; },
     domainOf: dom,
   };
   return (CACHE[met] = out);

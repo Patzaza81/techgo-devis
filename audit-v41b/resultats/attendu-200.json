@@ -1,0 +1,1211 @@
+{
+ "n": 200,
+ "lignes": [
+  {
+   "nom": "Article 001 — Produit de chantier",
+   "qte": 1500,
+   "pu": 499582,
+   "total": 749373000
+  },
+  {
+   "nom": "Article 002 — Produit de chantier",
+   "qte": 345.41,
+   "pu": 908882,
+   "total": 313936932
+  },
+  {
+   "nom": "Article 003 — Produit de chantier",
+   "qte": 481.41,
+   "pu": 868162.28,
+   "total": 417942003
+  },
+  {
+   "nom": "Article 004 — Produit de chantier",
+   "qte": 1357.12,
+   "pu": 2254852,
+   "total": 3060104746
+  },
+  {
+   "nom": "Article 005 — Main-d'œuvre de pose",
+   "qte": 291.8,
+   "pu": 2493815,
+   "total": 727695217
+  },
+  {
+   "nom": "Article 006 — Produit de chantier",
+   "qte": 72.6,
+   "pu": 138285.6,
+   "total": 10039535
+  },
+  {
+   "nom": "Article 007 — Fourniture et pose de carreaux grès cérame rectifiés 60 × 60 avec colle flexible et joint époxy anti-taches",
+   "qte": 41.7,
+   "pu": 1155901,
+   "total": 48201072
+  },
+  {
+   "nom": "Article 008 — Produit de chantier",
+   "qte": 606.177,
+   "pu": 1647803,
+   "total": 998860279
+  },
+  {
+   "nom": "Article 009 — Produit de chantier",
+   "qte": 1344.36,
+   "pu": 2322451.24,
+   "total": 3122210549
+  },
+  {
+   "nom": "Article 010 — Main-d'œuvre de pose",
+   "qte": 247.59,
+   "pu": 156447,
+   "total": 38734713
+  },
+  {
+   "nom": "Article 011 — Produit de chantier",
+   "qte": 567.38,
+   "pu": 2254969,
+   "total": 1279424311
+  },
+  {
+   "nom": "Article 012 — Produit de chantier",
+   "qte": 939.12,
+   "pu": 257161.62,
+   "total": 241505621
+  },
+  {
+   "nom": "Article 013 — Produit de chantier",
+   "qte": 544.24,
+   "pu": 1616965,
+   "total": 880017032
+  },
+  {
+   "nom": "Article 014 — Enduit de lissage pâteux prêt à l'emploi appliqué en deux passes avec ponçage soigné entre chaque passe",
+   "qte": 1128,
+   "pu": 278349,
+   "total": 313977672
+  },
+  {
+   "nom": "Article 015 — Main-d'œuvre de pose",
+   "qte": 1076.1,
+   "pu": 2007718.15,
+   "total": 2160505501
+  },
+  {
+   "nom": "Article 016 — Produit de chantier",
+   "qte": 604.9,
+   "pu": 2258667,
+   "total": 1366267668
+  },
+  {
+   "nom": "Article 017 — Produit de chantier",
+   "qte": 361,
+   "pu": 1822221,
+   "total": 657821781
+  },
+  {
+   "nom": "Article 018 — Produit de chantier",
+   "qte": 685.8,
+   "pu": 1069652.8,
+   "total": 733567890
+  },
+  {
+   "nom": "Article 019 — Produit de chantier",
+   "qte": 297.8,
+   "pu": 1412015,
+   "total": 420498067
+  },
+  {
+   "nom": "Article 020 — Main-d'œuvre de pose",
+   "qte": 815.46,
+   "pu": 1800588,
+   "total": 1468307490
+  },
+  {
+   "nom": "Article 021 — Peinture acrylique satinée lessivable pour murs intérieurs des chambres et du séjour, deux couches croisées",
+   "qte": 372,
+   "pu": 1695235.14,
+   "total": 630627472
+  },
+  {
+   "nom": "Article 022 — Produit de chantier",
+   "qte": 1031.191,
+   "pu": 676964,
+   "total": 698079184
+  },
+  {
+   "nom": "Article 023 — Produit de chantier",
+   "qte": 655,
+   "pu": 1532461,
+   "total": 1003761955
+  },
+  {
+   "nom": "Article 024 — Produit de chantier",
+   "qte": 948.174,
+   "pu": 1363867.88,
+   "total": 1293184063
+  },
+  {
+   "nom": "Article 025 — Main-d'œuvre de pose",
+   "qte": 80,
+   "pu": 1827696,
+   "total": 146215680
+  },
+  {
+   "nom": "Article 026 — Produit de chantier",
+   "qte": 1486,
+   "pu": 1981621,
+   "total": 2944688806
+  },
+  {
+   "nom": "Article 027 — Produit de chantier",
+   "qte": 364.3,
+   "pu": 6010.37,
+   "total": 2189578
+  },
+  {
+   "nom": "Article 028 — Fourniture et pose de carreaux grès cérame rectifiés 60 × 60 avec colle flexible et joint époxy anti-taches",
+   "qte": 624.892,
+   "pu": 1342310,
+   "total": 838798781
+  },
+  {
+   "nom": "Article 029 — Produit de chantier",
+   "qte": 1004.566,
+   "pu": 1654956,
+   "total": 1662512529
+  },
+  {
+   "nom": "Article 030 — Main-d'œuvre de pose",
+   "qte": 1200.94,
+   "pu": 1472755.73,
+   "total": 1768691266
+  },
+  {
+   "nom": "Article 031 — Produit de chantier",
+   "qte": 531.011,
+   "pu": 1649952,
+   "total": 876142661
+  },
+  {
+   "nom": "Article 032 — Produit de chantier",
+   "qte": 446.9,
+   "pu": 1121157,
+   "total": 501045063
+  },
+  {
+   "nom": "Article 033 — Produit de chantier",
+   "qte": 221.87,
+   "pu": 820725.1,
+   "total": 182094278
+  },
+  {
+   "nom": "Article 034 — Produit de chantier",
+   "qte": 1422.085,
+   "pu": 1971671,
+   "total": 2803883754
+  },
+  {
+   "nom": "Article 035 — Enduit de lissage pâteux prêt à l'emploi appliqué en deux passes avec ponçage soigné entre chaque passe",
+   "qte": 457.48,
+   "pu": 463505,
+   "total": 212044267
+  },
+  {
+   "nom": "Article 036 — Produit de chantier",
+   "qte": 430.93,
+   "pu": 1165964.07,
+   "total": 502448897
+  },
+  {
+   "nom": "Article 037 — Produit de chantier",
+   "qte": 402.294,
+   "pu": 1046808,
+   "total": 421124578
+  },
+  {
+   "nom": "Article 038 — Produit de chantier",
+   "qte": 58.9,
+   "pu": 1709861,
+   "total": 100710813
+  },
+  {
+   "nom": "Article 039 — Produit de chantier",
+   "qte": 686.5,
+   "pu": 1463061.93,
+   "total": 1004392015
+  },
+  {
+   "nom": "Article 040 — Main-d'œuvre de pose",
+   "qte": 142.68,
+   "pu": 1731006,
+   "total": 246979936
+  },
+  {
+   "nom": "Article 041 — Produit de chantier",
+   "qte": 231.1,
+   "pu": 673921,
+   "total": 155743143
+  },
+  {
+   "nom": "Article 042 — Peinture acrylique satinée lessivable pour murs intérieurs des chambres et du séjour, deux couches croisées",
+   "qte": 1491.31,
+   "pu": 336696.87,
+   "total": 502119409
+  },
+  {
+   "nom": "Article 043 — Produit de chantier",
+   "qte": 1320,
+   "pu": 1056120,
+   "total": 1394078400
+  },
+  {
+   "nom": "Article 044 — Produit de chantier",
+   "qte": 278,
+   "pu": 595465,
+   "total": 165539270
+  },
+  {
+   "nom": "Article 045 — Main-d'œuvre de pose",
+   "qte": 285.3,
+   "pu": 2262796.3,
+   "total": 645575784
+  },
+  {
+   "nom": "Article 046 — Produit de chantier",
+   "qte": 695.301,
+   "pu": 1754869,
+   "total": 1220162171
+  },
+  {
+   "nom": "Article 047 — Produit de chantier",
+   "qte": 938,
+   "pu": 2036487,
+   "total": 1910224806
+  },
+  {
+   "nom": "Article 048 — Produit de chantier",
+   "qte": 488.71,
+   "pu": 921877.39,
+   "total": 450530699
+  },
+  {
+   "nom": "Article 049 — Fourniture et pose de carreaux grès cérame rectifiés 60 × 60 avec colle flexible et joint époxy anti-taches",
+   "qte": 1417.99,
+   "pu": 1357780,
+   "total": 1925318462
+  },
+  {
+   "nom": "Article 050 — Main-d'œuvre de pose",
+   "qte": 218.019,
+   "pu": 2368053,
+   "total": 516280547
+  },
+  {
+   "nom": "Article 051 — Produit de chantier",
+   "qte": 1463,
+   "pu": 2004428.27,
+   "total": 2932478559
+  },
+  {
+   "nom": "Article 052 — Produit de chantier",
+   "qte": 225.935,
+   "pu": 144339,
+   "total": 32611232
+  },
+  {
+   "nom": "Article 053 — Produit de chantier",
+   "qte": 176,
+   "pu": 376663,
+   "total": 66292688
+  },
+  {
+   "nom": "Article 054 — Produit de chantier",
+   "qte": 455,
+   "pu": 1466204.44,
+   "total": 667123020
+  },
+  {
+   "nom": "Article 055 — Main-d'œuvre de pose",
+   "qte": 587.019,
+   "pu": 362605,
+   "total": 212856024
+  },
+  {
+   "nom": "Article 056 — Enduit de lissage pâteux prêt à l'emploi appliqué en deux passes avec ponçage soigné entre chaque passe",
+   "qte": 1253,
+   "pu": 1461976,
+   "total": 1831855928
+  },
+  {
+   "nom": "Article 057 — Produit de chantier",
+   "qte": 1479,
+   "pu": 2501513.13,
+   "total": 3699737919
+  },
+  {
+   "nom": "Article 058 — Produit de chantier",
+   "qte": 630.05,
+   "pu": 457274,
+   "total": 288105484
+  },
+  {
+   "nom": "Article 059 — Produit de chantier",
+   "qte": 925.92,
+   "pu": 138956,
+   "total": 128662140
+  },
+  {
+   "nom": "Article 060 — Main-d'œuvre de pose",
+   "qte": 358.994,
+   "pu": 1337232.43,
+   "total": 480058419
+  },
+  {
+   "nom": "Article 061 — Produit de chantier",
+   "qte": 547.039,
+   "pu": 1951502,
+   "total": 1067547703
+  },
+  {
+   "nom": "Article 062 — Produit de chantier",
+   "qte": 1039.012,
+   "pu": 1553153,
+   "total": 1613744605
+  },
+  {
+   "nom": "Article 063 — Peinture acrylique satinée lessivable pour murs intérieurs des chambres et du séjour, deux couches croisées",
+   "qte": 340.391,
+   "pu": 1247716.68,
+   "total": 424711528
+  },
+  {
+   "nom": "Article 064 — Produit de chantier",
+   "qte": 786.605,
+   "pu": 2047065,
+   "total": 1610231564
+  },
+  {
+   "nom": "Article 065 — Main-d'œuvre de pose",
+   "qte": 1012.9,
+   "pu": 2209671,
+   "total": 2238175756
+  },
+  {
+   "nom": "Article 066 — Produit de chantier",
+   "qte": 1485,
+   "pu": 2307992.34,
+   "total": 3427368625
+  },
+  {
+   "nom": "Article 067 — Produit de chantier",
+   "qte": 726,
+   "pu": 1896077,
+   "total": 1376551902
+  },
+  {
+   "nom": "Article 068 — Produit de chantier",
+   "qte": 280.1,
+   "pu": 1094203,
+   "total": 306486260
+  },
+  {
+   "nom": "Article 069 — Produit de chantier",
+   "qte": 702.948,
+   "pu": 408932.03,
+   "total": 287457953
+  },
+  {
+   "nom": "Article 070 — Fourniture et pose de carreaux grès cérame rectifiés 60 × 60 avec colle flexible et joint époxy anti-taches",
+   "qte": 729.8,
+   "pu": 1716499,
+   "total": 1252700970
+  },
+  {
+   "nom": "Article 071 — Produit de chantier",
+   "qte": 373,
+   "pu": 1971694,
+   "total": 735441862
+  },
+  {
+   "nom": "Article 072 — Produit de chantier",
+   "qte": 870.414,
+   "pu": 2148763.6,
+   "total": 1870313920
+  },
+  {
+   "nom": "Article 073 — Produit de chantier",
+   "qte": 1351.9,
+   "pu": 359305,
+   "total": 485744430
+  },
+  {
+   "nom": "Article 074 — Produit de chantier",
+   "qte": 587,
+   "pu": 850331,
+   "total": 499144297
+  },
+  {
+   "nom": "Article 075 — Main-d'œuvre de pose",
+   "qte": 273.7,
+   "pu": 438892.24,
+   "total": 120124806
+  },
+  {
+   "nom": "Article 076 — Produit de chantier",
+   "qte": 255.1,
+   "pu": 242064,
+   "total": 61750526
+  },
+  {
+   "nom": "Article 077 — Enduit de lissage pâteux prêt à l'emploi appliqué en deux passes avec ponçage soigné entre chaque passe",
+   "qte": 594.96,
+   "pu": 382818,
+   "total": 227761397
+  },
+  {
+   "nom": "Article 078 — Produit de chantier",
+   "qte": 1091.896,
+   "pu": 1850456.06,
+   "total": 2020505570
+  },
+  {
+   "nom": "Article 079 — Produit de chantier",
+   "qte": 1163,
+   "pu": 1287180,
+   "total": 1496990340
+  },
+  {
+   "nom": "Article 080 — Main-d'œuvre de pose",
+   "qte": 507.5,
+   "pu": 2353033,
+   "total": 1194164248
+  },
+  {
+   "nom": "Article 081 — Produit de chantier",
+   "qte": 823,
+   "pu": 2190360.49,
+   "total": 1802666683
+  },
+  {
+   "nom": "Article 082 — Produit de chantier",
+   "qte": 734,
+   "pu": 1300482,
+   "total": 954553788
+  },
+  {
+   "nom": "Article 083 — Produit de chantier",
+   "qte": 855,
+   "pu": 2184395,
+   "total": 1867657725
+  },
+  {
+   "nom": "Article 084 — Peinture acrylique satinée lessivable pour murs intérieurs des chambres et du séjour, deux couches croisées",
+   "qte": 224.1,
+   "pu": 1264452.18,
+   "total": 283363734
+  },
+  {
+   "nom": "Article 085 — Main-d'œuvre de pose",
+   "qte": 466.827,
+   "pu": 1563191,
+   "total": 729739765
+  },
+  {
+   "nom": "Article 086 — Produit de chantier",
+   "qte": 1371.44,
+   "pu": 252241,
+   "total": 345933397
+  },
+  {
+   "nom": "Article 087 — Produit de chantier",
+   "qte": 143,
+   "pu": 738526.27,
+   "total": 105609257
+  },
+  {
+   "nom": "Article 088 — Produit de chantier",
+   "qte": 850.14,
+   "pu": 2313654,
+   "total": 1966929812
+  },
+  {
+   "nom": "Article 089 — Produit de chantier",
+   "qte": 931.826,
+   "pu": 2205898,
+   "total": 2055513110
+  },
+  {
+   "nom": "Article 090 — Main-d'œuvre de pose",
+   "qte": 375.69,
+   "pu": 2439456.05,
+   "total": 916479243
+  },
+  {
+   "nom": "Article 091 — Fourniture et pose de carreaux grès cérame rectifiés 60 × 60 avec colle flexible et joint époxy anti-taches",
+   "qte": 1379.226,
+   "pu": 1635710,
+   "total": 2256013760
+  },
+  {
+   "nom": "Article 092 — Produit de chantier",
+   "qte": 1039.6,
+   "pu": 641505,
+   "total": 666908598
+  },
+  {
+   "nom": "Article 093 — Produit de chantier",
+   "qte": 1071,
+   "pu": 37512.84,
+   "total": 40176252
+  },
+  {
+   "nom": "Article 094 — Produit de chantier",
+   "qte": 872.1,
+   "pu": 1004139,
+   "total": 875709622
+  },
+  {
+   "nom": "Article 095 — Main-d'œuvre de pose",
+   "qte": 1166.4,
+   "pu": 2006149,
+   "total": 2339972194
+  },
+  {
+   "nom": "Article 096 — Produit de chantier",
+   "qte": 522.138,
+   "pu": 2409285.37,
+   "total": 1257979445
+  },
+  {
+   "nom": "Article 097 — Produit de chantier",
+   "qte": 767,
+   "pu": 2459699,
+   "total": 1886589133
+  },
+  {
+   "nom": "Article 098 — Enduit de lissage pâteux prêt à l'emploi appliqué en deux passes avec ponçage soigné entre chaque passe",
+   "qte": 728.222,
+   "pu": 1497868,
+   "total": 1090780431
+  },
+  {
+   "nom": "Article 099 — Produit de chantier",
+   "qte": 1169.27,
+   "pu": 16389.85,
+   "total": 19164160
+  },
+  {
+   "nom": "Article 100 — Main-d'œuvre de pose",
+   "qte": 1334.975,
+   "pu": 1022736,
+   "total": 1365326992
+  },
+  {
+   "nom": "Article 101 — Produit de chantier",
+   "qte": 825,
+   "pu": 1404163,
+   "total": 1158434475
+  },
+  {
+   "nom": "Article 102 — Produit de chantier",
+   "qte": 118.8,
+   "pu": 1338604.23,
+   "total": 159026183
+  },
+  {
+   "nom": "Article 103 — Produit de chantier",
+   "qte": 1090,
+   "pu": 733093,
+   "total": 799071370
+  },
+  {
+   "nom": "Article 104 — Produit de chantier",
+   "qte": 718.641,
+   "pu": 380876,
+   "total": 273713110
+  },
+  {
+   "nom": "Article 105 — Peinture acrylique satinée lessivable pour murs intérieurs des chambres et du séjour, deux couches croisées",
+   "qte": 1410.4,
+   "pu": 2379346.85,
+   "total": 3355830797
+  },
+  {
+   "nom": "Article 106 — Produit de chantier",
+   "qte": 366.7,
+   "pu": 93835,
+   "total": 34409295
+  },
+  {
+   "nom": "Article 107 — Produit de chantier",
+   "qte": 1370,
+   "pu": 1897804,
+   "total": 2599991480
+  },
+  {
+   "nom": "Article 108 — Produit de chantier",
+   "qte": 92,
+   "pu": 2149315.09,
+   "total": 197736988
+  },
+  {
+   "nom": "Article 109 — Produit de chantier",
+   "qte": 652.4,
+   "pu": 1411518,
+   "total": 920874343
+  },
+  {
+   "nom": "Article 110 — Main-d'œuvre de pose",
+   "qte": 286.32,
+   "pu": 700437,
+   "total": 200549122
+  },
+  {
+   "nom": "Article 111 — Produit de chantier",
+   "qte": 251.05,
+   "pu": 625795.86,
+   "total": 157106051
+  },
+  {
+   "nom": "Article 112 — Fourniture et pose de carreaux grès cérame rectifiés 60 × 60 avec colle flexible et joint époxy anti-taches",
+   "qte": 597.9,
+   "pu": 2283351,
+   "total": 1365215563
+  },
+  {
+   "nom": "Article 113 — Produit de chantier",
+   "qte": 1381.9,
+   "pu": 1243292,
+   "total": 1718105215
+  },
+  {
+   "nom": "Article 114 — Produit de chantier",
+   "qte": 1407,
+   "pu": 543093.75,
+   "total": 764132906
+  },
+  {
+   "nom": "Article 115 — Main-d'œuvre de pose",
+   "qte": 1102.97,
+   "pu": 668958,
+   "total": 737840605
+  },
+  {
+   "nom": "Article 116 — Produit de chantier",
+   "qte": 957.23,
+   "pu": 1521789,
+   "total": 1456702084
+  },
+  {
+   "nom": "Article 117 — Produit de chantier",
+   "qte": 190,
+   "pu": 124815.54,
+   "total": 23714953
+  },
+  {
+   "nom": "Article 118 — Produit de chantier",
+   "qte": 489,
+   "pu": 1251391,
+   "total": 611930199
+  },
+  {
+   "nom": "Article 119 — Enduit de lissage pâteux prêt à l'emploi appliqué en deux passes avec ponçage soigné entre chaque passe",
+   "qte": 332,
+   "pu": 2406171,
+   "total": 798848772
+  },
+  {
+   "nom": "Article 120 — Main-d'œuvre de pose",
+   "qte": 534,
+   "pu": 2217821.54,
+   "total": 1184316702
+  },
+  {
+   "nom": "Article 121 — Produit de chantier",
+   "qte": 664.187,
+   "pu": 1635647,
+   "total": 1086375474
+  },
+  {
+   "nom": "Article 122 — Produit de chantier",
+   "qte": 977.82,
+   "pu": 2466976,
+   "total": 2412258472
+  },
+  {
+   "nom": "Article 123 — Produit de chantier",
+   "qte": 451.3,
+   "pu": 1586566.33,
+   "total": 716017385
+  },
+  {
+   "nom": "Article 124 — Produit de chantier",
+   "qte": 127,
+   "pu": 870246,
+   "total": 110521242
+  },
+  {
+   "nom": "Article 125 — Main-d'œuvre de pose",
+   "qte": 701.2,
+   "pu": 2004701,
+   "total": 1405696341
+  },
+  {
+   "nom": "Article 126 — Peinture acrylique satinée lessivable pour murs intérieurs des chambres et du séjour, deux couches croisées",
+   "qte": 567,
+   "pu": 2327008.31,
+   "total": 1319413712
+  },
+  {
+   "nom": "Article 127 — Produit de chantier",
+   "qte": 1337.3,
+   "pu": 1847061,
+   "total": 2470074675
+  },
+  {
+   "nom": "Article 128 — Produit de chantier",
+   "qte": 140.806,
+   "pu": 55940,
+   "total": 7876688
+  },
+  {
+   "nom": "Article 129 — Produit de chantier",
+   "qte": 585.34,
+   "pu": 1638960.31,
+   "total": 959349028
+  },
+  {
+   "nom": "Article 130 — Main-d'œuvre de pose",
+   "qte": 1081,
+   "pu": 896463,
+   "total": 969076503
+  },
+  {
+   "nom": "Article 131 — Produit de chantier",
+   "qte": 191,
+   "pu": 69130,
+   "total": 13203830
+  },
+  {
+   "nom": "Article 132 — Produit de chantier",
+   "qte": 1127.998,
+   "pu": 445446.14,
+   "total": 502462355
+  },
+  {
+   "nom": "Article 133 — Fourniture et pose de carreaux grès cérame rectifiés 60 × 60 avec colle flexible et joint époxy anti-taches",
+   "qte": 710.3,
+   "pu": 1711477,
+   "total": 1215662113
+  },
+  {
+   "nom": "Article 134 — Produit de chantier",
+   "qte": 1193.75,
+   "pu": 2009399,
+   "total": 2398720056
+  },
+  {
+   "nom": "Article 135 — Main-d'œuvre de pose",
+   "qte": 158,
+   "pu": 208439.74,
+   "total": 32933479
+  },
+  {
+   "nom": "Article 136 — Produit de chantier",
+   "qte": 280.895,
+   "pu": 209591,
+   "total": 58873064
+  },
+  {
+   "nom": "Article 137 — Produit de chantier",
+   "qte": 679.1,
+   "pu": 1601894,
+   "total": 1087846215
+  },
+  {
+   "nom": "Article 138 — Produit de chantier",
+   "qte": 1002,
+   "pu": 701900.78,
+   "total": 703304582
+  },
+  {
+   "nom": "Article 139 — Produit de chantier",
+   "qte": 1356,
+   "pu": 886467,
+   "total": 1202049252
+  },
+  {
+   "nom": "Article 140 — Enduit de lissage pâteux prêt à l'emploi appliqué en deux passes avec ponçage soigné entre chaque passe",
+   "qte": 836.58,
+   "pu": 114599,
+   "total": 95871231
+  },
+  {
+   "nom": "Article 141 — Produit de chantier",
+   "qte": 1272.52,
+   "pu": 976746.74,
+   "total": 1242929762
+  },
+  {
+   "nom": "Article 142 — Produit de chantier",
+   "qte": 2.964,
+   "pu": 1787486,
+   "total": 5298109
+  },
+  {
+   "nom": "Article 143 — Produit de chantier",
+   "qte": 538.4,
+   "pu": 779393,
+   "total": 419625191
+  },
+  {
+   "nom": "Article 144 — Produit de chantier",
+   "qte": 1483.3,
+   "pu": 1682263.98,
+   "total": 2495302162
+  },
+  {
+   "nom": "Article 145 — Main-d'œuvre de pose",
+   "qte": 795.18,
+   "pu": 1787435,
+   "total": 1421332563
+  },
+  {
+   "nom": "Article 146 — Produit de chantier",
+   "qte": 683,
+   "pu": 2221403,
+   "total": 1517218249
+  },
+  {
+   "nom": "Article 147 — Peinture acrylique satinée lessivable pour murs intérieurs des chambres et du séjour, deux couches croisées",
+   "qte": 533,
+   "pu": 199849.37,
+   "total": 106519714
+  },
+  {
+   "nom": "Article 148 — Produit de chantier",
+   "qte": 527.925,
+   "pu": 966348,
+   "total": 510159268
+  },
+  {
+   "nom": "Article 149 — Produit de chantier",
+   "qte": 593.334,
+   "pu": 1393371,
+   "total": 826734389
+  },
+  {
+   "nom": "Article 150 — Main-d'œuvre de pose",
+   "qte": 941,
+   "pu": 1502223.38,
+   "total": 1413592201
+  },
+  {
+   "nom": "Article 151 — Produit de chantier",
+   "qte": 731.558,
+   "pu": 1628065,
+   "total": 1191023975
+  },
+  {
+   "nom": "Article 152 — Produit de chantier",
+   "qte": 3.85,
+   "pu": 1871305,
+   "total": 7204524
+  },
+  {
+   "nom": "Article 153 — Produit de chantier",
+   "qte": 1460.31,
+   "pu": 456611.88,
+   "total": 666794894
+  },
+  {
+   "nom": "Article 154 — Fourniture et pose de carreaux grès cérame rectifiés 60 × 60 avec colle flexible et joint époxy anti-taches",
+   "qte": 1392,
+   "pu": 280267,
+   "total": 390131664
+  },
+  {
+   "nom": "Article 155 — Main-d'œuvre de pose",
+   "qte": 911.7,
+   "pu": 58748,
+   "total": 53560552
+  },
+  {
+   "nom": "Article 156 — Produit de chantier",
+   "qte": 973.941,
+   "pu": 1911838.12,
+   "total": 1862017530
+  },
+  {
+   "nom": "Article 157 — Produit de chantier",
+   "qte": 767.3,
+   "pu": 1171471,
+   "total": 898869698
+  },
+  {
+   "nom": "Article 158 — Produit de chantier",
+   "qte": 839,
+   "pu": 1601323,
+   "total": 1343509997
+  },
+  {
+   "nom": "Article 159 — Produit de chantier",
+   "qte": 843.16,
+   "pu": 304170.61,
+   "total": 256464492
+  },
+  {
+   "nom": "Article 160 — Main-d'œuvre de pose",
+   "qte": 413,
+   "pu": 2167158,
+   "total": 895036254
+  },
+  {
+   "nom": "Article 161 — Enduit de lissage pâteux prêt à l'emploi appliqué en deux passes avec ponçage soigné entre chaque passe",
+   "qte": 98,
+   "pu": 2494204,
+   "total": 244431992
+  },
+  {
+   "nom": "Article 162 — Produit de chantier",
+   "qte": 403.1,
+   "pu": 2281782.99,
+   "total": 919786723
+  },
+  {
+   "nom": "Article 163 — Produit de chantier",
+   "qte": 1421.2,
+   "pu": 1217125,
+   "total": 1729778050
+  },
+  {
+   "nom": "Article 164 — Produit de chantier",
+   "qte": 373,
+   "pu": 1176626,
+   "total": 438881498
+  },
+  {
+   "nom": "Article 165 — Main-d'œuvre de pose",
+   "qte": 468.1,
+   "pu": 2459569.04,
+   "total": 1151324268
+  },
+  {
+   "nom": "Article 166 — Produit de chantier",
+   "qte": 657.086,
+   "pu": 1399209,
+   "total": 919400645
+  },
+  {
+   "nom": "Article 167 — Produit de chantier",
+   "qte": 1084.28,
+   "pu": 1106183,
+   "total": 1199412103
+  },
+  {
+   "nom": "Article 168 — Peinture acrylique satinée lessivable pour murs intérieurs des chambres et du séjour, deux couches croisées",
+   "qte": 770.1,
+   "pu": 1564575.8,
+   "total": 1204879824
+  },
+  {
+   "nom": "Article 169 — Produit de chantier",
+   "qte": 662.57,
+   "pu": 2326695,
+   "total": 1541598306
+  },
+  {
+   "nom": "Article 170 — Main-d'œuvre de pose",
+   "qte": 1151,
+   "pu": 515924,
+   "total": 593828524
+  },
+  {
+   "nom": "Article 171 — Produit de chantier",
+   "qte": 946.916,
+   "pu": 2479671.01,
+   "total": 2348040154
+  },
+  {
+   "nom": "Article 172 — Produit de chantier",
+   "qte": 607.33,
+   "pu": 2122136,
+   "total": 1288836857
+  },
+  {
+   "nom": "Article 173 — Produit de chantier",
+   "qte": 122,
+   "pu": 1129113,
+   "total": 137751786
+  },
+  {
+   "nom": "Article 174 — Produit de chantier",
+   "qte": 22.87,
+   "pu": 1590508.05,
+   "total": 36374919
+  },
+  {
+   "nom": "Article 175 — Fourniture et pose de carreaux grès cérame rectifiés 60 × 60 avec colle flexible et joint époxy anti-taches",
+   "qte": 408.57,
+   "pu": 1704367,
+   "total": 696353225
+  },
+  {
+   "nom": "Article 176 — Produit de chantier",
+   "qte": 541.02,
+   "pu": 1406399,
+   "total": 760889987
+  },
+  {
+   "nom": "Article 177 — Produit de chantier",
+   "qte": 1318.1,
+   "pu": 2320312.03,
+   "total": 3058403287
+  },
+  {
+   "nom": "Article 178 — Produit de chantier",
+   "qte": 1026.697,
+   "pu": 2399255,
+   "total": 2463307911
+  },
+  {
+   "nom": "Article 179 — Produit de chantier",
+   "qte": 1156.59,
+   "pu": 264557,
+   "total": 305983981
+  },
+  {
+   "nom": "Article 180 — Main-d'œuvre de pose",
+   "qte": 77.1,
+   "pu": 2335477.61,
+   "total": 180065324
+  },
+  {
+   "nom": "Article 181 — Produit de chantier",
+   "qte": 1147.6,
+   "pu": 689605,
+   "total": 791390698
+  },
+  {
+   "nom": "Article 182 — Enduit de lissage pâteux prêt à l'emploi appliqué en deux passes avec ponçage soigné entre chaque passe",
+   "qte": 90.533,
+   "pu": 2173470,
+   "total": 196770760
+  },
+  {
+   "nom": "Article 183 — Produit de chantier",
+   "qte": 26,
+   "pu": 1048114.21,
+   "total": 27250969
+  },
+  {
+   "nom": "Article 184 — Produit de chantier",
+   "qte": 786.6,
+   "pu": 500715,
+   "total": 393862419
+  },
+  {
+   "nom": "Article 185 — Main-d'œuvre de pose",
+   "qte": 484.104,
+   "pu": 329417,
+   "total": 159472087
+  },
+  {
+   "nom": "Article 186 — Produit de chantier",
+   "qte": 934.177,
+   "pu": 1164368.46,
+   "total": 1087726235
+  },
+  {
+   "nom": "Article 187 — Produit de chantier",
+   "qte": 1324,
+   "pu": 2393409,
+   "total": 3168873516
+  },
+  {
+   "nom": "Article 188 — Produit de chantier",
+   "qte": 1254,
+   "pu": 1942298,
+   "total": 2435641692
+  },
+  {
+   "nom": "Article 189 — Peinture acrylique satinée lessivable pour murs intérieurs des chambres et du séjour, deux couches croisées",
+   "qte": 897,
+   "pu": 1237575.18,
+   "total": 1110104936
+  },
+  {
+   "nom": "Article 190 — Main-d'œuvre de pose",
+   "qte": 1183.111,
+   "pu": 1191341,
+   "total": 1409488642
+  },
+  {
+   "nom": "Article 191 — Produit de chantier",
+   "qte": 1129.74,
+   "pu": 166713,
+   "total": 188342345
+  },
+  {
+   "nom": "Article 192 — Produit de chantier",
+   "qte": 956,
+   "pu": 447480.15,
+   "total": 427791023
+  },
+  {
+   "nom": "Article 193 — Produit de chantier",
+   "qte": 788,
+   "pu": 2006635,
+   "total": 1581228380
+  },
+  {
+   "nom": "Article 194 — Produit de chantier",
+   "qte": 402.157,
+   "pu": 324719,
+   "total": 130588019
+  },
+  {
+   "nom": "Article 195 — Main-d'œuvre de pose",
+   "qte": 729,
+   "pu": 911073.6,
+   "total": 664172654
+  },
+  {
+   "nom": "Article 196 — Fourniture et pose de carreaux grès cérame rectifiés 60 × 60 avec colle flexible et joint époxy anti-taches",
+   "qte": 473.2,
+   "pu": 2298871,
+   "total": 1087825757
+  },
+  {
+   "nom": "Article 197 — Produit de chantier",
+   "qte": 1295,
+   "pu": 1244945,
+   "total": 1612203775
+  },
+  {
+   "nom": "Article 198 — Produit de chantier",
+   "qte": 342.4,
+   "pu": 710756.62,
+   "total": 243363067
+  },
+  {
+   "nom": "Article 199 — Produit de chantier",
+   "qte": 607.14,
+   "pu": 187798,
+   "total": 114019678
+  },
+  {
+   "nom": "Article 200 — Main-d'œuvre de pose",
+   "qte": 1088,
+   "pu": 78667,
+   "total": 85589696
+  }
+ ],
+ "sousTotal": 194161442932,
+ "frais": 0,
+ "remise": 7281054110,
+ "ht": 186880388822,
+ "tva": 35974474848,
+ "ttc": 222854863670
+}

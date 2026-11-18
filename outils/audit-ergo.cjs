@@ -269,7 +269,7 @@ async function parcours(browser, P) {
     let travailFait = false, modifFait = false, lignesRemplies = 0, totalApres = 0; const choixVoie = P.voie;
     for (let ec = 0; ec < 6; ec++) {
       t = await corps();
-      if (/Créer le PDF/.test(t)) break;
+      if (/Créer le PDF|PDF brouillon/.test(t)) break;
       if (!travailFait && /Métré du chantier|Le travail et le matériel|Travaux à faire/.test(t)) {
         travailFait = true; J.etape = "travaux";
     // ============ 5. Étape 2 : le travail et le matériel ============
@@ -392,7 +392,7 @@ async function parcours(browser, P) {
         const rb = await trouver(() => p.locator("button.rowc").filter({ hasText: nom }).first(), nom, { optionnel: true, ecrans: 4 }); if (!rb) continue;
         await toucher(rb, nom);
         const q = await trouver(() => p.locator('input[inputmode=decimal]:visible').first(), "Quantité", { optionnel: true, ecrans: 3 });
-        const us = p.locator('select:visible').filter({ has: p.locator("option", { hasText: /^—$/ }) }).last();
+        const us = p.locator('select:visible').filter({ has: p.locator("option", { hasText: /^—( choisir —)?$/ }) }).last();
         if (q) await taper(q, 1 + Math.floor(r() * 6), "quantité", pick(r, P.formats.filter((x) => x !== "unite")));
         if (await us.count()) { await us.selectOption({ index: 1 }).catch(() => {}); cout(T.tap); }
         const pu = p.locator('input[inputmode=decimal]:visible'); const nn = await pu.count(); if (nn >= 2) { await taper(pu.nth(nn - 1), 2000 + Math.floor(r() * 20) * 500, "prix", pick(r, P.formats.filter((x) => x !== "unite"))); }
@@ -494,7 +494,7 @@ async function parcours(browser, P) {
       await toucher(b, "Continuer (écran " + (ec + 2) + ")"); await lire(); await verifier();
       if ((await corps()) === avantT) { inc("bloque_ecran", "majeur", "« Continuer » ne fait pas avancer (écran " + (ec + 2) + ")"); }
     }
-    if (!/Créer le PDF/.test(await corps())) { inc("export_absent", "bloquant", "L'écran d'export n'est jamais atteint"); abandon("n'atteint pas l'écran du PDF"); }
+    if (!/Créer le PDF|PDF brouillon/.test(await corps())) { inc("export_absent", "bloquant", "L'écran d'export n'est jamais atteint"); abandon("n'atteint pas l'écran du PDF"); }
     if (lignesRemplies === 0) inc("rien_chiffre", "majeur", "Aucune ligne n'a pu être chiffrée");
 
     // ============ 7. Étape 3 : entreprise, PDF, Word ============
@@ -505,7 +505,7 @@ async function parcours(browser, P) {
     J.totalExport = attendu(await p.locator('.total .big').first().innerText().catch(() => '0')); const vide = !(J.totalExport > 0);
     // PDF
     let pdfOk = false, wordOk = false;
-    const d0 = J.defilements; let bp = await trouver(boutonTexte(/Créer le PDF/), "Créer le PDF", { ecrans: 10 }); J.defilPDF = J.defilements - d0;
+    const d0 = J.defilements; let bp = await trouver(boutonTexte(/Créer le PDF|PDF brouillon/), "Créer le PDF", { ecrans: 10 }); J.defilPDF = J.defilements - d0;
     const corrigerPrix = async () => { // ouvre chaque ligne « prix manquant », écrit un prix, referme
       const nb2 = await p.locator("button.rowc").count(); let fix = 0;
       for (let i = 0; i < nb2; i++) { const rb = p.locator("button.rowc").nth(i); const tl = ((await rb.innerText().catch(() => "")) || ""); if (!/prix manquant|prix \?/.test(tl)) continue; await rb.scrollIntoViewIfNeeded().catch(() => {}); await toucher(rb, "ligne à corriger"); const c2 = p.locator("label").filter({ hasText: /^Prix (unitaire|pour 1|par)/i }).locator("xpath=following-sibling::input[1]").first(); if (await c2.count()) { await c2.scrollIntoViewIfNeeded().catch(() => {}); await taper(c2, 1000 + Math.floor(r() * 10) * 500, "prix (correction)", "fr"); fix++; const fer = p.locator("button").filter({ hasText: /Fermer/ }).last(); if (await fer.count()) await toucher(fer, "Fermer la ligne"); } }
@@ -532,8 +532,8 @@ async function parcours(browser, P) {
             await f3.scrollIntoViewIfNeeded().catch(() => {}); await taper(f3, val, (await lb.innerText()).trim().slice(0, 40), "fr");
           }
           await corrigerPrix();
-          for (let k = 0; k < 6 && !/Créer le PDF/.test(await corps()); k++) { const nx = await trouver(boutonTexte(/Continuer|Aperçu, PDF et envoi/), "Continuer", { optionnel: true, ecrans: 6 }); if (!nx) break; await toucher(nx, "Continuer"); await p.waitForTimeout(200); }
-          bp = await trouver(boutonTexte(/Créer le PDF/), "Créer le PDF", { ecrans: 10 });
+          for (let k = 0; k < 6 && !/Créer le PDF|PDF brouillon/.test(await corps()); k++) { const nx = await trouver(boutonTexte(/Continuer|Aperçu, PDF et envoi/), "Continuer", { optionnel: true, ecrans: 6 }); if (!nx) break; await toucher(nx, "Continuer"); await p.waitForTimeout(200); }
+          bp = await trouver(boutonTexte(/Créer le PDF|PDF brouillon/), "Créer le PDF", { ecrans: 10 });
           if (bp && !(await bp.isDisabled().catch(() => false))) break; else continue;
         }
       }
@@ -542,8 +542,8 @@ async function parcours(browser, P) {
       if (SHOTS) fs.writeFileSync(`${OUT}/${P.id}-retour${tour}.txt`, await corps());
       const fix = await corrigerPrix();
       if (!fix) break;
-      for (let k = 0; k < 5 && !/Créer le PDF/.test(await corps()); k++) { const nx = await trouver(boutonTexte(/Continuer|Aperçu, PDF et envoi/), "Continuer", { optionnel: true, ecrans: 6 }); if (!nx) break; await toucher(nx, "Continuer"); await p.waitForTimeout(200); }
-      bp = await trouver(boutonTexte(/Créer le PDF/), "Créer le PDF", { ecrans: 10 });
+      for (let k = 0; k < 5 && !/Créer le PDF|PDF brouillon/.test(await corps()); k++) { const nx = await trouver(boutonTexte(/Continuer|Aperçu, PDF et envoi/), "Continuer", { optionnel: true, ecrans: 6 }); if (!nx) break; await toucher(nx, "Continuer"); await p.waitForTimeout(200); }
+      bp = await trouver(boutonTexte(/Créer le PDF|PDF brouillon/), "Créer le PDF", { ecrans: 10 });
     }
     if (bp && !(await bp.isDisabled().catch(() => false))) {
       await toucher(bp, "Créer le PDF");
@@ -555,7 +555,7 @@ async function parcours(browser, P) {
         else inc("export_echec", "bloquant", "Le bouton « Enregistrer » ne télécharge rien");
       } else inc("export_echec", "bloquant", "Le PDF n'a pas été créé (délai dépassé)");
     }
-    const bw = await trouver(boutonTexte(/Créer le Word/), "Créer le Word", { optionnel: true, ecrans: 6 });
+    const bw = await trouver(boutonTexte(/Créer le Word|Word brouillon/), "Créer le Word", { optionnel: true, ecrans: 6 });
     if (bw) {
       await toucher(bw, "Créer le Word");
       const sv = await p.waitForSelector('[data-act="saveFile"]', { timeout: 30000 }).catch(() => null);

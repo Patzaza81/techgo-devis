@@ -5,11 +5,14 @@ import { ALL_SEEDS, newDraft, buildInput, compute, packExpects, validPct, PACKS,
 import { LOGO } from "./logo.js";
 
 export const STATUS = {
-  brouillon: "Brouillon", a_verifier: "À vérifier", pret: "Prêt à envoyer", envoye: "Envoyé", negociation: "En négociation",
+  brouillon: "Brouillon", a_verifier: "À vérifier", pret: "Prêt à envoyer", termine: "Terminé, pas encore envoyé", envoye: "Envoyé", negociation: "En négociation",
   accepte: "Accepté", refuse: "Refusé", expire: "Expiré", annule: "Annulé",
 };
 const TRANSITIONS = {
   brouillon: ["a_verifier", "pret", "annule"], a_verifier: ["brouillon", "pret", "annule"], pret: ["brouillon", "a_verifier", "annule"],
+  // « termine » : version figée et PDF prêt, mais rien ne prouve encore que le client l'a reçu.
+  // Il ne devient « envoye » que sur un partage confirmé par le téléphone ou sur la confirmation explicite de l'artisan (marquerEnvoye).
+  termine: ["envoye", "negociation", "annule"],
   envoye: ["negociation", "accepte", "refuse", "expire", "annule"], negociation: ["accepte", "refuse", "annule"],
   accepte: [], refuse: ["negociation"], expire: ["negociation"], annule: [],
 };
@@ -218,7 +221,7 @@ export function evaluate(q, draft = q.current) {
     surfaceNeeded: (draft.prestations || []).length > 0 || (draft.manual || []).some((m) => m.mode && m.mode !== "fixed"),
     surface: effSurface(draft.site) > 0 ? effSurface(draft.site) : ((draft.metre?.zones || []).some((z) => (z.ouvrages || []).length) && result.lines.length ? 1 : 0), lossPct: draft.site.lossPct, result, workHeightM: draft.site.workHeightM, accessThresholdM: s.accessThresholdM, decisions: draft.decisions || {},
     expects: packExpects(draft), hasDelay: draft.terms.delayMin > 0 && draft.terms.delayMax >= draft.terms.delayMin, hasValidity: draft.validityDays > 0,
-    hasPayment: validPct(draft.terms.payment.materials) && validPct(draft.terms.payment.services), vatPct: draft.terms.vatPct, minMarginPct: s.minMarginPct,
+    hasPayment: validPct(draft.terms.payment.materials) && validPct(draft.terms.payment.services), vatPct: draft.terms.vatPct, sansTva: !!draft.terms.sansTva, minMarginPct: s.minMarginPct,
     discountActive: (draft.discount.pct > 0) || (draft.discount.amount > 0), expired,
   });
   return { result, checks };
@@ -247,23 +250,36 @@ export function freezeVersion(q) {
     engineVersion: ENGINE_VERSION, packVersions: Object.fromEntries(Object.values(PACKS).map((p) => [p.id, p.version])),
   };
   snap.hash = fingerprint({ quote: snap.quote, items: snap.items, result: snap.result });
-  q.versions.push(deepFreeze(snap)); q.status = "envoye";
-  q.statusLog.push({ at: snap.at, to: "envoye", reason: `Version V${snap.n} figée (empreinte ${snap.hash})` });
-  audit("devis_envoye", "devis", q.id, `${q.ref} V${snap.n} — ${snap.hash}`); commit(); return snap;
+  q.versions.push(deepFreeze(snap)); q.status = "termine";
+  q.statusLog.push({ at: snap.at, to: "termine", reason: `Version V${snap.n} terminée et figée (empreinte ${snap.hash}) — pas encore envoyée` });
+  audit("devis_termine", "devis", q.id, `${q.ref} V${snap.n} — ${snap.hash}`); commit(); return snap;
+}
+/** Passe une version terminée à « Envoyé ». comment : la preuve (partage confirmé par le téléphone, ou confirmation de l'artisan). */
+export function marquerEnvoye(q, comment) {
+  if (q.status !== "termine") throw new Error("Seule une version terminée (pas encore envoyée) peut être marquée « Envoyé ».");
+  if (!String(comment || "").trim()) throw new Error("Il faut dire comment le devis a été envoyé.");
+  const v = lastVersion(q);
+  setStatus(q, "envoye", `V${v.n} envoyée — ${comment}`);
+  audit("devis_envoye", "devis", q.id, `${q.ref} V${v.n} — ${comment}`);
 }
 // Recalcule une version figée à partir de ses seules données et compare au résultat enregistré.
 export function verifyVersion(v) {
-  const reasons = [];
+  const reasons = [], notes = [];
   try {
     const inp = buildInput(v.quote, Object.values(v.items), { minMarginPct: v.minMarginPct });
-    const again = computeQuote(inp);
-    if (fingerprint(again) !== fingerprint(v.result)) reasons.push("Le recalcul ne redonne pas le résultat enregistré.");
+    const again = computeQuote(inp), ancien = (v.result.engineVersion || "") !== ENGINE_VERSION;
+    // Une version figée avec un moteur antérieur garde ses montants (ils sont ceux envoyés au client) ;
+    // seul le contenu est contrôlé par l'empreinte, un écart de recalcul est seulement signalé.
+    if (fingerprint({ ...again, engineVersion: v.result.engineVersion }) !== fingerprint(v.result)) {
+      if (ancien) notes.push(`Calculée avec l'ancienne règle de calcul (moteur ${v.result.engineVersion || "?"}) : montants d'origine conservés.`);
+      else reasons.push("Le recalcul ne redonne pas le résultat enregistré.");
+    }
   } catch (e) { reasons.push("Recalcul impossible : " + e.message); }
   if (fingerprint({ quote: v.quote, items: v.items, result: v.result }) !== v.hash) reasons.push("L'empreinte de contrôle ne correspond plus.");
-  return { ok: reasons.length === 0, reasons };
+  return { ok: reasons.length === 0, reasons, notes };
 }
 export function startNegotiation(q) {
-  if (!["envoye", "refuse", "expire"].includes(q.status)) throw new Error("Une nouvelle version se prépare à partir d'un devis envoyé, refusé ou expiré.");
+  if (!["termine", "envoye", "refuse", "expire"].includes(q.status)) throw new Error("Une nouvelle version se prépare à partir d'un devis terminé, envoyé, refusé ou expiré.");
   const v = lastVersion(q);
   q.current = { ...clone(v.quote), date: today() };
   setStatus(q, "negociation", `Préparation de V${q.versions.length + 1}`);

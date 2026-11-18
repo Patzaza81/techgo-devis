@@ -45,17 +45,17 @@ const total = async (p) => (await p.locator(".total .big").first().textContent()
       ok(T + "« Fermer » ne perd pas la ligne en silence", (await p.textContent("#app")).includes("Ligne non enregistrée"));
       await p.selectOption('[data-p="row.unit"]', { index: 1 }); // première unité proposée pour ce métier await p.waitForTimeout(350);
       ok(T + "avec l'unité, la ligne entre dans le devis (114 000)", (await total(p)).includes("114000"), await total(p));
-      // 2. Aide au calcul de quantité (peinture et carrelage seulement)
-      const lien = p.locator('[data-act="calcToggle"]');
+      // 2. Quantité à partir d'une surface : un seul outil, le métré (décision du 18/11)
+      const lien = p.locator('[data-act="versMetre"]');
+      ok(T + "ancienne aide au m² retirée de la fiche", (await p.locator('[data-act="calcToggle"]').count()) === 0);
       if (met === "carrelage" || met === "peinture") {
-        ok(T + "aide au calcul de quantité proposée", (await lien.count()) > 0);
-        await lien.first().click(); await p.waitForTimeout(250);
-        await saisir(p, "calc.surface", 40); await saisir(p, "calc.couv", 1.44); await saisir(p, "calc.perte", 10);
-        const res = await p.locator(".calc").textContent();
-        ok(T + "calcul affiché avec sa formule (31)", res.includes("Quantité : 31") && res.includes("44 m² à couvrir"), res.slice(0, 160));
-        await p.locator('[data-act="calcUse"]').click(); await p.waitForTimeout(350);
-        ok(T + "quantité reprise dans la ligne (31 × 9 500 = 294 500)", (await total(p)).includes("294500"), await total(p));
-      } else ok(T + "pas d'aide au m² (métier non chiffré à la surface)", (await lien.count()) === 0);
+        ok(T + "lien « Calculer … (métré) » proposé dans la fiche", (await lien.count()) > 0);
+        await lien.first().click(); await p.waitForTimeout(500);
+        const m = p.locator("#metre");
+        const vis = (await m.count()) ? await m.evaluate((e) => { const r = e.getBoundingClientRect(); return r.top < innerHeight && r.bottom > 0; }) : false;
+        ok(T + "le lien amène au métré, visible à l'écran", vis);
+        ok(T + "la ligne reste dans le devis (114 000)", (await total(p)).includes("114000"), await total(p));
+      } else ok(T + "pas de lien vers le métré (métier non chiffré à la surface)", (await lien.count()) === 0);
       const cl = p.locator('[data-act="rowClose"]'); if (await cl.count()) await cl.click(); await p.waitForTimeout(200);
       const d1 = await deborde(p);
       // 3. Rappels d'oublis et identité, à l'étape du prix
@@ -81,7 +81,8 @@ const total = async (p) => (await p.locator(".total .big").first().textContent()
         await p.locator('[data-act="pdf"]').click(); await p.waitForSelector('[data-act="saveFile"]', { timeout: 40000 });
         const [dl] = await Promise.all([p.waitForEvent("download", { timeout: 20000 }), p.locator('[data-act="saveFile"]').click()]);
         const f = `/tmp/mobile-${largeur}.pdf`; await dl.saveAs(f);
-        ok(T + "PDF créé depuis le téléphone", fs.statSync(f).size > 50000, fs.statSync(f).size + " octets");
+        const txt = require("child_process").execFileSync("pdftotext", [f, "-"]).toString();
+        ok(T + "PDF créé depuis le téléphone (texte lisible, nom de l'entreprise)", fs.statSync(f).size > 5000 && txt.includes("Ets Kamga"), fs.statSync(f).size + " octets");
       }
       await ctx.close();
     }

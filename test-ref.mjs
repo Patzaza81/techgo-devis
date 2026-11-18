@@ -10,7 +10,7 @@ const eq = (name, got, want) => { const ok = JSON.stringify(got) === JSON.string
 // --- contenu du référentiel électricité
 const R = { printableNorm: M.printableNorm, unitsOf: M.unitsOf };
 const E = M.refOf("electricite"), P = M.refOf("plomberie");
-eq("électricité : 564 fiches (487 matériels + 77 accessoires)", E.count, 564);
+eq("électricité : 577 fiches (487 matériels + 77 accessoires + 13 compléments v41 sourcés)", E.count, 577);
 eq("électricité : 8 sous-ensembles", E.domaines.length, 8);
 eq("électricité : chaque famille du document est rangée dans un sous-ensemble", ["1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16.1","16.8","17","18"].every((f) => E.domaines.some((d) => d[3].includes(f))), true);
 eq("électricité : contrôles (19) hors sous-ensembles, dans « divers »", [E.domaines.some((d) => d[3].includes("19")), E.rows("autres", "", "").length], [false, 21]);
@@ -43,7 +43,7 @@ eq("fiche électricité : alerte HTA / ATEX, pas pour BT", [E.fiche.warn({ alim:
 
 // --- maçonnerie : document organisé en matériaux + ouvrages (bordereau), pas en catalogue de matériel
 const MA = M.refOf("maconnerie");
-eq("maçonnerie : 161 fiches", MA.count, 161);
+eq("maçonnerie : 170 fiches (161 du document + 9 compléments v41 sourcés)", MA.count, 170);
 eq("maçonnerie : 6 sous-ensembles de matériaux", MA.domaines.length, 6);
 eq("maçonnerie : les 45 postes du bordereau sont dans « Ouvrages » (+15 ouvrages industriels)", MA.rows("ouvriers", "", "").length, 60);
 eq("maçonnerie : aucun ouvrage dans les sous-ensembles de matériaux", MA.domaines.every((d) => MA.rows("produits", d[0], "").every((r) => r.tab === "produits")), true);
@@ -57,7 +57,7 @@ eq("maçonnerie : Installation de chantier = forfait", MA.find("Installation de 
 eq("maçonnerie : acier Ø 12 mm = 0,889 kg/m (tableau du document)", /0,889 kg\/m/.test(MA.find("Acier d'armature Ø 12 mm").spec), true);
 eq("maçonnerie : aucun prix, aucune quantité, aucun rendement", MA.rows("ouvriers", "", "").every((r) => !("price" in r) && !("qty" in r) && !("yield" in r)), true);
 eq("maçonnerie : recherche « linteau » trouve le matériau préfabriqué", MA.rows("produits", "liants", "linteau").some((r) => r.name === "Linteau préfabriqué"), true);
-eq("maçonnerie : noms uniques", new Set(["produits", "ouvriers", "autres", "outils"].flatMap((t) => (t === "produits" ? MA.domaines.flatMap((d) => MA.rows(t, d[0], "")) : MA.rows(t, "", ""))).map((r) => r.name.toLowerCase())).size, 161);
+eq("maçonnerie : noms uniques", new Set(["produits", "ouvriers", "autres", "outils"].flatMap((t) => (t === "produits" ? MA.domaines.flatMap((d) => MA.rows(t, d[0], "")) : MA.rows(t, "", ""))).map((r) => r.name.toLowerCase())).size, 170);
 eq("maçonnerie : notes de vigilance sur le ciment", /ne compense pas un mauvais dosage/.test(MA.note("M1")), true);
 eq("maçonnerie : aides = 7 rubriques, 17 erreurs, 14 lots, 6 documents", [MA.guide.sections.length, MA.guide.erreurs.length, MA.guide.travaux.length, MA.guide.plans.length], [7, 17, 14, 6]);
 eq("maçonnerie : titres de l'onglet renommés", [MA.labels.ouvriers[0], MA.calc], ["Ouvrages et main-d'œuvre", true]);
@@ -116,13 +116,77 @@ for (const form of ["express", "detaille", "chantier"]) {
 }
 // Recherche : ce que tape un artisan (mots dans le désordre, sans tiret, mot du chantier) — 3 cas qui trouvent, 3 qui ne doivent rien trouver
 { const { refOf } = await import("./metiers/ref.js"); const pl = refOf("plomberie"), el = refOf("electricite"), ma = refOf("maconnerie");
-  eq("recherche « PPR » trouve le tube PP-R", pl.rows("produits", null, "PPR")[0]?.name, "Tube polypropylène PP-R");
+  eq("recherche « PPR » trouve le tube PPR", pl.rows("produits", null, "PPR")[0]?.name, "Tube PPR (polypropylène, PP-R)");
   eq("recherche « agglo » trouve le bloc creux (parpaing)", ma.rows("produits", null, "agglo").some((r) => r.name === "Bloc creux (parpaing)"), true);
   eq("recherche « pvc coude » (désordre) trouve un coude PVC", pl.rows("produits", null, "pvc coude").every((r) => /Coude PVC/.test(r.name)) && pl.rows("produits", null, "pvc coude").length > 0, true);
   eq("recherche « PPR 25 » : le diamètre ignoré, le tube PP-R proposé", pl.rows("produits", null, "PPR 25").some((r) => /PP-R/.test(r.name)), true);
   eq("recherche « zzproduit » : aucun résultat (rien d'inventé)", el.rows("produits", null, "zzproduit").length, 0);
   eq("recherche « disjoncteur parpaing » : aucun résultat (les deux mots exigés)", el.rows("produits", null, "disjoncteur parpaing").length, 0);
   eq("recherche « de la » (mots vides) : aucun résultat", el.rows("produits", null, "de la").length, 0);
+}
+
+// Désignations en clair (v41) : le sigle reste, l'ancien nom retrouve la fiche, rien n'est inventé
+{ const { refOf } = await import("./metiers/ref.js"); const pl = refOf("plomberie"), el = refOf("electricite");
+  eq("ancien nom « Tube polypropylène PP-R » retrouve la fiche (devis déjà enregistrés)", pl.find("Tube polypropylène PP-R")?.name, "Tube PPR (polypropylène, PP-R)");
+  eq("« PER » propose le tube PER (PE-X) en premier", /Tube PER/.test(pl.rows("produits", null, "PER")[0]?.name), true);
+  eq("« TGBT » toujours trouvé par son sigle", el.rows("produits", null, "TGBT").some((r) => /Tableau général basse tension/.test(r.name)), true);
+  eq("la précision et la norme d'une fiche renommée sont inchangées", JSON.stringify([pl.find("Tube PE-X").spec, pl.find("Tube PE-X").norm, pl.find("Tube PE-X").unit]) === JSON.stringify([pl.find("Tube PER (polyéthylène réticulé, PE-X)").spec, pl.find("Tube PER (polyéthylène réticulé, PE-X)").norm, pl.find("Tube PER (polyéthylène réticulé, PE-X)").unit]), true);
+  eq("« PVC » et « WC » restent tels quels (connus de tous)", [pl.find("Tube PVC insonorisé")?.name, pl.find("WC suspendu")?.name], ["Tube PVC insonorisé", "WC suspendu"]);
+  eq("nom inconnu : aucune fiche (rien d'inventé)", pl.find("Tube PER inventé"), null);
+}
+
+// Compléments v41 : nom + unités de vente seulement, chaque ajout sourcé ; unités proposées pour chaque fiche de maçonnerie
+{ const { refOf } = await import("./metiers/ref.js"); const C = await import("./metiers/complements.js"); const ma = refOf("maconnerie"), el = refOf("electricite");
+  // Sources (vérification du 18/11) : toute source citée existe et a un lien ; « vérifié » exige une source camerounaise ouverte avec succès
+  const tous = Object.values(C.AJOUTS).flat();
+  eq("toute source citée existe dans le registre", tous.every((a) => a.src.every((k) => C.SOURCES[k])), true);
+  eq("chaque source a un lien http(s), un pays et ce qu'elle démontre", Object.values(C.SOURCES).every((x) => /^https?:\/\//.test(x.lien) && x.pays && x.montre), true);
+  eq("chaque complément a un statut (« vérifié » ou « à confirmer ») et une note", tous.every((a) => ["vérifié", "à confirmer"].includes(a.statut) && String(a.note || "").length > 5), true);
+  eq("« vérifié » = au moins une source camerounaise lue avec succès", tous.filter((a) => a.statut === "vérifié").every((a) => a.src.some((k) => /^Cameroun/.test(C.SOURCES[k].pays) && C.SOURCES[k].lien_ok)), true);
+  eq("sans source retrouvée : forcément « à confirmer »", tous.filter((a) => !a.src.length).every((a) => a.statut === "à confirmer"), true);
+  eq("source française seulement : forcément « à confirmer »", tous.filter((a) => a.src.length && a.src.every((k) => C.SOURCES[k].pays === "France")).every((a) => a.statut === "à confirmer"), true);
+  eq("aucun complément n'a de prix, de norme ni de dimension", tous.every((a) => Object.keys(a).every((k) => ["dom", "fam", "nom", "unites", "src", "liste", "statut", "note"].includes(k))), true);
+  eq("ciment blanc : sac (Cimencam, 25 kg) — vérifié", [C.unitesListe("carrelage", "Ciment blanc"), tous.find((a) => a.nom === "Ciment blanc").statut], [["sac"], "vérifié"]);
+  eq("silicone sanitaire : la source d'origine ne le montrait pas → à confirmer", tous.find((a) => a.nom === "Silicone sanitaire").statut, "à confirmer");
+  eq("« hourdis » trouve le hourdis, vendu à la pièce", ma.rows("produits", null, "hourdis")[0]?.name + " / " + ma.rows("produits", null, "hourdis")[0]?.unites.join(","), "Hourdis (entrevous) / pièce");
+  eq("« ampoule » trouve l'ampoule en premier", el.rows("produits", null, "ampoule")[0]?.name, "Ampoule (lampe à culot)");
+  eq("toutes les fiches produits de maçonnerie ont au moins une unité proposée", ma.domaines.flatMap((d) => ma.rows("produits", d[0], "")).every((r) => r.unites.length > 0), true);
+  eq("sable : m³, camion ou tonne (pas « pièce »)", ma.find("Sable fin").unites, ["m³", "camion", "tonne"]);
+  eq("bloc creux : à la pièce seulement", ma.find("Bloc creux (parpaing)").unites, ["pièce"]);
+  eq("carreaux : m² ou carton", C.unitesListe("carrelage", "Carreaux"), ["m²", "carton"]);
+  eq("produit inconnu : aucune unité devinée", C.unitesListe("carrelage", "Truc inconnu"), null);
+  // Nom tapé à la main (sans passer par la recherche) : unités de la fiche si elle est sans ambiguïté
+  const pl = refOf("plomberie");
+  eq("tapé « Hourdis » → pièce", ma.unitesPour("Hourdis"), ["pièce"]);
+  eq("tapé « ciment » (minuscules) → sac ou tonne", ma.unitesPour("ciment"), ["sac", "tonne"]);
+  eq("tapé « Tube PER » : deux fiches, mêmes unités → mètre", pl.unitesPour("Tube PER"), ["mètre"]);
+  eq("tapé « Tube » : fiches aux unités différentes → rien", pl.unitesPour("Tube"), []);
+  eq("tapé « Hour » (mot incomplet) → rien", ma.unitesPour("Hour"), []);
+  eq("tapé « xyz » → rien", ma.unitesPour("xyz"), []);
+  eq("« Tube PER » ambigu : pas de fiche unique choisie", pl.proche("Tube PER"), null);
+  // Accessoires d'électricité sans unité dans le document : mode de vente proposé
+  eq("accessoire « Cosses » → pièce ou lot", el.find("Cosses").unites, ["pièce", "lot"]);
+  eq("accessoire « Gaines » → mètre ou rouleau", el.find("Gaines").unites, ["mètre", "rouleau"]);
+  eq("accessoire « Rubans isolants » → rouleau", el.find("Rubans isolants").unites, ["rouleau"]);
+  eq("toutes les fiches produits d'électricité ont au moins une unité proposée", el.domaines.flatMap((d) => el.rows("produits", d[0], "")).every((r) => r.unites.length > 0), true);
+  eq("une fiche qui a son unité dans le document la garde (pas de « lot » ajouté)", el.domaines.flatMap((d) => el.rows("produits", d[0], "")).filter((r) => r.unit && !String(r.fam).startsWith("A:")).every((r) => !r.unites.includes("lot") || /lot/i.test(r.unit)), true);
+  eq("« Pièce » n'est pas proposé au mètre", C.unitesAccessoire("Câbles"), ["mètre", "rouleau"]);
+}
+// Recherche : trait d'union, ordre des résultats ; matériel d'usine séparé du logement (v41)
+{ const R = await import("./metiers/ref.js"); const L = [{ name: "Sous-couche", spec: "", famLabel: "" }, { name: "Couche de fond", spec: "", famLabel: "" }, { name: "Diluant", spec: "", famLabel: "" }];
+  for (const q of ["sous couche", "sous-couche", "souscouche"]) eq(`« ${q} » trouve « Sous-couche »`, R.chercher(L, q)[0]?.name, "Sous-couche");
+  eq("« diluer » ne trouve pas « Diluant » (début de mot exigé : dilu-er ≠ dilu-ant)", R.chercher(L, "diluer").length, 0);
+  eq("« couche » : les deux, sans ordre imposé", R.chercher(L, "couche").length, 2);
+  const el = R.refOf("electricite"), pl = R.refOf("plomberie");
+  eq("électricité : le logement ne montre pas « Industrie » ni « ATEX »", el.domainesLogement.some((d) => /Industrie|ATEX/.test(d[1])), false);
+  eq("électricité : recherche « disjoncteur » côté logement sans disjoncteur de puissance d'usine", el.rows("produits", "", "disjoncteur", { indus: false }).some((r) => el.estIndustriel(r)), false);
+  eq("électricité : les disjoncteurs d'usine restent trouvables sur demande", el.industrielsTrouves("disjoncteur") > 0 && el.rows("produits", "", "disjoncteur").some((r) => el.estIndustriel(r)), true);
+  eq("électricité : accessoires HTA/ATEX cachés au logement", el.rows("produits", "acc", "", { indus: false }).some((r) => /^A:(HTA|ATEX)/.test(r.fam)), false);
+  eq("plomberie : « Cimenteries » et « Industrie » hors du logement", pl.domainesLogement.some((d) => /Cimenteries|Industrie/.test(d[1])), false);
+  for (const [q, att] of [["prise", "Prise de courant domestique"], ["câble", /^Câble /], ["disjoncteur", "Disjoncteur modulaire"], ["mélangeur", /^Robinet mélangeur/], ["stabilisateur", "Régulateur de tension (stabilisateur)"], ["wago", "Borne de connexion (domino)"]]) {
+    const met = /mélangeur/.test(q) ? pl : el, n = met.rows("produits", "", q, { indus: false })[0]?.name || "";
+    eq(`logement : « ${q} » → ${att} en premier`, typeof att === "string" ? n === att : att.test(n), true); }
+  eq("maçonnerie : rien de caché (pas de matériel d'usine)", R.refOf("maconnerie").domainesLogement.length, R.refOf("maconnerie").domaines.length);
 }
 
 console.log(`\n${pass} réussis, ${fail} échoués`); process.exit(fail ? 1 : 0);
