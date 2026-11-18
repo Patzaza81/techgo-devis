@@ -108,3 +108,8 @@ Décisions prises par Patrick le 18/11 (questions posées avant de coder) :
 - **PDF/Word** : un poste de 4 lignes ou plus a son tableau ; Word : lignes insécables et en-tête répété.
 - **Unités** : la fiche dit si l'unité est celle d'achat, de facturation du travail ou issue du métré ; pas de conversion carton ↔ m² devinée pour une ligne saisie à la main.
 - **Étape 1** : l'outil « surface des murs moins portes » est retiré pour le technicien (le métré le fait) ; gardé pour les anciens devis qui l'utilisent.
+
+## v41c — vérification avant intégration (18/11/2026)
+
+- **Statut « Envoyé »** : « Terminer le devis et créer le PDF » ne met plus le devis à « Envoyé ». Nouveau statut **« Terminé, pas encore envoyé »** (version figée, non modifiable sans préparer une nouvelle version). Il devient « Envoyé » seulement : (a) quand le téléphone confirme le partage du fichier PDF ou Word **de cette version** (menu Partager terminé) ; ou (b) quand l'artisan touche « J'ai envoyé la version N au client ». Un téléchargement, un partage annulé ou le partage d'un brouillon ne changent rien. La preuve est écrite dans l'historique du devis. Un devis « Terminé » n'expire pas et ne peut pas être accepté avant d'être envoyé. Les devis déjà « Envoyé » avant la mise à jour gardent leur statut.
+- **Sources du catalogue** : registre avec lien, pays et ce que chaque source démontre réellement. Statut par produit : « vérifié » (source camerounaise lue, produit et façon de le vendre démontrés) ou « à confirmer » (affiché à l'artisan dans la fiche). 11 vérifiés, 24 à confirmer. 4 références introuvables retirées ; unités corrigées d'après les sources (pointes au paquet ou au carton, film polyane au rouleau, peinture antirouille au kg).

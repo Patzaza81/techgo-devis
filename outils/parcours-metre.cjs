@@ -136,8 +136,11 @@ const CHANTIERS = {
         // sans plafond : 35,87 × 2 × 1,05 ÷ 40 = 1,88 → 2 pots ; 35,87 ÷ 25 × 2 = 2,87 → 3 journées : 2 × 25 000 + 3 × 8 000 = 74 000
         ok(T + "négociation : plafond retiré → 74 000 (2 pots + 3 journées)", (await total(p)) === "74000", await total(p));
         await p.goto(base + "/2"); await pause(p, 400);
-        await p.locator('[data-act="send"]').first().click(); await pause(p, 500);
+        await p.locator('[data-act="send"]').first().click(); await p.waitForSelector('[data-act="saveFile"]', { timeout: 60000 }).catch(() => null); await pause(p, 300);
         await p.goto(base + "/3"); await pause(p, 400);
+        ok(T + "V2 terminée : statut « Terminé, pas encore envoyé », pas de décision client possible", (await txt(p, "#app")).includes("Terminé, pas encore envoyé") && (await p.locator('[data-p="accept.by"]').count()) === 0);
+        await p.locator('[data-act="confirmEnvoi"]').first().click(); await pause(p, 400);
+        ok(T + "après « J'ai envoyé la version 2 au client » : statut Envoyé", (await txt(p, ".progtop .ref")).includes("Envoyé") || (await txt(p, "#app")).includes("Envoyé"));
         const suivi = await txt(p, "#app");
         ok(T + "historique : V1 (107 000) et V2 (74 000), intégrité vérifiée", suivi.includes("V1") && suivi.includes("V2") && suivi.includes("107 000") && suivi.includes("74 000") && !suivi.includes("NON VÉRIFIÉE"), suivi.slice(0, 200));
         { const l = p.locator('[data-p="accept.by"]'); await l.fill("Mme Ebongue"); await l.dispatchEvent("change"); await pause(p, 250); }

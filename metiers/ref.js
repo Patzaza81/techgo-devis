@@ -69,7 +69,7 @@ export function printableNorm(n) {
 // tirets, points et barres ignorés (« PPR » trouve « PP-R ») ; quelques mots du chantier renvoient au terme du référentiel.
 // Ces équivalences ne créent aucun produit : elles orientent seulement vers les fiches qui existent déjà.
 const VIDES = new Set(["de", "du", "des", "la", "le", "les", "l", "d", "a", "au", "aux", "en", "et", "pour", "un", "une"]);
-const EQUIV = { agglo: ["parpaing", "bloc"], agglos: ["parpaing", "bloc"], agglomere: ["parpaing", "bloc"], ampoule: ["ampoule", "lampe", "led"], spot: ["spot", "downlight"], teflon: ["ptfe"], fer: ["fer", "acier", "armature"], tuyau: ["tuyau", "tube"], tuyaux: ["tuyau", "tube"], solaire: ["solaire", "photovolta"], panneau: ["panneau", "module"], fil: ["fil", "conducteur"], glycero: ["glycero", "huile"], facade: ["facade", "exterieure"], white: ["white", "diluant"], wago: ["wago", "borne"], polytank: ["polytank", "cuve", "citerne", "reservoir"], recuit: ["recuit", "attache"], faience: ["faience", "carreaux"], cale: ["cale", "croisillons"], stabilisateur: ["stabilisateur", "regulateur"], spirit: ["spirit", "diluant"], surpresseur: ["surpresseur", "surpression"] };
+const EQUIV = { agglo: ["parpaing", "bloc"], agglos: ["parpaing", "bloc"], agglomere: ["parpaing", "bloc"], ampoule: ["ampoule", "lampe", "led"], spot: ["spot", "downlight"], teflon: ["ptfe"], fer: ["fer", "acier", "armature"], tuyau: ["tuyau", "tube"], tuyaux: ["tuyau", "tube"], solaire: ["solaire", "photovolta"], panneau: ["panneau", "module"], fil: ["fil", "conducteur"], glycero: ["glycero", "huile"], facade: ["facade", "exterieure"], white: ["white", "diluant"], wago: ["wago", "borne"], polytank: ["polytank", "cuve", "citerne", "reservoir"], recuit: ["recuit", "attache"], faience: ["faience", "carreaux"], cale: ["cale", "croisillons"], stabilisateur: ["stabilisateur", "regulateur"], plastique: ["plastique", "polyane", "film"], spirit: ["spirit", "diluant"], surpresseur: ["surpresseur", "surpression"] };
 const plat = (s) => nz(s).replace(/[-_./'’]/g, "");
 export function chercher(liste, query) {
   const mots = nz(query).replace(/[-_./'’]/g, "").split(/\s+/).filter((m) => m && !VIDES.has(m));
@@ -104,7 +104,7 @@ export function refOf(met) {
     all.push({ fam: "A:" + fam, famLabel: fam, name, spec: "", unit: "", norm: "", tab: "produits", acc: true });
   }
   // Compléments v41 (nom + unités de vente, sources dans complements.js) rangés dans un sous-ensemble existant.
-  for (const a of AJOUTS[met] || []) if (a.dom) all.push({ fam: "C:" + a.fam, famLabel: a.fam, name: a.nom, spec: "", unit: a.unites.join(" ou "), norm: "", tab: "produits", dom: a.dom, ajout: true });
+  for (const a of AJOUTS[met] || []) if (a.dom) all.push({ fam: "C:" + a.fam, famLabel: a.fam, name: a.nom, spec: "", unit: a.unites.join(" ou "), norm: "", tab: "produits", dom: a.dom, ajout: true, statut: a.statut, note: a.note });
   // Unités proposées quand le document n'en donne pas : par famille, ou par nom quand la famille mélange les ventes.
   for (const r of all) r.unites = r.unit ? unitsOf(r.unit) : UNITES_NOM[r.name] || (UNITES_FAMILLE[met] || {})[r.fam] || (String(r.fam).startsWith("A:") ? unitesAccessoire(r.name) : []);
   // Désignation en clair (le sigle reste entre parenthèses) ; l'ancien nom retrouve toujours la fiche (devis déjà enregistrés).

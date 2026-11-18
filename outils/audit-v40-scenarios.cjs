@@ -300,7 +300,9 @@ module.exports = ({ scenario, nonTeste, METIERS, montant, contient, nombre, norm
     ok(/Télécharger le fichier|Envoyer le PDF/.test(lib), "Le bouton suivant dit ce qu'il fait (sur ce navigateur : partage impossible → « Télécharger »)", lib);
     if (await sf.count()) { const [d0] = await Promise.all([p.waitForEvent("download", { timeout: 20000 }).catch(() => null), sf.tap()]);
       ok(d0 && /-V1\.pdf$/.test(d0.suggestedFilename()), "Le fichier remis est le PDF de la version 1", d0 && d0.suggestedFilename()); }
-    ok(/Envoyé/.test(await A.lire()), "Statut du devis : Envoyé");
+    ok(/Terminé, pas encore envoyé/.test(await A.lire()) && !/· Envoyé/.test(await A.lire()), "Fichier seulement téléchargé : le devis reste « Terminé, pas encore envoyé »");
+    await A.toucher(A.bouton(/J'ai envoyé la version 1 au client/), "J'ai envoyé la version 1 au client");
+    ok(/· Envoyé/.test(await A.lire()), "Après la confirmation de l'artisan : statut « Envoyé »", (await A.lire()).match(/DEV-[^·]*· [^\n]*/)?.[0]);
     const pdf1 = await A.exporter("pdf"); ok(pdf1.ok && contient(pdf1.texte, 78000), "PDF de V1 : 78 000");
     // modification après envoi : passer par le suivi du devis
     const suivi = p.locator("a.btn").filter({ hasText: /Suivi du devis/ }).first(); await A.toucher(suivi, "Suivi du devis");

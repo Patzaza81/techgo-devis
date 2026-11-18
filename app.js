@@ -139,7 +139,7 @@ function viewQuote() {
     : `<div class="prog noprint"><div class="segs">${STEPS.map((t, i) => `<a class="${ui.step === i ? "on" : i < ui.step ? "done" : ""}" href="#/devis/${q.id}/${i}" aria-label="${esc(t)}"><i></i></a>`).join("")}</div>
        <div class="progtop"><span>Étape ${n} sur ${STEPS.length}</span><span class="ref">${esc(q.ref)} · ${esc(S.STATUS[st])}</span></div></div>`;
   const head = "";
-  const frozen = dis ? `<div class="banner info">Ce devis est « ${S.STATUS[q.status]} » : les versions envoyées sont figées. ${["envoye", "refuse", "expire"].includes(q.status) ? "Prépare une nouvelle version pour modifier." : ""}</div>` : "";
+  const frozen = dis ? `<div class="banner info">Ce devis est « ${S.STATUS[q.status]} » : les versions terminées ne changent plus. ${["termine", "envoye", "refuse", "expire"].includes(q.status) ? "Prépare une nouvelle version pour modifier." : ""}</div>` : "";
   const steps = simple ? [stepClientS, stepTravauxS, stepEnvoiS, stepVersions] : [stepClient, stepPrest, stepBesoins, stepPrix, stepVerifier, stepVersions];
   const bar = onSuivi ? "" : `<div class="actbar noprint"><div class="acts">${ui.step > 0 ? `<button class="sec sq" data-act="prev" aria-label="Précédent">${ic("back", 24)}</button>` : ""}${ui.step < LAST ? `<button class="go" data-act="next"><span>Continuer</span><span class="amt">${miss ? `${miss} prix manquant${miss > 1 ? "s" : ""}` : fmt(ev.result.totals.base)}</span></button>` : `<button class="go" data-act="toApercu"><span>Aperçu, PDF et envoi</span>${ic("next", 22)}</button>`}</div></div>`;
   return `<a class="back" href="#/devis">${ic("back", 18)} Tous les devis</a>${head}${prog}${frozen}${steps[ui.step](q, ev, dis)}${bar}`;
@@ -330,6 +330,9 @@ function sheetForm(t, prod, rf, met) {
   const autres = [...new Set([...base, t.unit].filter(Boolean))].filter((u) => !relL.has(low(u)) && !(rel.length && [...relL].some((x) => x === low(u))));
   const optU = (u) => `<option value="${esc(u)}" ${low(t.unit || "") === low(u) ? "selected" : ""}>${esc(u)}</option>`;
   const selUnite = `<select data-r="tmp" data-p="row.unit"><option value="" ${t.unit ? "" : "selected"}>${rel.length && rel.length <= 5 ? "Autre…" : "Choisir"}</option>${rel.length ? `<optgroup label="Pour ce produit">${rel.map(optU).join("")}</optgroup>${autres.length ? `<optgroup label="Autres unités">${autres.map(optU).join("")}</optgroup>` : ""}` : autres.map(optU).join("")}</select>`;
+  // Produit ajouté par TechGo (compléments) : son statut est toujours affiché, jamais présenté comme sûr s'il ne l'est pas.
+  const ajout = ref && ref.ajout ? ref : (AJOUTS[met] || []).find((x) => x.liste === t.tab && nz(x.nom) === nz(t.label));
+  const ajoutHint = ajout && ajout.statut ? `<p class="hint" style="margin:2px 0 8px">${ajout.statut === "vérifié" ? `Produit ajouté par TechGo, vérifié au Cameroun (${esc(ajout.note || "")}).` : "<b>Produit ajouté par TechGo — à confirmer</b> : vérifie le nom et l'unité chez ton fournisseur."}</p>` : "";
   const specHint = ref && ref.spec ? `<p class="hint" style="margin:2px 0 8px">${t.tab === "autres" ? "Contenu" : rf.specLabel} : ${esc(ref.spec)}</p>` : "";
   const normHint = ref && ref.norm ? `<p class="hint" style="margin:2px 0 8px">Norme de référence : ${esc(ref.norm)}</p>` : "";
   // Ordre de la fiche : le nom, puis ce qui fait le montant (quantité, unité, prix), puis le facultatif replié.
@@ -340,6 +343,7 @@ function sheetForm(t, prod, rf, met) {
   const nbFac = [t.brand, t.cond, t.role].filter((x) => String(x || "").trim()).length;
   return `<div class="sheet">
     ${L(prod ? "Nom du produit" : "Désignation")}${I("tmp", "row.label", t.label)}
+    ${ajoutHint}
     ${dejaLa ? `<div class="banner warn" id="doublon"><b>« ${esc(t.label)} » est déjà dans le devis.</b> Si c'est le même produit, ferme cette fiche et change plutôt la quantité de la ligne existante. Sinon, précise le nom (ex. : la pièce).</div>` : ""}
     ${explMetre(t)}
     ${L("Unité")}<div class="unitesl">${puces}${selUnite}</div>
@@ -665,12 +669,12 @@ function stepApercu(q, ev, dis) {
   if (ui.view === "interne") return top + internal(snap, q);
   const wa = `https://wa.me/?text=${encodeURIComponent(summaryText(snap, q.ref))}`;
   const blocked = ev.checks.status === "bloque";
-  return `${top}<div class="noprint">${draft ? `<div class="banner info">Brouillon : tu peux encore tout changer. Il devient le devis officiel quand tu l'envoies.</div>` : `<div class="banner info">Version ${snap.n} terminée — elle ne change plus. Code de contrôle : ${snap.hash}</div>`}
+  return `${top}<div class="noprint">${draft ? `<div class="banner info">Brouillon : tu peux encore tout changer. Il devient le devis officiel quand tu l'envoies.</div>` : `<div class="banner info">Version ${snap.n} terminée — elle ne change plus. Code de contrôle : ${snap.hash}</div>${q.status === "termine" && S.lastVersion(q) && S.lastVersion(q).n === snap.n ? `<div class="banner warn" id="pasenvoye"><b>Pas encore envoyée au client.</b> Envoie le PDF ci-dessous : le devis passe à « Envoyé » quand ton téléphone confirme le partage. Si tu l'as envoyé autrement (imprimé, autre téléphone, e-mail), confirme-le :<div class="row" style="margin-top:8px"><button type="button" class="sec" data-act="confirmEnvoi">J'ai envoyé la version ${snap.n} au client</button></div></div>` : ""}`}
     <div class="row"><button data-act="pdf" ${(draft && blocked) || ui.busy ? "disabled" : ""}>${ui.busy === "pdf" ? "PDF en préparation…" : draft ? "PDF brouillon (pour relire)" : `Créer le PDF (version ${snap.n})`}</button><button class="sec" data-act="word" data-n="${draft ? "draft" : snap.n}" ${draft && blocked ? "disabled" : ""}>${draft ? "Word brouillon" : `Créer le Word (version ${snap.n})`}</button></div>
     ${ui.file ? `<div class="banner info"><b>${esc(ui.file.name)}</b> est prêt.<div class="row"><button class="gold" data-act="saveFile">${peutPartager(ui.file) ? (/\.pdf$/.test(ui.file.name) ? "Envoyer le PDF (WhatsApp, e-mail…)" : "Envoyer le fichier Word (WhatsApp, e-mail…)") : "Télécharger le fichier"}</button></div></div>` : ""}
     <div class="row"><button class="sec" data-act="print" ${draft && blocked ? "disabled" : ""}>Imprimer</button>
     ${draft ? `<button class="gold" data-act="send" ${canSend && !blocked && !ui.busy ? "" : "disabled"}>${ui.busy === "send" ? "PDF en préparation…" : `Terminer le devis et créer le PDF à envoyer (version ${q.versions.length + 1})`}</button>` : ""}</div>
-    ${canSend && !blocked && draft ? `<p class="hint">Après ce bouton, la version ${q.versions.length + 1} ne change plus et le devis passe à « Envoyé ». Tu l'envoies ensuite au client avec le bouton « Envoyer le PDF ». Une modification plus tard crée la version ${q.versions.length + 2}.</p>` : ""}
+    ${canSend && !blocked && draft ? `<p class="hint">Après ce bouton, la version ${q.versions.length + 1} ne change plus. Elle devient « Envoyé » quand ton téléphone confirme le partage, ou quand tu le confirmes toi-même. Une modification plus tard crée la version ${q.versions.length + 2}.</p>` : ""}
     ${canSend ? "" : draft ? `<p class="hint">Pour envoyer : marque d'abord le devis « Prêt à envoyer » (bloc Vérifier, plus haut).</p>` : ""}
     ${blocked && draft ? `<p class="hint">Corrige ce qui manque (bloc Vérifier, plus haut) pour générer le PDF.</p>` : ""}
     ${!draft ? `<div class="row"><a class="btn sec" href="${wa}" target="_blank" rel="noopener">Message WhatsApp (résumé en texte)</a><button class="sec" data-act="copy" data-t="${esc(summaryText(snap, q.ref))}">Copier le message</button></div><p class="hint">WhatsApp reçoit le message de synthèse ; joins ensuite le PDF créé ci-dessus.</p>` : ""}</div>
@@ -689,7 +693,8 @@ function stepVersions(q, ev) {
   const last = S.lastVersion(q), st = S.effectiveStatus(q), t = ui.tmp;
   const vers = q.versions.map((v) => { const vv = S.verifyVersion(v), ok = vv.ok; return `<div class="chk"><div class="dot d-${ok ? "ok" : "bloque"}">${ok ? "✓" : "✕"}</div><div style="flex:1"><b>V${v.n}</b> — ${frDate(v.at)} — ${fmt(v.result.totals.base)} HT<div class="note">Code de contrôle ${v.hash} · ${ok ? (vv.notes.length ? esc(vv.notes.join(" ")) : "contenu vérifié par recalcul") : "CONTENU NON VÉRIFIÉ"}</div></div><a class="btn sec" href="#/devis/${q.id}/${lastOf(q)}" data-act="seeVer" data-n="${v.n}">Voir</a></div>`; }).join("");
   const actions = [];
-  if (["envoye", "refuse", "expire"].includes(q.status)) actions.push(`<button data-act="startNeg">Préparer V${q.versions.length + 1}${q.status === "expire" ? " (renouveler)" : ""}</button>`);
+  if (q.status === "termine") actions.push(`<button data-act="confirmEnvoi">J'ai envoyé la version ${q.versions.length} au client</button>`);
+  if (["termine", "envoye", "refuse", "expire"].includes(q.status)) actions.push(`<button data-act="startNeg">Préparer V${q.versions.length + 1}${q.status === "expire" ? " (renouveler)" : ""}</button>`);
   if (q.status === "negociation") actions.push(`<button class="sec" data-act="discardNeg">Abandonner le brouillon de V${q.versions.length + 1}</button>`);
   actions.push(`<button class="sec" data-act="dup">Dupliquer ce devis</button>`);
   if (S.deletable(q)) actions.push(`<button class="sec" data-act="delQuote">Supprimer ce brouillon</button>`);
@@ -784,7 +789,7 @@ function viewSuivi(a) {
     const inv = db.invoices.find((x) => x.id === ui.invoice); if (!inv) return `<div class="empty">Facture introuvable.</div>`;
     return `<div class="noprint"><a class="back" href="#/suivi">‹ Suivi</a><button data-act="print">Imprimer / Enregistrer en PDF</button></div>${renderInvoice(inv, db.company, db.settings.presentation)}`;
   }
-  const pipe = ["envoye", "negociation", "accepte", "refuse", "expire"].map((k) => [k, db.quotes.filter((q) => S.effectiveStatus(q) === k)]);
+  const pipe = ["termine", "envoye", "negociation", "accepte", "refuse", "expire"].map((k) => [k, db.quotes.filter((q) => S.effectiveStatus(q) === k)]);
   const soon = db.quotes.filter((q) => ["envoye", "negociation"].includes(q.status) && S.lastVersion(q)).map((q) => [q, S.expiryDate(q)]).filter(([, e]) => e && e >= S.today() && e <= new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10));
   return `<h2>Suivi</h2><div class="card"><b>Devis en cours</b><div class="chips">${pipe.map(([k, a2]) => `<span class="st st-${k}">${S.STATUS[k]} ${a2.length}</span>`).join("")}</div>
     ${soon.length ? `<p class="hint">À relancer (validité dans moins de 7 jours) : ${soon.map(([q, e]) => `<a href="#/devis/${q.id}/${lastOf(q) + 1}">${esc(q.ref)}</a> (${frDate(e)})`).join(", ")}</p>` : ""}</div>
@@ -932,7 +937,7 @@ async function creerPdfFichier(q) {
     const snapNow = snapFor(q, S.evaluate(q)).snap;
     const { data } = await creerPdf(el, "TGDQ1:" + encPayload(S.quotePayload(q, snapNow.quote)));
     const v = snapNow.n;
-    ui.file = { name: `${q.ref}${v ? "-V" + v : "-brouillon"}.pdf`, mime: "application/pdf", data: new Uint8Array(data) };
+    ui.file = { name: `${q.ref}${v ? "-V" + v : "-brouillon"}.pdf`, mime: "application/pdf", data: new Uint8Array(data), qid: q.id, n: v || null };
     sortieFaite(q); return true;
   } catch (err) { ui.flash = { type: "err", text: "PDF impossible : " + err.message + ". Utilise « Imprimer »." }; return false; }
 }
@@ -942,13 +947,20 @@ const decPayload = (b64) => JSON.parse(decodeURIComponent(escape(atob(b64))));
 function peutPartager(f) {
   try { return !!(f && navigator.canShare && navigator.canShare({ files: [new File([""], f.name, { type: f.mime })] })); } catch { return false; }
 }
+// Le devis passe à « Envoyé » seulement si le fichier partagé est celui de la dernière version terminée
+// (jamais pour un brouillon, jamais sur un simple téléchargement).
+function envoiConfirme(f, comment) {
+  const q = f && f.qid ? S.getQuote(f.qid) : null, v = q && S.lastVersion(q);
+  if (!q || q.status !== "termine" || !v || f.n !== v.n) return;
+  S.marquerEnvoye(q, `${comment} (${f.name})`); ui.flash = { type: "ok", text: `Version ${v.n} envoyée : ${f.name} a été partagé.` };
+}
 function saveFile() {
   const f = ui.file; if (!f) return;
   const blob = new Blob([f.data], { type: f.mime });
   try {
     const file = new File([blob], f.name, { type: f.mime });
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      navigator.share({ files: [file], title: f.name }).then(() => { ui.flash = { type: "ok", text: f.name + " : envoyé vers l'application choisie." }; rerender(); })
+      navigator.share({ files: [file], title: f.name }).then(() => { ui.flash = { type: "ok", text: f.name + " : partagé." }; envoiConfirme(f, "partage confirmé par le téléphone"); rerender(); })
         .catch((err) => { if (err && err.name === "AbortError") return; download(f.name, f.mime, f.data); ui.flash = { type: "ok", text: f.name + " téléchargé." }; rerender(); });
       return "skip";
     }
@@ -1205,13 +1217,14 @@ const actions = {
   mark(b) { const q = S.getQuote(ui.qid); S.setStatus(q, b.dataset.to); ui.flash = { type: "ok", text: "Statut : " + S.STATUS[q.status] }; },
   view(b) { ui.view = b.dataset.v; },
   print() { const q = S.getQuote(ui.qid); sortieAutorisee(q); window.print(); sortieFaite(q); },
+  confirmEnvoi() { const q = S.getQuote(ui.qid), v = S.lastVersion(q); S.marquerEnvoye(q, "confirmé par l'artisan"); ui.flash = { type: "ok", text: `Version ${v.n} marquée « Envoyé ».` }; },
   async send() {
     const q = S.getQuote(ui.qid);
     try { sortieAutorisee(q); if (modeOf(q) === "technicien" && ["brouillon", "a_verifier"].includes(q.status)) S.setStatus(q, "pret"); }
     catch (err) { ui.flash = { type: "err", text: err.message }; rerender(); return "skip"; }
     const v = S.freezeVersion(q); sortieFaite(q); ui.ver = String(v.n); ui.view = "client"; ui.busy = "send"; rerender();
     const ok = await creerPdfFichier(q);
-    ui.flash = ok ? { type: "ok", text: `Version ${v.n} terminée : elle ne change plus. Touche « ${peutPartager(ui.file) ? "Envoyer le PDF" : "Télécharger le fichier"} » pour la transmettre au client.` }
+    ui.flash = ok ? { type: "ok", text: `Version ${v.n} terminée : elle ne change plus. Elle n'est pas encore envoyée : touche « ${peutPartager(ui.file) ? "Envoyer le PDF" : "Télécharger le fichier"} ».` }
       : { type: "err", text: `Version ${v.n} terminée, mais le PDF n'a pas pu être créé. Touche « Créer le PDF » ou « Imprimer ».` };
     ui.busy = ""; rerender(); return "skip";
   },
@@ -1243,7 +1256,7 @@ const actions = {
     const q = S.getQuote(ui.qid); sortieAutorisee(q);
     const { snap } = snapFor(q, S.evaluate(q)); const v = b.dataset.n === "draft" ? snap : q.versions.find((x) => String(x.n) === b.dataset.n); if (!v) throw new Error("Version introuvable.");
     const { bytes } = buildDocx(v, q.ref); sortieFaite(q); const name = `${q.ref}${v.n ? "-V" + v.n : "-brouillon"}.docx`;
-    ui.file = { name, mime: DOCX_MIME, data: bytes }; return saveFile();
+    ui.file = { name, mime: DOCX_MIME, data: bytes, qid: q.id, n: v.n || null }; return saveFile();
   },
   async pdf() {
     const q = S.getQuote(ui.qid);

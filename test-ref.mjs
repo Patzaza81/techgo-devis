@@ -137,8 +137,17 @@ for (const form of ["express", "detaille", "chantier"]) {
 
 // Compléments v41 : nom + unités de vente seulement, chaque ajout sourcé ; unités proposées pour chaque fiche de maçonnerie
 { const { refOf } = await import("./metiers/ref.js"); const C = await import("./metiers/complements.js"); const ma = refOf("maconnerie"), el = refOf("electricite");
-  eq("chaque complément cite au moins une source connue", Object.values(C.AJOUTS).flat().every((a) => a.src.length && a.src.every((k) => C.SOURCES[k])), true);
-  eq("aucun complément n'a de prix, de norme ni de dimension", Object.values(C.AJOUTS).flat().every((a) => Object.keys(a).every((k) => ["dom", "fam", "nom", "unites", "src", "liste"].includes(k))), true);
+  // Sources (vérification du 18/11) : toute source citée existe et a un lien ; « vérifié » exige une source camerounaise ouverte avec succès
+  const tous = Object.values(C.AJOUTS).flat();
+  eq("toute source citée existe dans le registre", tous.every((a) => a.src.every((k) => C.SOURCES[k])), true);
+  eq("chaque source a un lien http(s), un pays et ce qu'elle démontre", Object.values(C.SOURCES).every((x) => /^https?:\/\//.test(x.lien) && x.pays && x.montre), true);
+  eq("chaque complément a un statut (« vérifié » ou « à confirmer ») et une note", tous.every((a) => ["vérifié", "à confirmer"].includes(a.statut) && String(a.note || "").length > 5), true);
+  eq("« vérifié » = au moins une source camerounaise lue avec succès", tous.filter((a) => a.statut === "vérifié").every((a) => a.src.some((k) => /^Cameroun/.test(C.SOURCES[k].pays) && C.SOURCES[k].lien_ok)), true);
+  eq("sans source retrouvée : forcément « à confirmer »", tous.filter((a) => !a.src.length).every((a) => a.statut === "à confirmer"), true);
+  eq("source française seulement : forcément « à confirmer »", tous.filter((a) => a.src.length && a.src.every((k) => C.SOURCES[k].pays === "France")).every((a) => a.statut === "à confirmer"), true);
+  eq("aucun complément n'a de prix, de norme ni de dimension", tous.every((a) => Object.keys(a).every((k) => ["dom", "fam", "nom", "unites", "src", "liste", "statut", "note"].includes(k))), true);
+  eq("ciment blanc : sac (Cimencam, 25 kg) — vérifié", [C.unitesListe("carrelage", "Ciment blanc"), tous.find((a) => a.nom === "Ciment blanc").statut], [["sac"], "vérifié"]);
+  eq("silicone sanitaire : la source d'origine ne le montrait pas → à confirmer", tous.find((a) => a.nom === "Silicone sanitaire").statut, "à confirmer");
   eq("« hourdis » trouve le hourdis, vendu à la pièce", ma.rows("produits", null, "hourdis")[0]?.name + " / " + ma.rows("produits", null, "hourdis")[0]?.unites.join(","), "Hourdis (entrevous) / pièce");
   eq("« ampoule » trouve l'ampoule en premier", el.rows("produits", null, "ampoule")[0]?.name, "Ampoule (lampe à culot)");
   eq("toutes les fiches produits de maçonnerie ont au moins une unité proposée", ma.domaines.flatMap((d) => ma.rows("produits", d[0], "")).every((r) => r.unites.length > 0), true);
